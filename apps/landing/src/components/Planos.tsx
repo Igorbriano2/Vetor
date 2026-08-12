@@ -5,6 +5,7 @@ interface Plano {
   id: string;
   nome: string;
   preco: string;
+  excedente: string;
   descricao: string;
   inclui: string[];
   destaque?: boolean;
@@ -14,21 +15,25 @@ const PLANOS: Plano[] = [
   {
     id: "design",
     nome: "Design",
-    preco: "R$ 497/mês",
+    preco: "R$ 297/mês",
+    excedente: "+ R$ 30 por peça extra",
     descricao: "Peças visuais para o seu negócio, sempre dentro da sua identidade.",
     inclui: [
-      "Até 12 peças de design por mês (feed + story)",
+      "Cota de 8 peças de design por mês (feed + story)",
       "Manual de marca cadastrado e aplicado automaticamente",
       "Aprovação das peças pelo painel antes de publicar",
+      "Passou da cota? Só a peça extra é cobrada, sem trocar de plano",
     ],
   },
   {
     id: "social_media",
     nome: "Social Media",
-    preco: "R$ 597/mês",
+    preco: "R$ 327/mês",
+    excedente: "+ R$ 22 por publicação extra",
     descricao: "Calendário editorial e legendas prontas, do jeito que sua marca fala.",
     inclui: [
       "Calendário editorial mensal",
+      "Cota de 12 publicações por mês",
       "Legendas no tom de voz da sua marca",
       "Agendamento nos canais conectados",
     ],
@@ -36,24 +41,40 @@ const PLANOS: Plano[] = [
   {
     id: "duplo",
     nome: "Dupla de Agentes",
-    preco: "R$ 897/mês",
+    preco: "R$ 547/mês",
+    excedente: "excedente de cada categoria, mesma taxa",
     descricao: "Design + Social Media trabalhando juntos, com atendimento via WhatsApp incluso.",
     inclui: [
-      "Tudo do plano Design + Social Media",
+      "Cota de 8 peças de design + 12 publicações",
       "Atendimento e organização de demandas 24h via WhatsApp",
       "Painel único com status de tudo",
+      "Mais barato que contratar os dois planos separados",
     ],
     destaque: true,
   },
   {
     id: "trafego",
     nome: "Tráfego",
-    preco: "R$ 797/mês + taxa sobre verba",
+    preco: "R$ 297/mês + 8% da verba",
+    excedente: "+ R$ 40 por campanha extra ativa",
     descricao: "Campanhas no Meta Ads monitoradas todos os dias, com trava automática de custo.",
     inclui: [
-      "Criação e gestão de campanhas no Meta Ads",
+      "Gestão de até 3 campanhas ativas simultâneas",
       "Pausa automática ao ultrapassar o teto de custo por resultado",
       "Relatório semanal de performance",
+    ],
+  },
+  {
+    id: "completo",
+    nome: "Completo",
+    preco: "R$ 897/mês + 8% da verba",
+    excedente: "excedente de cada categoria, mesma taxa",
+    descricao: "Todos os agentes trabalhando juntos: design, social media, tráfego, estratégia e relatórios.",
+    inclui: [
+      "Cota de 15 peças de design + 20 publicações",
+      "Gestão de até 5 campanhas de tráfego ativas",
+      "Revisão de estratégia trimestral + relatórios semanais do Agente Analítico",
+      "Atendimento 24h via WhatsApp incluso",
     ],
   },
 ];
@@ -64,10 +85,11 @@ export default function Planos() {
       <div className="mx-auto max-w-6xl px-6">
         <h2 className="text-center text-2xl font-bold text-petroleo md:text-3xl">Planos</h2>
         <p className="mx-auto mt-3 max-w-xl text-center text-petroleo/70">
-          Sem &ldquo;ilimitado&rdquo; vago. Cada plano diz exatamente o que está incluso.
-          Valores de lançamento, sujeitos a revisão após o período beta.
+          Sem &ldquo;ilimitado&rdquo; vago. Cada plano tem uma cota de uso incluída — se passar
+          dela, você paga só o excedente, sem precisar trocar de plano. Valores de lançamento,
+          sujeitos a revisão após o período beta.
         </p>
-        <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {PLANOS.map((plano) => (
             <div
               key={plano.id}
@@ -82,6 +104,9 @@ export default function Planos() {
                 className={`mt-1 text-2xl font-bold ${plano.destaque ? "text-menta" : "text-petroleo"}`}
               >
                 {plano.preco}
+              </p>
+              <p className={`text-xs ${plano.destaque ? "text-areia/50" : "text-petroleo/50"}`}>
+                {plano.excedente}
               </p>
               <p className={`mt-2 text-sm ${plano.destaque ? "text-areia/70" : "text-petroleo/70"}`}>
                 {plano.descricao}
