@@ -45,10 +45,20 @@ export interface MensagemRecebida {
   texto: string;
 }
 
-// Formato do payload de webhook da Meta Cloud API — ver
-// https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/components
-export function extrairMensagens(payload: unknown): MensagemRecebida[] {
-  const mensagens: MensagemRecebida[] = [];
+export interface MensagemAudioRecebida {
+  numero: string;
+  mediaId: string;
+}
+
+interface WhatsappMessageRaw {
+  from?: string;
+  type?: string;
+  text?: { body?: string };
+  audio?: { id?: string; mime_type?: string };
+}
+
+function extrairMensagensBrutas(payload: unknown): WhatsappMessageRaw[] {
+  const mensagens: WhatsappMessageRaw[] = [];
 
   const entries = (payload as { entry?: unknown[] })?.entry ?? [];
   for (const entry of entries) {
@@ -59,13 +69,63 @@ export function extrairMensagens(payload: unknown): MensagemRecebida[] {
         | undefined;
       const rawMessages = value?.messages ?? [];
       for (const raw of rawMessages) {
-        const msg = raw as { from?: string; text?: { body?: string }; type?: string };
-        if (msg.type === "text" && msg.from && msg.text?.body) {
-          mensagens.push({ numero: msg.from, texto: msg.text.body });
-        }
+        mensagens.push(raw as WhatsappMessageRaw);
       }
     }
   }
 
   return mensagens;
+}
+
+// Formato do payload de webhook da Meta Cloud API — ver
+// https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/components
+export function extrairMensagens(payload: unknown): MensagemRecebida[] {
+  return extrairMensagensBrutas(payload)
+    .filter((msg) => msg.type === "text" && msg.from && msg.text?.body)
+    .map((msg) => ({ numero: msg.from!, texto: msg.text!.body! }));
+}
+
+// Mensagens de voz — o áudio ainda precisa ser baixado e transcrito
+// (ver integrations/transcricao.ts) antes de entrar na mesma pipeline de texto.
+export function extrairMensagensDeAudio(payload: unknown): MensagemAudioRecebida[] {
+  return extrairMensagensBrutas(payload)
+    .filter((msg) => msg.type === "audio" && msg.from && msg.audio?.id)
+    .map((msg) => ({ numero: msg.from!, mediaId: msg.audio!.id! }));
+}
+
+export interface MidiaBaixada {
+  bytes: ArrayBuffer;
+  mimeType: string;
+}
+
+// Baixar mídia é sempre um fluxo de 2 passos na Meta Cloud API: primeiro resolve
+// a URL assinada a partir do media id, depois baixa o conteúdo com o mesmo token.
+export async function baixarMidiaWhatsapp(mediaId: string): Promise<MidiaBaixada> {
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  if (!accessToken) {
+    throw new Error("WHATSAPP_ACCESS_TOKEN é obrigatório para baixar mídia do WhatsApp");
+  }
+
+  const metaRes = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${mediaId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!metaRes.ok) {
+    throw new Error(`Falha ao resolver mídia ${mediaId} (${metaRes.status})`);
+  }
+  const meta = (await metaRes.json()) as { url?: string; mime_type?: string };
+  if (!meta.url) {
+    throw new Error(`Mídia ${mediaId} sem URL de download`);
+  }
+
+  const fileRes = await fetch(meta.url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!fileRes.ok) {
+    throw new Error(`Falha ao baixar bytes da mídia ${mediaId} (${fileRes.status})`);
+  }
+
+  return {
+    bytes: await fileRes.arrayBuffer(),
+    mimeType: meta.mime_type ?? "audio/ogg",
+  };
 }

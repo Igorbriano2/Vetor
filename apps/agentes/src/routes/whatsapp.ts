@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { extrairMensagens } from "../integrations/whatsapp.js";
-import { processarMensagemRecebida } from "../agents/secretario.js";
+import { extrairMensagens, extrairMensagensDeAudio } from "../integrations/whatsapp.js";
+import { processarMensagemRecebida, processarAudioRecebido } from "../agents/secretario.js";
 
 export const whatsappRouter = Router();
 
@@ -28,6 +28,15 @@ whatsappRouter.post("/webhook", async (req, res) => {
       await processarMensagemRecebida(numero, texto);
     } catch (err) {
       console.error(`Erro ao processar mensagem de ${numero}:`, err);
+    }
+  }
+
+  const audios = extrairMensagensDeAudio(req.body);
+  for (const { numero, mediaId } of audios) {
+    try {
+      await processarAudioRecebido(numero, mediaId);
+    } catch (err) {
+      console.error(`Erro ao processar áudio de ${numero}:`, err);
     }
   }
 });

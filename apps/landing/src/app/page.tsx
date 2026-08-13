@@ -2,6 +2,7 @@ import Hero from "@/components/Hero";
 import NichoSelector from "@/components/NichoSelector";
 import Jornada from "@/components/Jornada";
 import PorTras from "@/components/PorTras";
+import CustoAgencia from "@/components/CustoAgencia";
 import Comparativo from "@/components/Comparativo";
 import Planos from "@/components/Planos";
 import Faq from "@/components/Faq";
@@ -15,6 +16,7 @@ export default function Home() {
       <NichoSelector />
       <Jornada />
       <PorTras />
+      <CustoAgencia />
       <Comparativo />
       <Planos />
       <Faq />

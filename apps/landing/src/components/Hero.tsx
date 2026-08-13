@@ -13,9 +13,9 @@ export default function Hero() {
             nunca dorme.
           </h1>
           <p className="mt-6 max-w-xl text-lg text-areia/80">
-            Vetor é um time de agentes de IA especializados — tráfego, design, social media e
-            estratégia — atendendo pelo WhatsApp e supervisionado por gente que entende do seu
-            negócio.
+            Design, estratégia, social media, vídeo, copywriter, tráfego e atendimento — os 7
+            especialistas de uma agência de verdade, todos agentes de IA. Manda texto ou áudio no
+            WhatsApp, o Vetor entende e organiza.
           </p>
           <div className="mt-8 flex flex-col gap-4 sm:flex-row">
             <Link

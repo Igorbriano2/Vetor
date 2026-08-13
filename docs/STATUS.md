@@ -30,8 +30,16 @@ ainda precisa de decisão ou credencial de negócio antes de ir para produção.
   da assinatura e do cliente. Aponta para `api-sandbox.asaas.com` por padrão.
 - **Prompts dos 9 agentes** (documento 03) salvos em `apps/agentes/src/agents/prompts/`, prontos
   para orquestração nas Fases 2-4.
+- **Reposicionamento "agência completa"** (documento 07): landing page mostra os 7 papéis (Design,
+  Estrategista, Social Media, Editor de Vídeo, Copywriter, Gestor de Tráfego, Atendente) como
+  agentes de IA, com seção de comparação de custo (`CustoAgencia.tsx`) e o plano Completo
+  (R$ 1.997/mês) como carro-chefe. Animações de scroll reveal e microinterações.
+- **Entendimento de áudio no Agente Secretário**: o webhook do WhatsApp já reconhece mensagens de
+  voz, baixa a mídia da Meta Cloud API e transcreve via provedor de STT plugável
+  (`STT_PROVIDER`) antes de entrar na mesma pipeline de ticket estruturado. Em modo sandbox (sem
+  `STT_PROVIDER` configurado), responde pedindo pro cliente escrever em vez de travar.
 - Testes automatizados (`vitest`) para as partes com lógica pura (parsing de webhook do WhatsApp,
-  validação de plano) — todos passando.
+  extração de mensagens de áudio, validação de plano) — todos passando.
 
 ## O que é estrutura pronta, mas precisa de credencial real para funcionar de verdade
 
@@ -43,6 +51,7 @@ Nada disso foi "fingido" — o código está implementado contra as APIs reais, 
 | Anthropic (LLM dos agentes) | `ANTHROPIC_API_KEY` real | `.env` de `apps/agentes` |
 | Asaas | Conta sandbox no Asaas, `ASAAS_API_KEY`, configurar URL do webhook + `ASAAS_WEBHOOK_TOKEN` no painel Asaas | `.env` de `apps/agentes` |
 | Supabase (chave secreta) | `SUPABASE_SERVICE_ROLE_KEY` — não é exposta por ferramentas automatizadas por segurança; pegue em Project Settings → API no painel do Supabase (projeto `vetor`, ref `rhqkzhiuweiblfkfsqxm`) | `.env`/`.env.local` de `apps/agentes` e `apps/landing` |
+| Transcrição de áudio (STT) | Decidir provedor (implementado: OpenAI Whisper) e configurar `STT_PROVIDER=openai` + `OPENAI_API_KEY` | `.env` de `apps/agentes` |
 
 Sem essas chaves, o sistema roda (builda, sobe, responde health check) mas não troca dados de
 verdade com WhatsApp/Asaas/Anthropic — isso é intencional: nunca conectamos dinheiro ou número real

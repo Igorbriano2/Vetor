@@ -8,10 +8,27 @@ interface Plano {
   excedente: string;
   descricao: string;
   inclui: string[];
-  destaque?: boolean;
 }
 
-const PLANOS: Plano[] = [
+const PLANO_COMPLETO: Plano = {
+  id: "completo",
+  nome: "Completo",
+  preco: "R$ 1.997/mês",
+  excedente: "peça extra R$ 25 · publicação extra R$ 18 · vídeo extra R$ 150",
+  descricao: "Sua agência inteira: os 7 especialistas trabalhando juntos, num só lugar.",
+  inclui: [
+    "Design — 25 peças por mês (feed, story, anúncios, materiais)",
+    "Social Media — calendário editorial completo + 30 publicações/mês",
+    "Copywriter — todos os textos e legendas do plano, sem cobrança à parte",
+    "Editor de Vídeo — 6 vídeos editados por mês",
+    "Estrategista — revisão de posicionamento e funil todo mês",
+    "Gestor de Tráfego — gestão completa, verba gerida até R$ 5.000/mês sem custo extra",
+    "Atendente — 24h via WhatsApp, entende texto e áudio",
+    "Dashboard completo + painel de solicitação e aprovação",
+  ],
+};
+
+const PLANOS_ENTRADA: Plano[] = [
   {
     id: "design",
     nome: "Design",
@@ -22,7 +39,6 @@ const PLANOS: Plano[] = [
       "Cota de 8 peças de design por mês (feed + story)",
       "Manual de marca cadastrado e aplicado automaticamente",
       "Aprovação das peças pelo painel antes de publicar",
-      "Passou da cota? Só a peça extra é cobrada, sem trocar de plano",
     ],
   },
   {
@@ -35,7 +51,6 @@ const PLANOS: Plano[] = [
       "Calendário editorial mensal",
       "Cota de 12 publicações por mês",
       "Legendas no tom de voz da sua marca",
-      "Agendamento nos canais conectados",
     ],
   },
   {
@@ -47,10 +62,8 @@ const PLANOS: Plano[] = [
     inclui: [
       "Cota de 8 peças de design + 12 publicações",
       "Atendimento e organização de demandas 24h via WhatsApp",
-      "Painel único com status de tudo",
       "Mais barato que contratar os dois planos separados",
     ],
-    destaque: true,
   },
   {
     id: "trafego",
@@ -62,19 +75,6 @@ const PLANOS: Plano[] = [
       "Gestão de até 3 campanhas ativas simultâneas",
       "Pausa automática ao ultrapassar o teto de custo por resultado",
       "Relatório semanal de performance",
-    ],
-  },
-  {
-    id: "completo",
-    nome: "Completo",
-    preco: "R$ 897/mês + 8% da verba",
-    excedente: "excedente de cada categoria, mesma taxa",
-    descricao: "Todos os agentes trabalhando juntos: design, social media, tráfego, estratégia e relatórios.",
-    inclui: [
-      "Cota de 15 peças de design + 20 publicações",
-      "Gestão de até 5 campanhas de tráfego ativas",
-      "Revisão de estratégia trimestral + relatórios semanais do Agente Analítico",
-      "Atendimento 24h via WhatsApp incluso",
     ],
   },
 ];
@@ -89,32 +89,62 @@ export default function Planos() {
           dela, você paga só o excedente, sem precisar trocar de plano. Valores de lançamento,
           sujeitos a revisão após o período beta.
         </p>
-        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {PLANOS.map((plano) => (
+
+        <div className="mt-12 rounded-3xl border-2 border-menta bg-petroleo p-8 text-areia shadow-xl md:p-10">
+          <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
+            <div className="md:max-w-md">
+              <span className="inline-block rounded-full bg-menta px-3 py-1 text-xs font-bold text-petroleo">
+                RECOMENDADO — SUA AGÊNCIA INTEIRA
+              </span>
+              <h3 className="mt-4 text-2xl font-bold">{PLANO_COMPLETO.nome}</h3>
+              <p className="mt-2 text-areia/70">{PLANO_COMPLETO.descricao}</p>
+              <p className="mt-6 text-4xl font-bold text-menta">{PLANO_COMPLETO.preco}</p>
+              <p className="mt-1 text-xs text-areia/50">{PLANO_COMPLETO.excedente}</p>
+              <div className="mt-8 flex flex-col gap-2 sm:flex-row">
+                <Link
+                  href="#lead"
+                  className="rounded-full bg-menta px-6 py-3 text-center text-sm font-semibold text-petroleo transition hover:bg-menta-forte hover:text-white"
+                >
+                  Quero o Completo
+                </Link>
+                <a
+                  href={linkWhatsapp("Oi! Tenho interesse no plano Completo do Vetor.")}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-full border border-areia/30 px-6 py-3 text-center text-sm font-medium hover:border-areia/60"
+                >
+                  Falar no WhatsApp
+                </a>
+              </div>
+            </div>
+            <ul className="grid flex-1 gap-2 text-sm sm:grid-cols-2">
+              {PLANO_COMPLETO.inclui.map((item) => (
+                <li key={item} className="flex gap-2">
+                  <span className="mt-0.5 text-menta">✓</span>
+                  <span className="text-areia/85">{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <p className="mx-auto mt-12 max-w-xl text-center text-sm text-petroleo/60">
+          Ou comece só com o que precisa agora:
+        </p>
+        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {PLANOS_ENTRADA.map((plano) => (
             <div
               key={plano.id}
-              className={`flex flex-col rounded-2xl border p-6 ${
-                plano.destaque
-                  ? "border-menta bg-petroleo text-areia shadow-lg"
-                  : "border-petroleo/10 bg-white text-petroleo"
-              }`}
+              className="flex flex-col rounded-2xl border border-petroleo/10 bg-white p-6 text-petroleo"
             >
               <h3 className="text-lg font-semibold">{plano.nome}</h3>
-              <p
-                className={`mt-1 text-2xl font-bold ${plano.destaque ? "text-menta" : "text-petroleo"}`}
-              >
-                {plano.preco}
-              </p>
-              <p className={`text-xs ${plano.destaque ? "text-areia/50" : "text-petroleo/50"}`}>
-                {plano.excedente}
-              </p>
-              <p className={`mt-2 text-sm ${plano.destaque ? "text-areia/70" : "text-petroleo/70"}`}>
-                {plano.descricao}
-              </p>
+              <p className="mt-1 text-2xl font-bold text-petroleo">{plano.preco}</p>
+              <p className="text-xs text-petroleo/50">{plano.excedente}</p>
+              <p className="mt-2 text-sm text-petroleo/70">{plano.descricao}</p>
               <ul className="mt-4 flex-1 space-y-2 text-sm">
                 {plano.inclui.map((item) => (
                   <li key={item} className="flex gap-2">
-                    <span className={plano.destaque ? "text-menta" : "text-menta-forte"}>✓</span>
+                    <span className="text-menta-forte">✓</span>
                     <span>{item}</span>
                   </li>
                 ))}
@@ -122,11 +152,7 @@ export default function Planos() {
               <div className="mt-6 flex flex-col gap-2">
                 <Link
                   href="#lead"
-                  className={`rounded-full px-4 py-2 text-center text-sm font-semibold transition ${
-                    plano.destaque
-                      ? "bg-menta text-petroleo hover:bg-menta-forte hover:text-white"
-                      : "bg-petroleo text-areia hover:bg-petroleo-2"
-                  }`}
+                  className="rounded-full bg-petroleo px-4 py-2 text-center text-sm font-semibold text-areia transition hover:bg-petroleo-2"
                 >
                   Quero esse plano
                 </Link>

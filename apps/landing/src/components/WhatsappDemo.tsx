@@ -5,15 +5,16 @@ import { useEffect, useState } from "react";
 interface Mensagem {
   autor: "cliente" | "vetor";
   texto: string;
+  audio?: boolean;
 }
 
 const CONVERSA: Mensagem[] = [
-  { autor: "cliente", texto: "Boa noite! Preciso de 5 posts pro feed dessa semana 🙏" },
-  { autor: "vetor", texto: "Boa noite! Já anotei aqui. É sobre o cardápio novo ou outro tema?" },
+  { autor: "cliente", texto: "🎤 0:14 — \"preciso de 5 posts pro feed dessa semana\"", audio: true },
+  { autor: "vetor", texto: "Entendi pelo áudio! É sobre o cardápio novo ou outro tema?" },
   { autor: "cliente", texto: "Isso, o rodízio de sexta" },
   {
     autor: "vetor",
-    texto: "Perfeito, já passei pro time de Design e Social Media. Peças prontas até terça 👍",
+    texto: "Perfeito, já passei pro Design e pro Social Media. Peças prontas até terça 👍",
   },
 ];
 
@@ -45,7 +46,7 @@ export default function WhatsappDemo() {
               msg.autor === "cliente"
                 ? "self-end bg-menta/90 text-petroleo"
                 : "self-start bg-white text-petroleo"
-            }`}
+            } ${msg.audio ? "italic" : ""}`}
           >
             {msg.texto}
           </div>

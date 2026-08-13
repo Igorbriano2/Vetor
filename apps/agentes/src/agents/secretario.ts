@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "../db/supabase.js";
 import { getSystemPrompt } from "./prompts/index.js";
-import { sendWhatsappMessage } from "../integrations/whatsapp.js";
+import { sendWhatsappMessage, baixarMidiaWhatsapp } from "../integrations/whatsapp.js";
+import { transcreverAudio, TranscricaoIndisponivelError } from "../integrations/transcricao.js";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -156,4 +157,24 @@ export async function processarMensagemRecebida(numero: string, texto: string): 
 
   await sendWhatsappMessage(numero, respostaTexto);
   await salvarMensagem(numero, "saida", respostaTexto, cliente?.id ?? null);
+}
+
+// Áudio recebido: baixa da Meta Cloud API, transcreve e reaproveita a mesma
+// pipeline de processarMensagemRecebida — o restante do fluxo (histórico, tools,
+// registro de ticket) não muda, só a origem do texto (docs/07, seção 4).
+export async function processarAudioRecebido(numero: string, mediaId: string): Promise<void> {
+  try {
+    const midia = await baixarMidiaWhatsapp(mediaId);
+    const transcricao = await transcreverAudio(midia.bytes, midia.mimeType);
+    await processarMensagemRecebida(numero, transcricao);
+  } catch (err) {
+    if (err instanceof TranscricaoIndisponivelError) {
+      await sendWhatsappMessage(
+        numero,
+        "Recebi seu áudio, mas ainda não consigo ouvir por aqui — pode escrever a mesma coisa em texto? 🙏",
+      );
+      return;
+    }
+    throw err;
+  }
 }
