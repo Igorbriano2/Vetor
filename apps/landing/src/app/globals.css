@@ -1,10 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --color-petroleo: #0b1f2e;
-  --color-petroleo-2: #0f2a3d;
-  --color-menta: #22c55e;
-  --color-menta-forte: #16a34a;
+  /* Direção JARVIS (ADR-001 em docs/manus-jarvis-spec) — grafite quase preto +
+     ciano elétrico como identidade + âmbar para decisão + coral para risco.
+     "petroleo"/"menta" mantêm o nome por compatibilidade com os componentes
+     existentes; os VALORES já são a nova paleta. "areia" (seções claras) ainda
+     não migrou — ver docs/09-plano-de-migracao-jarvis.md. */
+  --color-petroleo: #0a0d12;
+  --color-petroleo-2: #12161d;
+  --color-menta: #22d3ee;
+  --color-menta-forte: #0ea5c9;
+  --color-ambar: #f5b833;
+  --color-ambar-forte: #d99a1b;
+  --color-coral: #fb7185;
   --color-areia: #f5f3ee;
   --color-areia-2: #ece8de;
   --background: var(--color-areia);
@@ -16,6 +24,9 @@
   --color-petroleo-2: var(--color-petroleo-2);
   --color-menta: var(--color-menta);
   --color-menta-forte: var(--color-menta-forte);
+  --color-ambar: var(--color-ambar);
+  --color-ambar-forte: var(--color-ambar-forte);
+  --color-coral: var(--color-coral);
   --color-areia: var(--color-areia);
   --color-areia-2: var(--color-areia-2);
   --color-background: var(--background);

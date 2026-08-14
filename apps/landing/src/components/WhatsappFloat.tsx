@@ -6,7 +6,7 @@ export default function WhatsappFloat() {
       href={linkWhatsapp("Oi! Quero conhecer o Vetor.")}
       target="_blank"
       rel="noopener noreferrer"
-      className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full bg-menta px-4 py-3 text-sm font-semibold text-petroleo shadow-lg shadow-black/20 transition hover:bg-menta-forte hover:text-white"
+      className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-sm font-semibold text-[#0a3d24] shadow-lg shadow-black/20 transition hover:bg-[#1ebe5a]"
       aria-label="Falar no WhatsApp"
     >
       <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">

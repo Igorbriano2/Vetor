@@ -93,7 +93,7 @@ export default function Planos() {
         <div className="mt-12 rounded-3xl border-2 border-menta bg-petroleo p-8 text-areia shadow-xl md:p-10">
           <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
             <div className="md:max-w-md">
-              <span className="inline-block rounded-full bg-menta px-3 py-1 text-xs font-bold text-petroleo">
+              <span className="inline-block rounded-full bg-ambar px-3 py-1 text-xs font-bold text-petroleo">
                 RECOMENDADO — SUA AGÊNCIA INTEIRA
               </span>
               <h3 className="mt-4 text-2xl font-bold">{PLANO_COMPLETO.nome}</h3>
@@ -103,7 +103,7 @@ export default function Planos() {
               <div className="mt-8 flex flex-col gap-2 sm:flex-row">
                 <Link
                   href="#lead"
-                  className="rounded-full bg-menta px-6 py-3 text-center text-sm font-semibold text-petroleo transition hover:bg-menta-forte hover:text-white"
+                  className="rounded-full bg-ambar px-6 py-3 text-center text-sm font-semibold text-petroleo transition hover:bg-ambar-forte"
                 >
                   Quero o Completo
                 </Link>

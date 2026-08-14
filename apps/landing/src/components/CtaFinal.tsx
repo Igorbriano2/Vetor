@@ -71,7 +71,7 @@ export default function CtaFinal() {
             <button
               type="submit"
               disabled={enviando}
-              className="w-full rounded-full bg-menta px-6 py-3 font-semibold text-petroleo transition hover:bg-menta-forte hover:text-white disabled:opacity-60"
+              className="w-full rounded-full bg-ambar px-6 py-3 font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-60"
             >
               {enviando ? "Enviando..." : "Quero conhecer o Vetor"}
             </button>

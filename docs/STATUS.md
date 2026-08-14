@@ -1,8 +1,14 @@
 # Status do projeto Vetor
 
-Este documento resume o que foi construído nesta primeira rodada (Fase 0 + Fase 1 do
-`docs/06-plano-de-execucao-comandos-claude-code.md`), o que já é real e funcional, e o que
-ainda precisa de decisão ou credencial de negócio antes de ir para produção.
+Este documento resume o que foi construído até agora, o que já é real e funcional, e o que ainda
+precisa de decisão ou credencial de negócio antes de ir para produção.
+
+**2026-08-14 — mudança de direção:** o dono do negócio decidiu adotar a spec do Manus
+(`docs/manus-jarvis-spec/`) como norte do produto (visão "JARVIS": cockpit, missões, governança
+por risco, créditos), migrando o que já existe aos poucos. Ver `docs/09-plano-de-migracao-jarvis.md`
+para o plano fase a fase. Nesta rodada: tokens visuais migrados para a paleta grafite/ciano/âmbar,
+schema de missões criado (aditivo, ainda não conectado a um orquestrador), e o Agente Geral virou
+JARVIS (prompt substituído pelo `system-jarvis.md` do Manus).
 
 ## O que está pronto e funcional
 

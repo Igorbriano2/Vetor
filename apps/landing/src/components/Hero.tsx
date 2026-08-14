@@ -20,7 +20,7 @@ export default function Hero() {
           <div className="mt-8 flex flex-col gap-4 sm:flex-row">
             <Link
               href="#planos"
-              className="rounded-full bg-menta px-7 py-3 text-center font-semibold text-petroleo transition hover:bg-menta-forte hover:text-white"
+              className="rounded-full bg-ambar px-7 py-3 text-center font-semibold text-petroleo transition hover:bg-ambar-forte"
             >
               Quero conhecer o Vetor
             </Link>
