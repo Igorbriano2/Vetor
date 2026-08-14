@@ -1,0 +1,35 @@
+# Spec da DigitalOcean App Platform para apps/landing.
+# Como usar: na DO, "Create App" -> escolher o repo Igorbriano2/Vetor -> na tela de
+# revisão, clicar em "Edit Your App Spec" e colar este arquivo inteiro no lugar do
+# que a DO gerar sozinha. Preencha os campos marcados como SECRET antes de aplicar.
+name: vetor-landing
+region: nyc
+services:
+  - name: landing
+    github:
+      repo: Igorbriano2/Vetor
+      branch: main
+      deploy_on_push: true
+    source_dir: apps/landing
+    environment_slug: node-js
+    build_command: npm run build
+    run_command: npm run start
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    envs:
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        scope: RUN_AND_BUILD_TIME
+        value: "https://rhqkzhiuweiblfkfsqxm.supabase.co"
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        scope: RUN_AND_BUILD_TIME
+        value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJocWt6aGl1d2VpYmxma2ZzcXhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNjk3OTAsImV4cCI6MjEwMTk0NTc5MH0.-uLmyhaW4w6VYgQdMKG3pDP_rFimXeOZo3Qur-DvU3M"
+      - key: SUPABASE_URL
+        scope: RUN_TIME
+        value: "https://rhqkzhiuweiblfkfsqxm.supabase.co"
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        scope: RUN_TIME
+        type: SECRET
+        # Pegue em supabase.com -> projeto "vetor" -> Project Settings -> API -> service_role key
+domains:
+  - domain: SEU-DOMINIO-AQUI.com.br
+    type: PRIMARY

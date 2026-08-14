@@ -1,0 +1,63 @@
+# Spec da DigitalOcean App Platform para apps/agentes (backend: webhooks do WhatsApp
+# e do Asaas). Mesmo processo dos outros dois arquivos.
+#
+# Os campos SECRET abaixo ficam em branco de propósito — preencha na tela da DO
+# antes de aplicar o spec, nunca aqui no arquivo. Enquanto WHATSAPP_MODE=sandbox e
+# ASAAS_ENV=sandbox, o serviço sobe e responde ao /health normalmente mesmo sem as
+# chaves reais preenchidas (ver docs/STATUS.md).
+name: vetor-agentes
+region: nyc
+services:
+  - name: agentes
+    github:
+      repo: Igorbriano2/Vetor
+      branch: main
+      deploy_on_push: true
+    source_dir: apps/agentes
+    environment_slug: node-js
+    build_command: npm run build
+    run_command: npm run start
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    health_check:
+      http_path: /health
+    envs:
+      - key: SUPABASE_URL
+        scope: RUN_TIME
+        value: "https://rhqkzhiuweiblfkfsqxm.supabase.co"
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: ANTHROPIC_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: WHATSAPP_MODE
+        scope: RUN_TIME
+        value: "sandbox"
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: WHATSAPP_ACCESS_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+      - key: WHATSAPP_WEBHOOK_VERIFY_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+      - key: ASAAS_ENV
+        scope: RUN_TIME
+        value: "sandbox"
+      - key: ASAAS_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: ASAAS_WEBHOOK_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+      - key: STT_PROVIDER
+        scope: RUN_TIME
+        value: "sandbox"
+      - key: OPENAI_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+domains:
+  - domain: api.SEU-DOMINIO-AQUI.com.br
+    type: PRIMARY
