@@ -22,5 +22,5 @@ services:
         scope: RUN_AND_BUILD_TIME
         value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJocWt6aGl1d2VpYmxma2ZzcXhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNjk3OTAsImV4cCI6MjEwMTk0NTc5MH0.-uLmyhaW4w6VYgQdMKG3pDP_rFimXeOZo3Qur-DvU3M"
 domains:
-  - domain: painel.SEU-DOMINIO-AQUI.com.br
+  - domain: painel.vetormkt.online
     type: PRIMARY

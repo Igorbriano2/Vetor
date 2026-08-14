@@ -65,5 +65,5 @@ services:
         scope: RUN_TIME
         type: SECRET
 domains:
-  - domain: api.SEU-DOMINIO-AQUI.com.br
+  - domain: api.vetormkt.online
     type: PRIMARY

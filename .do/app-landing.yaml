@@ -31,5 +31,5 @@ services:
         type: SECRET
         # Pegue em supabase.com -> projeto "vetor" -> Project Settings -> API -> service_role key
 domains:
-  - domain: SEU-DOMINIO-AQUI.com.br
+  - domain: vetormkt.online
     type: PRIMARY
