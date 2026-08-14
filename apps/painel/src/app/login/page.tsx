@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import VetorCore from "@/components/VetorCore";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,11 +32,16 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-areia px-6">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-sm">
-        <h1 className="text-xl font-bold text-petroleo">Entrar no painel Vetor</h1>
-        <p className="mt-1 text-sm text-petroleo/60">
-          Acompanhe suas demandas, entregas e relatórios.
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-petroleo px-6">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_theme(colors.menta/12%),_transparent_60%)]"
+      />
+      <div className="relative w-full max-w-sm rounded-3xl border border-areia/10 bg-petroleo-2/70 p-8 shadow-2xl backdrop-blur">
+        <VetorCore estado="idle" />
+        <h1 className="mt-6 text-xl font-bold text-areia">Entrar no Vetor</h1>
+        <p className="mt-1 text-sm text-areia/50">
+          Acompanhe demandas, entregas e aprovações em tempo real.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-3">
@@ -45,7 +51,7 @@ export default function LoginPage() {
             placeholder="Seu e-mail"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-xl border border-petroleo/15 px-4 py-3 text-petroleo placeholder:text-petroleo/40 focus:border-menta focus:outline-none"
+            className="w-full rounded-xl border border-areia/15 bg-petroleo px-4 py-3 text-areia placeholder:text-areia/30 focus:border-menta focus:outline-none"
           />
           <input
             type="password"
@@ -53,16 +59,16 @@ export default function LoginPage() {
             placeholder="Sua senha"
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
-            className="w-full rounded-xl border border-petroleo/15 px-4 py-3 text-petroleo placeholder:text-petroleo/40 focus:border-menta focus:outline-none"
+            className="w-full rounded-xl border border-areia/15 bg-petroleo px-4 py-3 text-areia placeholder:text-areia/30 focus:border-menta focus:outline-none"
           />
           <button
             type="submit"
             disabled={carregando}
-            className="w-full rounded-full bg-menta px-6 py-3 font-semibold text-petroleo transition hover:bg-menta-forte hover:text-white disabled:opacity-60"
+            className="w-full rounded-full bg-ambar px-6 py-3 font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-60"
           >
             {carregando ? "Entrando..." : "Entrar"}
           </button>
-          {erro && <p className="text-sm text-red-600">{erro}</p>}
+          {erro && <p className="text-sm text-coral">{erro}</p>}
         </form>
       </div>
     </main>

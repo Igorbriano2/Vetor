@@ -1,10 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  /* Direção JARVIS (ADR-001 em docs/manus-jarvis-spec) — mesmos tokens do
-     apps/landing, ver comentário lá. */
+  /* Direção JARVIS (ADR-001 em docs/manus-jarvis-spec) — o painel é o cockpit
+     de verdade, então aqui o grafite é o fundo padrão (diferente da landing,
+     que ainda mistura seções claras). */
   --color-petroleo: #0a0d12;
   --color-petroleo-2: #12161d;
+  --color-petroleo-3: #191f29;
   --color-menta: #22d3ee;
   --color-menta-forte: #0ea5c9;
   --color-ambar: #f5b833;
@@ -12,13 +14,14 @@
   --color-coral: #fb7185;
   --color-areia: #f5f3ee;
   --color-areia-2: #ece8de;
-  --background: var(--color-areia);
-  --foreground: var(--color-petroleo);
+  --background: var(--color-petroleo);
+  --foreground: var(--color-areia);
 }
 
 @theme inline {
   --color-petroleo: var(--color-petroleo);
   --color-petroleo-2: var(--color-petroleo-2);
+  --color-petroleo-3: var(--color-petroleo-3);
   --color-menta: var(--color-menta);
   --color-menta-forte: var(--color-menta-forte);
   --color-ambar: var(--color-ambar);
@@ -29,10 +32,33 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+@keyframes vetor-core-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+@utility animate-core-pulse {
+  animation: vetor-core-pulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-core-pulse {
+    animation: none !important;
+  }
 }

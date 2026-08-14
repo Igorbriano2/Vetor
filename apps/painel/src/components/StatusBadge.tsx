@@ -1,14 +1,21 @@
-const CORES: Record<string, string> = {
-  novo: "bg-blue-100 text-blue-700",
-  em_andamento: "bg-amber-100 text-amber-700",
-  aguardando_aprovacao: "bg-purple-100 text-purple-700",
-  concluida: "bg-emerald-100 text-emerald-700",
-  cancelada: "bg-red-100 text-red-700",
-  rascunho: "bg-slate-100 text-slate-700",
-  pendente_aprovacao: "bg-purple-100 text-purple-700",
-  aprovada: "bg-emerald-100 text-emerald-700",
-  rejeitada: "bg-red-100 text-red-700",
-  publicada: "bg-emerald-100 text-emerald-700",
+const GRUPO: Record<string, "info" | "decisao" | "sucesso" | "risco"> = {
+  novo: "info",
+  rascunho: "info",
+  em_andamento: "info",
+  aguardando_aprovacao: "decisao",
+  pendente_aprovacao: "decisao",
+  concluida: "sucesso",
+  aprovada: "sucesso",
+  publicada: "sucesso",
+  cancelada: "risco",
+  rejeitada: "risco",
+};
+
+const CORES: Record<"info" | "decisao" | "sucesso" | "risco", string> = {
+  info: "border-menta/30 bg-menta/10 text-menta",
+  decisao: "border-ambar/40 bg-ambar/10 text-ambar animate-pulse",
+  sucesso: "border-menta/30 bg-menta/10 text-menta",
+  risco: "border-coral/40 bg-coral/10 text-coral",
 };
 
 const ROTULOS: Record<string, string> = {
@@ -25,11 +32,10 @@ const ROTULOS: Record<string, string> = {
 };
 
 export default function StatusBadge({ status }: { status: string }) {
+  const grupo = GRUPO[status] ?? "info";
   return (
     <span
-      className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
-        CORES[status] ?? "bg-slate-100 text-slate-700"
-      }`}
+      className={`shrink-0 rounded-full border px-3 py-1 font-mono text-[11px] font-medium uppercase tracking-wide ${CORES[grupo]}`}
     >
       {ROTULOS[status] ?? status}
     </span>
