@@ -55,6 +55,12 @@ services:
       - key: STT_PROVIDER
         scope: RUN_TIME
         value: "sandbox"
+      - key: TTS_PROVIDER
+        scope: RUN_TIME
+        value: "sandbox"
+      - key: TTS_VOICE
+        scope: RUN_TIME
+        value: "onyx"
       - key: OPENAI_API_KEY
         scope: RUN_TIME
         type: SECRET

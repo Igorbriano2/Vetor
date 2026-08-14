@@ -40,6 +40,68 @@ export async function sendWhatsappMessage(numeroDestino: string, texto: string):
   }
 }
 
+// Enviar áudio é um fluxo de 2 passos: sobe o arquivo pra Meta (media id), depois
+// manda a mensagem referenciando esse id — mesma lógica inversa de baixarMidiaWhatsapp.
+export async function sendWhatsappAudioMessage(
+  numeroDestino: string,
+  bytes: ArrayBuffer,
+  mimeType: string,
+): Promise<void> {
+  if (isSandbox()) {
+    console.log(`[whatsapp:sandbox] -> ${numeroDestino}: [áudio, ${bytes.byteLength} bytes]`);
+    return;
+  }
+
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+
+  if (!phoneNumberId || !accessToken) {
+    throw new Error("WHATSAPP_PHONE_NUMBER_ID e WHATSAPP_ACCESS_TOKEN são obrigatórios em modo production");
+  }
+
+  const form = new FormData();
+  form.append("messaging_product", "whatsapp");
+  form.append("file", new Blob([bytes], { type: mimeType }), "resposta.ogg");
+
+  const uploadRes = await fetch(
+    `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/media`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: form,
+    },
+  );
+
+  if (!uploadRes.ok) {
+    const body = await uploadRes.text();
+    throw new Error(`Falha ao subir áudio pro WhatsApp (${uploadRes.status}): ${body}`);
+  }
+
+  const { id: mediaId } = (await uploadRes.json()) as { id: string };
+
+  const sendRes = await fetch(
+    `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: numeroDestino,
+        type: "audio",
+        audio: { id: mediaId },
+      }),
+    },
+  );
+
+  if (!sendRes.ok) {
+    const body = await sendRes.text();
+    throw new Error(`Falha ao enviar áudio no WhatsApp (${sendRes.status}): ${body}`);
+  }
+}
+
 export interface MensagemRecebida {
   numero: string;
   texto: string;

@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export type AgenteId =
-  | "jarvis"
+  | "vetor"
   | "secretario"
   | "growth"
   | "estrategia"
@@ -16,10 +16,11 @@ export type AgenteId =
   | "analitico";
 
 // Fase em que cada agente entra em operação — ver docs/06-plano-de-execucao-comandos-claude-code.md
-// e docs/09-plano-de-migracao-jarvis.md (JARVIS = ex-"Agente Geral").
+// e docs/09-plano-de-migracao-jarvis.md ("Vetor" = agente geral/orquestrador, ex-"Agente Geral";
+// nunca chamado de "JARVIS" no produto — ver nota de nomenclatura nesse documento).
 export const FASE_POR_AGENTE: Record<AgenteId, 1 | 2 | 3 | 4> = {
   secretario: 1,
-  jarvis: 2,
+  vetor: 2,
   design: 2,
   trafego: 2,
   estrategia: 3,

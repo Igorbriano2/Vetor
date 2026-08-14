@@ -4,11 +4,13 @@ Este documento resume o que foi construído até agora, o que já é real e func
 precisa de decisão ou credencial de negócio antes de ir para produção.
 
 **2026-08-14 — mudança de direção:** o dono do negócio decidiu adotar a spec do Manus
-(`docs/manus-jarvis-spec/`) como norte do produto (visão "JARVIS": cockpit, missões, governança
-por risco, créditos), migrando o que já existe aos poucos. Ver `docs/09-plano-de-migracao-jarvis.md`
-para o plano fase a fase. Nesta rodada: tokens visuais migrados para a paleta grafite/ciano/âmbar,
-schema de missões criado (aditivo, ainda não conectado a um orquestrador), e o Agente Geral virou
-JARVIS (prompt substituído pelo `system-jarvis.md` do Manus).
+(`docs/manus-jarvis-spec/`) como norte do produto (cockpit, missões, governança por risco,
+créditos), migrando o que já existe aos poucos. Ver `docs/09-plano-de-migracao-jarvis.md` para o
+plano fase a fase. Nesta rodada: tokens visuais migrados para a paleta grafite/ciano/âmbar, schema
+de missões criado (aditivo, ainda não conectado a um orquestrador), e o Agente Geral ganhou o
+prompt mais rigoroso do Manus — mas **o nome do agente é "Vetor", nunca "JARVIS"** (risco de
+marca/personagem — ver nota de nomenclatura em docs/09). O Agente Secretário também vai responder
+em voz quando o cliente perguntar por áudio (ver seção de áudio abaixo).
 
 ## O que está pronto e funcional
 
@@ -40,12 +42,16 @@ JARVIS (prompt substituído pelo `system-jarvis.md` do Manus).
   Estrategista, Social Media, Editor de Vídeo, Copywriter, Gestor de Tráfego, Atendente) como
   agentes de IA, com seção de comparação de custo (`CustoAgencia.tsx`) e o plano Completo
   (R$ 1.997/mês) como carro-chefe. Animações de scroll reveal e microinterações.
-- **Entendimento de áudio no Agente Secretário**: o webhook do WhatsApp já reconhece mensagens de
-  voz, baixa a mídia da Meta Cloud API e transcreve via provedor de STT plugável
-  (`STT_PROVIDER`) antes de entrar na mesma pipeline de ticket estruturado. Em modo sandbox (sem
-  `STT_PROVIDER` configurado), responde pedindo pro cliente escrever em vez de travar.
+- **Entendimento e resposta em áudio no Agente Secretário**: o webhook do WhatsApp reconhece
+  mensagens de voz, baixa a mídia da Meta Cloud API e transcreve via provedor de STT plugável
+  (`STT_PROVIDER`) antes de entrar na mesma pipeline de ticket estruturado. Quando o cliente
+  pergunta por áudio, o agente Vetor **responde em áudio também** (síntese de voz via
+  `TTS_PROVIDER`, mesmo padrão plugável) — se a síntese falhar ou não estiver configurada, cai
+  para texto automaticamente, nunca trava o atendimento. Em modo sandbox (padrão, sem
+  `STT_PROVIDER`/`TTS_PROVIDER` configurados), pede pro cliente escrever.
 - Testes automatizados (`vitest`) para as partes com lógica pura (parsing de webhook do WhatsApp,
-  extração de mensagens de áudio, validação de plano) — todos passando.
+  extração de mensagens de áudio, validação de plano, fallback de síntese de voz) — todos
+  passando.
 
 ## O que é estrutura pronta, mas precisa de credencial real para funcionar de verdade
 
@@ -58,6 +64,7 @@ Nada disso foi "fingido" — o código está implementado contra as APIs reais, 
 | Asaas | Conta sandbox no Asaas, `ASAAS_API_KEY`, configurar URL do webhook + `ASAAS_WEBHOOK_TOKEN` no painel Asaas | `.env` de `apps/agentes` |
 | Supabase (chave secreta) | `SUPABASE_SERVICE_ROLE_KEY` — não é exposta por ferramentas automatizadas por segurança; pegue em Project Settings → API no painel do Supabase (projeto `vetor`, ref `rhqkzhiuweiblfkfsqxm`) | `.env`/`.env.local` de `apps/agentes` e `apps/landing` |
 | Transcrição de áudio (STT) | Decidir provedor (implementado: OpenAI Whisper) e configurar `STT_PROVIDER=openai` + `OPENAI_API_KEY` | `.env` de `apps/agentes` |
+| Resposta em voz (TTS) | Mesma chave `OPENAI_API_KEY` acima + `TTS_PROVIDER=openai` (implementado: OpenAI TTS, voz configurável em `TTS_VOICE`) | `.env` de `apps/agentes` |
 
 Sem essas chaves, o sistema roda (builda, sobe, responde health check) mas não troca dados de
 verdade com WhatsApp/Asaas/Anthropic — isso é intencional: nunca conectamos dinheiro ou número real

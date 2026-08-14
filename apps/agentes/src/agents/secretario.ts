@@ -1,8 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "../db/supabase.js";
 import { getSystemPrompt } from "./prompts/index.js";
-import { sendWhatsappMessage, baixarMidiaWhatsapp } from "../integrations/whatsapp.js";
+import {
+  sendWhatsappMessage,
+  sendWhatsappAudioMessage,
+  baixarMidiaWhatsapp,
+} from "../integrations/whatsapp.js";
 import { transcreverAudio, TranscricaoIndisponivelError } from "../integrations/transcricao.js";
+import { sintetizarFala, SinteseVozIndisponivelError } from "../integrations/tts.js";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -85,7 +90,17 @@ async function registrarLogAgente(acao: string, justificativa: string, clienteId
   });
 }
 
-export async function processarMensagemRecebida(numero: string, texto: string): Promise<void> {
+export interface OpcoesProcessamento {
+  // O cliente perguntou por áudio — responder também em áudio, imitando o canal
+  // usado (docs/07, seção 4). Cai pra texto sozinho se a síntese de voz falhar.
+  responderEmVoz?: boolean;
+}
+
+export async function processarMensagemRecebida(
+  numero: string,
+  texto: string,
+  opcoes: OpcoesProcessamento = {},
+): Promise<void> {
   const cliente = await buscarClientePorNumero(numero);
   await salvarMensagem(numero, "entrada", texto, cliente?.id ?? null);
 
@@ -155,18 +170,37 @@ export async function processarMensagemRecebida(numero: string, texto: string): 
     respostaTexto = "Desculpa, não entendi direito. Pode repetir de outro jeito?";
   }
 
-  await sendWhatsappMessage(numero, respostaTexto);
+  await enviarResposta(numero, respostaTexto, opcoes.responderEmVoz ?? false);
   await salvarMensagem(numero, "saida", respostaTexto, cliente?.id ?? null);
+}
+
+async function enviarResposta(numero: string, texto: string, emVoz: boolean): Promise<void> {
+  if (!emVoz) {
+    await sendWhatsappMessage(numero, texto);
+    return;
+  }
+
+  try {
+    const audio = await sintetizarFala(texto);
+    await sendWhatsappAudioMessage(numero, audio.bytes, audio.mimeType);
+  } catch (err) {
+    if (err instanceof SinteseVozIndisponivelError) {
+      await sendWhatsappMessage(numero, texto);
+      return;
+    }
+    throw err;
+  }
 }
 
 // Áudio recebido: baixa da Meta Cloud API, transcreve e reaproveita a mesma
 // pipeline de processarMensagemRecebida — o restante do fluxo (histórico, tools,
-// registro de ticket) não muda, só a origem do texto (docs/07, seção 4).
+// registro de ticket) não muda, só a origem do texto (docs/07, seção 4). A
+// resposta sai em áudio também, espelhando o canal que o cliente usou.
 export async function processarAudioRecebido(numero: string, mediaId: string): Promise<void> {
   try {
     const midia = await baixarMidiaWhatsapp(mediaId);
     const transcricao = await transcreverAudio(midia.bytes, midia.mimeType);
-    await processarMensagemRecebida(numero, transcricao);
+    await processarMensagemRecebida(numero, transcricao, { responderEmVoz: true });
   } catch (err) {
     if (err instanceof TranscricaoIndisponivelError) {
       await sendWhatsappMessage(
