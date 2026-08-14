@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import LogoutButton from "@/components/LogoutButton";
 import StatusBadge from "@/components/StatusBadge";
 import VetorCore, { type EstadoCore } from "@/components/VetorCore";
+import ComandoVetor from "@/components/ComandoVetor";
 
 export default async function DashboardPage() {
   const supabase = await createSupabaseServerClient();
@@ -64,6 +65,10 @@ export default async function DashboardPage() {
             para concluir o cadastro.
           </p>
         )}
+
+        <div className="mt-8">
+          <ComandoVetor />
+        </div>
 
         <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <SinalCard label="Aguardando você" valor={pendentes} destaque="ambar" />

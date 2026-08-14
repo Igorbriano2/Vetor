@@ -2,11 +2,11 @@
 
 ## 1. Arquitetura de agentes
 
-O sistema deve ter um agente geral chamado JARVIS e agentes especialistas. O JARVIS é o único agente autorizado a criar ou alterar o plano de uma missão. Especialistas recebem tarefas delimitadas e retornam resultados estruturados. Nenhum especialista pode publicar, gastar, enviar comunicação externa ou delegar outra tarefa sem passar pelo orquestrador e pelo Policy Engine.
+O sistema deve ter um agente geral chamado VETOR e agentes especialistas. O VETOR é o único agente autorizado a criar ou alterar o plano de uma missão. Especialistas recebem tarefas delimitadas e retornam resultados estruturados. Nenhum especialista pode publicar, gastar, enviar comunicação externa ou delegar outra tarefa sem passar pelo orquestrador e pelo Policy Engine.
 
 | Agente | Responsabilidade | Não deve fazer sozinho |
 |---|---|---|
-| JARVIS | Interpretar, planejar, delegar, consolidar e explicar | Ignorar políticas ou inventar dados |
+| VETOR | Interpretar, planejar, delegar, consolidar e explicar | Ignorar políticas ou inventar dados |
 | Secretário | Receber texto/áudio, transcrever, esclarecer e estruturar | Executar ação externa |
 | Growth | Mercado, concorrência, oportunidades e hipóteses | Prometer resultado sem evidência |
 | Estratégia | Persona, posicionamento, funil, canais e plano | Definir orçamento sem autorização |
@@ -46,12 +46,12 @@ export type AgentResult<T> = {
 };
 ```
 
-## 3. Contrato do JARVIS
+## 3. Contrato do VETOR
 
-A entrada do JARVIS deve conter intenção do cliente, transcrição original quando houver, contexto do negócio, histórico recente, missões semelhantes, política de autonomia e orçamento de uso. A saída deve conter objetivo normalizado, perguntas essenciais, plano de missão, agentes selecionados, dependências, riscos, necessidade de aprovação, custo estimado e critério de sucesso.
+A entrada do VETOR deve conter intenção do cliente, transcrição original quando houver, contexto do negócio, histórico recente, missões semelhantes, política de autonomia e orçamento de uso. A saída deve conter objetivo normalizado, perguntas essenciais, plano de missão, agentes selecionados, dependências, riscos, necessidade de aprovação, custo estimado e critério de sucesso.
 
 ```ts
-export type JarvisPlan = {
+export type VetorPlan = {
   normalizedObjective: string;
   businessOutcome: string;
   questions: { question: string; reason: string; required: boolean }[];
@@ -70,9 +70,9 @@ export type JarvisPlan = {
 };
 ```
 
-## 4. Prompt-base do JARVIS
+## 4. Prompt-base do VETOR
 
-> Você é JARVIS, o agente geral do VETOR. Seu papel é transformar intenções de negócio em missões executáveis, coordenando agentes especialistas com clareza, prudência e foco em resultado. Você não deve agir como um chatbot que responde superficialmente nem como um operador que executa ações sem autorização.
+> Você é VETOR, o agente geral do VETOR. Seu papel é transformar intenções de negócio em missões executáveis, coordenando agentes especialistas com clareza, prudência e foco em resultado. Você não deve agir como um chatbot que responde superficialmente nem como um operador que executa ações sem autorização.
 >
 > Primeiro, entenda o resultado de negócio desejado. Depois, verifique contexto, dados disponíveis, restrições, orçamento, prazo e permissões. Se uma informação realmente impedir o plano, faça uma pergunta objetiva. Se houver dados suficientes, apresente um plano com hipótese, etapas, agentes, riscos, custo estimado e critério de sucesso.
 >

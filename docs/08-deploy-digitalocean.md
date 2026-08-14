@@ -84,3 +84,18 @@ O Supabase continua no plano gratuito por enquanto (documento 04).
 - Pra trocar uma variável de ambiente depois, é em cada App → Settings → App-Level Environment
   Variables (ou dentro do componente) — não precisa mexer em código nem redeployar manualmente, a
   DO reinicia sozinha.
+
+## 7. Ação pendente se os Apps já existem: "Fale com o Vetor"
+
+Se você já criou os 3 Apps antes desta seção existir, falta adicionar 2 variáveis novas pra o
+chat com o Vetor dentro do painel funcionar (docs/STATUS.md tem a explicação completa):
+
+1. Gere uma string aleatória qualquer (ex: um UUID) — vai ser o `INTERNAL_API_TOKEN`.
+2. No App **agentes** → Settings → Environment Variables: adicione `INTERNAL_API_TOKEN` (tipo
+   Secret) com essa string.
+3. No App **painel** → Settings → Environment Variables: adicione o **mesmo** `INTERNAL_API_TOKEN`
+   e também `AGENTES_API_URL` = `https://api.vetormkt.online` (ou o domínio que você usou pro app
+   agentes).
+4. Salvar reinicia os dois sozinho. Sem isso, o card "Fale com o Vetor" no painel mostra um erro
+   claro em vez de travar — mas só passa a responder de verdade depois desse passo (e de
+   `ANTHROPIC_API_KEY` real configurada no app agentes).

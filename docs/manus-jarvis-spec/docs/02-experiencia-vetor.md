@@ -1,10 +1,10 @@
-# VETOR — Experiência JARVIS e direção visual
+# VETOR — Experiência VETOR e direção visual
 
 ## 1. Objetivo da experiência
 
-A interface deve fazer o usuário se sentir como o operador de uma central de comando inteligente. A inspiração em JARVIS não significa copiar uma interface de filme; significa reproduzir três sensações: **consciência do contexto**, **resposta imediata** e **controle sobre sistemas complexos**.
+A interface deve fazer o usuário se sentir como o operador de uma central de comando inteligente. A inspiração em VETOR não significa copiar uma interface de filme; significa reproduzir três sensações: **consciência do contexto**, **resposta imediata** e **controle sobre sistemas complexos**.
 
-O VETOR precisa parecer vivo sem ser distraente. O sistema deve ter atividade, transições e sinais de estado, mas a informação principal sempre precisa vencer a decoração. O usuário deve entender o que o JARVIS sabe, o que está fazendo, qual decisão precisa ser tomada e o que aconteceu depois da ação.
+O VETOR precisa parecer vivo sem ser distraente. O sistema deve ter atividade, transições e sinais de estado, mas a informação principal sempre precisa vencer a decoração. O usuário deve entender o que o VETOR sabe, o que está fazendo, qual decisão precisa ser tomada e o que aconteceu depois da ação.
 
 ## 2. Linguagem visual
 
@@ -24,15 +24,15 @@ O logo VETOR deve comunicar direção, orientação e movimento. A marca deve ev
 
 ## 3. Layout do cockpit
 
-A tela principal deve ter uma composição de três zonas. Na coluna esquerda fica a navegação compacta e o seletor de organização. No centro fica o núcleo da experiência: saudação do JARVIS, comando multimodal, missão atual e timeline. Na coluna direita ficam sinais de negócio, aprovações, saúde das integrações e atividade dos agentes.
+A tela principal deve ter uma composição de três zonas. Na coluna esquerda fica a navegação compacta e o seletor de organização. No centro fica o núcleo da experiência: saudação do VETOR, comando multimodal, missão atual e timeline. Na coluna direita ficam sinais de negócio, aprovações, saúde das integrações e atividade dos agentes.
 
-Em telas menores, a navegação vira uma barra inferior ou drawer. A coluna direita se transforma em uma fila priorizada de cards. O comando do JARVIS permanece sempre acessível por um botão flutuante, atalho de teclado e ação de gravação.
+Em telas menores, a navegação vira uma barra inferior ou drawer. A coluna direita se transforma em uma fila priorizada de cards. O comando do VETOR permanece sempre acessível por um botão flutuante, atalho de teclado e ação de gravação.
 
-A primeira dobra do cockpit deve responder: “Como está meu negócio?”, “O que o JARVIS está fazendo?”, “O que precisa de mim?” e “Qual é a próxima oportunidade?”. Não iniciar a tela com gráficos genéricos nem com uma lista de tarefas sem contexto.
+A primeira dobra do cockpit deve responder: “Como está meu negócio?”, “O que o VETOR está fazendo?”, “O que precisa de mim?” e “Qual é a próxima oportunidade?”. Não iniciar a tela com gráficos genéricos nem com uma lista de tarefas sem contexto.
 
-## 4. Núcleo visual do JARVIS
+## 4. Núcleo visual do VETOR
 
-O núcleo deve ser um componente reutilizável chamado `JarvisCore`. Ele representa o estado operacional do agente com um centro luminoso, anéis de atividade e uma etiqueta textual. O componente deve funcionar em versões grande, compacta e inline.
+O núcleo deve ser um componente reutilizável chamado `VetorCore`. Ele representa o estado operacional do agente com um centro luminoso, anéis de atividade e uma etiqueta textual. O componente deve funcionar em versões grande, compacta e inline.
 
 | Estado | Texto | Visual | Ação do usuário |
 |---|---|---|---|
@@ -50,7 +50,7 @@ O núcleo deve ser um componente reutilizável chamado `JarvisCore`. Ele represe
 
 ## 5. Comando multimodal
 
-O componente `CommandBar` deve aceitar texto, áudio, anexos e comandos sugeridos. A entrada deve permitir frases naturais, sem exigir sintaxe específica. Depois do envio, o sistema deve mostrar um `IntentCard` com transcrição, resumo, objetivo identificado, campos inferidos, campos ausentes e ações propostas.
+O componente `VetorCommandBar` deve aceitar texto, áudio, anexos e comandos sugeridos. A entrada deve permitir frases naturais, sem exigir sintaxe específica. Depois do envio, o sistema deve mostrar um `VetorIntentCard` com transcrição, resumo, objetivo identificado, campos inferidos, campos ausentes e ações propostas.
 
 Para áudio, mostrar gravação em tempo real, duração, cancelamento, regravação e transcrição editável. Nunca executar uma missão sensível somente porque uma palavra foi transcrita com baixa confiança. O sistema deve indicar confiança baixa, pedir confirmação e manter o áudio original associado à solicitação, sujeito à política de retenção.
 
@@ -58,27 +58,27 @@ Para áudio, mostrar gravação em tempo real, duração, cancelamento, regrava�
 
 A unidade de trabalho da interface é a `Mission`. Uma missão tem nome, objetivo, prioridade, prazo, orçamento, hipótese, status, agentes envolvidos, artefatos, aprovações, eventos e resultado. As tarefas dos especialistas aparecem dentro da missão, mas não devem substituir a narrativa da missão.
 
-O componente `MissionTimeline` deve apresentar eventos em linguagem humana. Exemplos: “JARVIS identificou que o objetivo é aumentar pedidos de delivery”; “Estratégia definiu duas hipóteses”; “Design produziu três variações”; “Governança bloqueou publicação até aprovação”; “Analytics registrou o resultado do teste”. Cada evento pode expandir para mostrar dados técnicos, custo e versão do agente.
+O componente `VetorMissionTimeline` deve apresentar eventos em linguagem humana. Exemplos: “VETOR identificou que o objetivo é aumentar pedidos de delivery”; “Estratégia definiu duas hipóteses”; “Design produziu três variações”; “Governança bloqueou publicação até aprovação”; “Analytics registrou o resultado do teste”. Cada evento pode expandir para mostrar dados técnicos, custo e versão do agente.
 
 ## 7. Telas obrigatórias
 
 | Tela | Propósito | Elemento que não pode faltar |
 |---|---|---|
-| Cockpit | Visão executiva do negócio e do sistema | `JarvisCore`, comando, missões, sinais e aprovações |
-| Nova missão | Transformar intenção em plano | CommandBar e IntentCard |
+| Cockpit | Visão executiva do negócio e do sistema | `VetorCore`, comando, missões, sinais e aprovações |
+| Nova missão | Transformar intenção em plano | VetorCommandBar e VetorIntentCard |
 | Detalhe da missão | Acompanhar execução | Timeline, agentes, artefatos, custo e política |
 | Aprovações | Tomar decisões com segurança | Ação proposta, impacto, alterações e botões claros |
 | Entregas | Revisar conteúdo e arquivos | Preview, versões, comentários e status |
 | Insights | Entender desempenho | Métricas, hipóteses, diagnóstico e próximo teste |
 | Biblioteca | Reutilizar ativos e contexto | Busca, filtros, tags, marca e histórico |
 | Integrações | Conectar canais e dados | Saúde da conexão, permissões e último evento |
-| Configurações do negócio | Ensinar o contexto ao JARVIS | Perfil, público, ofertas, tom, restrições e consentimentos |
+| Configurações do negócio | Ensinar o contexto ao VETOR | Perfil, público, ofertas, tom, restrições e consentimentos |
 | Administração | Gerenciar equipe e plano | Usuários, papéis, uso, cobrança e auditoria |
 
 ## 8. Motion e som
 
-Animações devem durar entre 150 e 500 milissegundos, respeitar `prefers-reduced-motion` e nunca impedir a leitura. O brilho do JARVIS deve representar estado, não funcionar como decoração permanente. Sons são opcionais e devem vir desativados por padrão; quando ativados, devem ser curtos, discretos e não usar voz sintética sem solicitação.
+Animações devem durar entre 150 e 500 milissegundos, respeitar `prefers-reduced-motion` e nunca impedir a leitura. O brilho do VETOR deve representar estado, não funcionar como decoração permanente. Sons são opcionais e devem vir desativados por padrão; quando ativados, devem ser curtos, discretos e não usar voz sintética sem solicitação.
 
 ## 9. Critérios de qualidade visual
 
-O frontend não pode usar placeholders genéricos, gráficos sem dados ou cards repetitivos com a mesma hierarquia. Cada tela deve possuir uma composição clara, estado vazio intencional, loading coerente com o JARVIS, feedback de erro e responsividade. O foco de acessibilidade deve incluir contraste, foco visível, navegação por teclado, textos alternativos e equivalentes textuais para sons, ondas e animações.
+O frontend não pode usar placeholders genéricos, gráficos sem dados ou cards repetitivos com a mesma hierarquia. Cada tela deve possuir uma composição clara, estado vazio intencional, loading coerente com o VETOR, feedback de erro e responsividade. O foco de acessibilidade deve incluir contraste, foco visível, navegação por teclado, textos alternativos e equivalentes textuais para sons, ondas e animações.

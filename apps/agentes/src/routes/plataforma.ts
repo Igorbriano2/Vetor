@@ -1,0 +1,59 @@
+import { Router, type Request } from "express";
+import { processarMensagemPlataforma, processarAudioPlataforma } from "../agents/vetorPlataforma.js";
+
+export const plataformaRouter = Router();
+
+// Autenticação simples entre serviços internos (painel -> agentes), não exposta
+// ao navegador. O painel resolve o cliente_id a partir da sessão Supabase do
+// usuário antes de chamar essa rota — nunca confia em cliente_id vindo do
+// navegador diretamente.
+function autenticado(req: Request): boolean {
+  const esperado = process.env.INTERNAL_API_TOKEN;
+  return !!esperado && req.header("x-internal-token") === esperado;
+}
+
+plataformaRouter.post("/mensagem", async (req, res) => {
+  if (!autenticado(req)) {
+    res.sendStatus(401);
+    return;
+  }
+
+  const { cliente_id, texto, responder_em_voz } = req.body ?? {};
+  if (!cliente_id || typeof texto !== "string" || !texto.trim()) {
+    res.status(400).json({ error: "cliente_id e texto são obrigatórios" });
+    return;
+  }
+
+  try {
+    const resultado = await processarMensagemPlataforma(cliente_id, texto, {
+      responderEmVoz: !!responder_em_voz,
+    });
+    res.json(resultado);
+  } catch (err) {
+    console.error(`Erro ao processar mensagem da plataforma (cliente ${cliente_id}):`, err);
+    res.status(500).json({ error: "Falha ao processar mensagem" });
+  }
+});
+
+plataformaRouter.post("/audio", async (req, res) => {
+  if (!autenticado(req)) {
+    res.sendStatus(401);
+    return;
+  }
+
+  const { cliente_id, audio_base64, mime_type } = req.body ?? {};
+  if (!cliente_id || typeof audio_base64 !== "string" || !audio_base64) {
+    res.status(400).json({ error: "cliente_id e audio_base64 são obrigatórios" });
+    return;
+  }
+
+  try {
+    const buffer = Buffer.from(audio_base64, "base64");
+    const bytes = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    const resultado = await processarAudioPlataforma(cliente_id, bytes, mime_type ?? "audio/webm");
+    res.json(resultado);
+  } catch (err) {
+    console.error(`Erro ao processar áudio da plataforma (cliente ${cliente_id}):`, err);
+    res.status(500).json({ error: "Falha ao processar áudio" });
+  }
+});

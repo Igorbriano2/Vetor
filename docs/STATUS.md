@@ -24,9 +24,15 @@ em voz quando o cliente perguntar por áudio (ver seção de áudio abaixo).
 - **Landing page completa** (`apps/landing`), com todas as 9 seções do documento 02, na ordem
   descrita, com a identidade visual (cores/tipografia) do documento 01 aplicada. Testada em
   desktop e mobile. Formulário de lead grava direto na tabela `leads` via `/api/leads`.
-- **Painel do cliente** (`apps/painel`): login com Supabase Auth, dashboard mostrando demandas e
-  histórico de entregas, protegido por middleware (usuário não autenticado é redirecionado).
-  Testado (build + tela de login renderizada).
+- **Painel do cliente** (`apps/painel`): login com Supabase Auth, visual cockpit (grafite/ciano/
+  âmbar, núcleo `VetorCore` com estado computado a partir dos dados reais, sinais, timeline de
+  demandas), protegido por middleware. Testado (build + telas renderizadas).
+- **Fale com o Vetor, dentro do painel** (`ComandoVetor.tsx`): o cliente digita ou grava um áudio
+  direto no cockpit, o Vetor entende (mesmo motor do Agente Secretário, agora compartilhado em
+  `apps/agentes/src/agents/core.ts`), responde em texto e, quando a pergunta veio por áudio,
+  também em voz — sem precisar do WhatsApp. Cria ticket estruturado do mesmo jeito. Canal
+  autenticado por segredo compartilhado (`INTERNAL_API_TOKEN`) entre `apps/painel` e
+  `apps/agentes`; histórico fica em `mensagens_plataforma` (RLS por cliente).
 - **Agente Secretário** (`apps/agentes`): servidor Express com webhook do WhatsApp Business (Meta
   Cloud API) — verificação de assinatura do webhook, recebimento de mensagens, chamada real à API
   da Anthropic com o system prompt do documento 03 e tool-use para registrar o ticket estruturado
@@ -65,10 +71,12 @@ Nada disso foi "fingido" — o código está implementado contra as APIs reais, 
 | Supabase (chave secreta) | `SUPABASE_SERVICE_ROLE_KEY` — não é exposta por ferramentas automatizadas por segurança; pegue em Project Settings → API no painel do Supabase (projeto `vetor`, ref `rhqkzhiuweiblfkfsqxm`) | `.env`/`.env.local` de `apps/agentes` e `apps/landing` |
 | Transcrição de áudio (STT) | Decidir provedor (implementado: OpenAI Whisper) e configurar `STT_PROVIDER=openai` + `OPENAI_API_KEY` | `.env` de `apps/agentes` |
 | Resposta em voz (TTS) | Mesma chave `OPENAI_API_KEY` acima + `TTS_PROVIDER=openai` (implementado: OpenAI TTS, voz configurável em `TTS_VOICE`) | `.env` de `apps/agentes` |
+| Canal "Fale com o Vetor" no painel | `INTERNAL_API_TOKEN` (mesmo valor nos dois apps) + `AGENTES_API_URL` apontando pro backend publicado — **diferente das outras linhas, sem isso o botão de enviar simplesmente não funciona** (erro 503 tratado, não trava a tela) | `.env`/`.env.local` de `apps/agentes` **e** `apps/painel` |
 
 Sem essas chaves, o sistema roda (builda, sobe, responde health check) mas não troca dados de
 verdade com WhatsApp/Asaas/Anthropic — isso é intencional: nunca conectamos dinheiro ou número real
-sem sandbox testado antes, conforme pedido no documento 06.
+sem sandbox testado antes, conforme pedido no documento 06. O "Fale com o Vetor" do painel também
+precisa de `ANTHROPIC_API_KEY` real pra responder de verdade (mesma chave da tabela acima).
 
 ## Limitações conhecidas do MVP (esperadas nesta fase)
 

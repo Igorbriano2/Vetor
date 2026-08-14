@@ -18,7 +18,7 @@ Pequenos negócios precisam de estratégia, conteúdo, mídia, atendimento e an�
 
 O sistema deve permitir criação de conta, organização, convite de usuários, papéis e onboarding do negócio. Deve coletar vertical, localização, oferta, público, diferenciais, canais, tom da marca, objetivos, restrições e permissões.
 
-O usuário deve criar uma missão por texto ou áudio. O sistema deve transcrever áudio, exibir a transcrição e pedir confirmação quando a confiança for baixa. O JARVIS deve gerar um plano, explicar o entendimento e solicitar apenas esclarecimentos essenciais.
+O usuário deve criar uma missão por texto ou áudio. O sistema deve transcrever áudio, exibir a transcrição e pedir confirmação quando a confiança for baixa. O VETOR deve gerar um plano, explicar o entendimento e solicitar apenas esclarecimentos essenciais.
 
 O usuário deve acompanhar a missão, ver agentes envolvidos, estados, timeline, artefatos, consumo e aprovações. Deve aprovar, rejeitar, editar, comentar ou pedir uma nova versão. As entregas devem ser versionadas e armazenadas na biblioteca.
 

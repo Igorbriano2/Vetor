@@ -64,6 +64,10 @@ services:
       - key: OPENAI_API_KEY
         scope: RUN_TIME
         type: SECRET
+      - key: INTERNAL_API_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+        # Gere uma string aleatoria longa e use o MESMO valor no app "agentes" e no app "painel"
 domains:
   - domain: api.vetormkt.online
     type: PRIMARY

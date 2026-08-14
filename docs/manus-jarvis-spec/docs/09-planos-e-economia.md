@@ -12,7 +12,7 @@ Recomenda-se o modelo **fixo mensal + franquia de créditos + excedente opcional
 
 | Plano | Perfil | Inclui | Faixa inicial para teste |
 |---|---|---|---:|
-| VETOR Core | Negócio iniciando | Cockpit, JARVIS, estratégia básica, copy, biblioteca, relatórios mensais e franquia pequena | R$ 497–697/mês |
+| VETOR Core | Negócio iniciando | Cockpit, VETOR, estratégia básica, copy, biblioteca, relatórios mensais e franquia pequena | R$ 497–697/mês |
 | VETOR Growth | Negócio com operação ativa | Core + calendário, design estático, analytics recorrente, integrações e mais créditos | R$ 997–1.497/mês |
 | VETOR Command | Negócio que quer operação integrada | Growth + tráfego em modo governado, WhatsApp, aprovações avançadas e relatórios semanais | R$ 1.997–2.997/mês |
 | VETOR Custom | Multiunidade ou operação maior | Limites, integrações e suporte personalizados | Sob consulta |
@@ -37,4 +37,4 @@ O painel administrativo deve mostrar custo estimado e custo realizado por organi
 
 O plano deve definir créditos mensais, limites de organizações, usuários, canais, armazenamento, missões simultâneas, integrações, retenção, suporte e autonomia. O excedente deve ser opt-in. O sistema deve oferecer pausa de ações de alto custo, alerta de 50%, 80% e 100% da franquia, histórico de consumo e exportação de uso.
 
-Não incluir “tokens ilimitados” sem limite de abuso. Não prometer que o JARVIS pensa melhor que qualquer profissional; posicionar como sistema que combina playbooks, dados, experimentação, memória operacional e agentes especializados. O resultado depende de contexto, qualidade dos dados, oferta, execução e mercado.
+Não incluir “tokens ilimitados” sem limite de abuso. Não prometer que o VETOR pensa melhor que qualquer profissional; posicionar como sistema que combina playbooks, dados, experimentação, memória operacional e agentes especializados. O resultado depende de contexto, qualidade dos dados, oferta, execução e mercado.

@@ -2,9 +2,9 @@
 
 ## Antes de codificar
 
-Leia `README.md`, `docs/01-visao-e-requisitos.md`, `docs/02-experiencia-jarvis.md`, `docs/03-arquitetura-tecnica.md` e o documento específico da tarefa. Inspecione o código existente antes de criar arquivos. Preserve decisões e padrões já válidos, mas corrija inconsistências que violem a visão VETOR.
+Leia `README.md`, `docs/01-visao-e-requisitos.md`, `docs/02-experiencia-vetor.md`, `docs/03-arquitetura-tecnica.md` e o documento específico da tarefa. Inspecione o código existente antes de criar arquivos. Preserve decisões e padrões já válidos, mas corrija inconsistências que violem a visão VETOR.
 
-Quando uma decisão estiver ambígua, prefira a alternativa que mantém o ciclo “intenção → plano → missão → aprovação → evidência”. Não transformar o JARVIS em uma sidebar de chat. Não criar telas administrativas genéricas quando uma missão ou um estado do sistema deveria ser o centro da experiência.
+Quando uma decisão estiver ambígua, prefira a alternativa que mantém o ciclo “intenção → plano → missão → aprovação → evidência”. Não transformar o VETOR em uma sidebar de chat. Não criar telas administrativas genéricas quando uma missão ou um estado do sistema deveria ser o centro da experiência.
 
 ## Ordem de implementação
 
@@ -13,7 +13,7 @@ Quando uma decisão estiver ambígua, prefira a alternativa que mantém o ciclo 
 3. Implementar primeiro tipos, contratos e estados.
 4. Implementar backend, autorização e testes antes de liberar a ação no frontend.
 5. Implementar estados visuais: loading, vazio, erro, bloqueado, aprovação e sucesso.
-6. Integrar o `JarvisCore`, `CommandBar`, `IntentCard` e `MissionTimeline` ao estado real.
+6. Integrar o `VetorCore`, `VetorCommandBar`, `VetorIntentCard` e `VetorMissionTimeline` ao estado real.
 7. Adicionar observabilidade, auditoria e consumo.
 8. Rodar testes, lint, typecheck e build.
 9. Atualizar documentação e registrar decisões.
@@ -36,4 +36,4 @@ A tarefa deve informar arquivos alterados, comportamento entregue, testes execut
 
 ## Primeira tarefa recomendada
 
-Implementar um vertical slice demonstrável: cockpit futurista do VETOR, onboarding mínimo, comando textual, IntentCard, criação de missão, JARVIS gerando plano estruturado, uma etapa simulada de Copy, aprovação, entrega versionada, timeline e consumo. Depois substituir o mock de agente e integrações por execução real, mantendo os contratos.
+Implementar um vertical slice demonstrável: cockpit futurista do VETOR, onboarding mínimo, comando textual, VetorIntentCard, criação de missão, VETOR gerando plano estruturado, uma etapa simulada de Copy, aprovação, entrega versionada, timeline e consumo. Depois substituir o mock de agente e integrações por execução real, mantendo os contratos.

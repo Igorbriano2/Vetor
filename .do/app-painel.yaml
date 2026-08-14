@@ -21,6 +21,13 @@ services:
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         scope: RUN_AND_BUILD_TIME
         value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJocWt6aGl1d2VpYmxma2ZzcXhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNjk3OTAsImV4cCI6MjEwMTk0NTc5MH0.-uLmyhaW4w6VYgQdMKG3pDP_rFimXeOZo3Qur-DvU3M"
+      - key: AGENTES_API_URL
+        scope: RUN_TIME
+        value: "https://api.vetormkt.online"
+      - key: INTERNAL_API_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+        # MESMO valor usado no app "agentes" -- e o que autentica painel -> agentes.
 domains:
   - domain: painel.vetormkt.online
     type: PRIMARY
