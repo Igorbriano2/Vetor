@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import LogoutButton from "@/components/LogoutButton";
 import StatusBadge from "@/components/StatusBadge";
 import VetorCore, { type EstadoCore } from "@/components/VetorCore";
-import ComandoVetor from "@/components/ComandoVetor";
+import VetorCommandBar from "@/components/VetorCommandBar";
 
 export default async function DashboardPage() {
   const supabase = await createSupabaseServerClient();
@@ -56,7 +57,21 @@ export default async function DashboardPage() {
               <VetorCore estado={estadoCore} />
             </div>
           </div>
-          <LogoutButton />
+          <div className="flex items-center gap-4">
+            <Link
+              href="/missoes"
+              className="font-mono text-xs uppercase tracking-wide text-areia/50 transition hover:text-menta"
+            >
+              Missões
+            </Link>
+            <Link
+              href="/configuracoes/negocio"
+              className="font-mono text-xs uppercase tracking-wide text-areia/50 transition hover:text-menta"
+            >
+              Negócio
+            </Link>
+            <LogoutButton />
+          </div>
         </div>
 
         {!usuario && (
@@ -67,7 +82,7 @@ export default async function DashboardPage() {
         )}
 
         <div className="mt-8">
-          <ComandoVetor />
+          <VetorCommandBar />
         </div>
 
         <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">

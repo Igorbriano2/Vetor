@@ -49,6 +49,10 @@ export interface ResultadoConversa {
   respostaTexto: string;
   ticketCriado: boolean;
   transferido: boolean;
+  // Blocos de tool_use que o núcleo não reconhece (ex: propor_missao) — o
+  // chamador decide o que fazer com eles. Mantém core.ts sem conhecer tools
+  // específicos de um único canal.
+  toolUses: Anthropic.ToolUseBlock[];
 }
 
 export async function registrarLogAgente(
@@ -76,22 +80,29 @@ export async function processarComAgente(params: {
   historico: Anthropic.MessageParam[];
   cliente: ContextoCliente | null;
   origemLabel: string;
+  tools?: Anthropic.Tool[];
 }): Promise<ResultadoConversa> {
+  const tools = params.tools ?? [REGISTRAR_TICKET_TOOL, TRANSFERIR_HUMANO_TOOL];
+  const nomesConhecidos = new Set(["registrar_ticket", "transferir_humano"]);
+
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-5",
     max_tokens: 1024,
     system: params.systemPrompt,
     messages: params.historico,
-    tools: [REGISTRAR_TICKET_TOOL, TRANSFERIR_HUMANO_TOOL],
+    tools,
   });
 
   let respostaTexto = "";
   let ticketCriado = false;
   let transferido = false;
+  const toolUses: Anthropic.ToolUseBlock[] = [];
 
   for (const block of response.content) {
     if (block.type === "text") {
       respostaTexto += block.text;
+    } else if (block.type === "tool_use" && !nomesConhecidos.has(block.name)) {
+      toolUses.push(block);
     } else if (block.type === "tool_use" && block.name === "registrar_ticket") {
       const input = block.input as {
         tipo_demanda: string;
@@ -140,9 +151,9 @@ export async function processarComAgente(params: {
     }
   }
 
-  if (!respostaTexto) {
+  if (!respostaTexto && toolUses.length === 0) {
     respostaTexto = "Desculpa, não entendi direito. Pode repetir de outro jeito?";
   }
 
-  return { respostaTexto, ticketCriado, transferido };
+  return { respostaTexto, ticketCriado, transferido, toolUses };
 }

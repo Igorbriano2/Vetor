@@ -5,6 +5,7 @@ import helmet from "helmet";
 import { whatsappRouter } from "./routes/whatsapp.js";
 import { asaasRouter } from "./routes/asaas.js";
 import { plataformaRouter } from "./routes/plataforma.js";
+import { missoesRouter } from "./routes/missoes.js";
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.get("/health", (_req, res) => {
 app.use("/whatsapp", whatsappRouter);
 app.use("/asaas", asaasRouter);
 app.use("/plataforma", plataformaRouter);
+app.use("/plataforma/missoes", missoesRouter);
 
 const port = Number(process.env.PORT ?? 3333);
 app.listen(port, () => {

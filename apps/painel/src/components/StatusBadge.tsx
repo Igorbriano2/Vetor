@@ -9,6 +9,20 @@ const GRUPO: Record<string, "info" | "decisao" | "sucesso" | "risco"> = {
   publicada: "sucesso",
   cancelada: "risco",
   rejeitada: "risco",
+  // Status de missão (supabase/migrations/0004_missions.sql) — mesmo vocabulário
+  // visual, chaves em inglês porque é o que fica gravado no banco.
+  draft: "info",
+  understanding: "info",
+  awaiting_clarification: "decisao",
+  planned: "info",
+  awaiting_approval: "decisao",
+  queued: "info",
+  running: "info",
+  blocked: "risco",
+  completed: "sucesso",
+  failed: "risco",
+  cancelled: "risco",
+  archived: "info",
 };
 
 const CORES: Record<"info" | "decisao" | "sucesso" | "risco", string> = {
@@ -29,6 +43,16 @@ const ROTULOS: Record<string, string> = {
   aprovada: "Aprovada",
   rejeitada: "Rejeitada",
   publicada: "Publicada",
+  draft: "Rascunho",
+  understanding: "Entendendo",
+  awaiting_clarification: "Aguardando esclarecimento",
+  planned: "Planejada",
+  queued: "Na fila",
+  running: "Em execução",
+  blocked: "Bloqueada",
+  completed: "Concluída",
+  failed: "Falhou",
+  archived: "Arquivada",
 };
 
 export default function StatusBadge({ status }: { status: string }) {
