@@ -14,6 +14,12 @@ import { executarEspecialista, type ContextoMissaoParaEspecialista } from "../ag
 import { criarSnapshotDeContexto } from "./businessContextSnapshot.js";
 import type { AgenteId } from "../agents/prompts/index.js";
 
+// Agentes cuja etapa promete uma entrega verificável (arte, vídeo) — nunca
+// "completed" sem artifact_id real. Os demais (estrategia/growth/trafego/
+// social-media/analitico) ainda podem fechar com só um resumo textual,
+// porque nem toda etapa é uma entrega de arquivo (ex: uma análise).
+const DEPARTAMENTOS_EXIGEM_ARTEFATO = new Set<AgenteId>(["design", "video"]);
+
 // Plano confirmado pelo humano no painel (vem do tool propor_missao do Vetor,
 // já revisado via IntentCard) — ver docs/manus-jarvis-spec/docs/04-agentes-e-prompts.md
 // §3 (VetorPlan). `chave` é um identificador local só para resolver dependências
@@ -445,6 +451,19 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
       etapa.cliente_id,
       etapa.mission_id as string,
     );
+
+    // Correção de princípio (auditoria de arquitetura): Design e Vídeo
+    // prometem uma entrega verificável — nunca "completed" só com um resumo
+    // dizendo que algo foi criado. Se o especialista disse completed sem
+    // nenhum artifact_id real, a etapa vira failed de verdade, com o motivo
+    // explícito, em vez de deixar o cliente achar que recebeu algo que não
+    // existe (o que gerava o "peça manualmente a arte que o Vetor alegou ter
+    // feito", visto no print da auditoria).
+    if (resultado.status === "completed" && DEPARTAMENTOS_EXIGEM_ARTEFATO.has(etapa.agente) && resultado.artifactIds.length === 0) {
+      resultado.status = "failed";
+      resultado.summary = `Etapa marcada como falha: nenhum artefato verificável foi produzido, apesar do resumo original ("${resultado.summary}"). Nunca completar uma entrega de ${etapa.agente} sem artifact_id.`;
+    }
+
     await supabase.from("mission_steps").update({ resultado }).eq("id", etapa.id);
 
     if (resultado.status === "completed") {

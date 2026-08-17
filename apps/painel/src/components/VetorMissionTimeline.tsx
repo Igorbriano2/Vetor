@@ -21,6 +21,26 @@ interface Approval {
   status: string;
 }
 
+interface Artefato {
+  id: string;
+  missionStepId: string | null;
+  type: string;
+  title: string;
+  status: string;
+  content: string | null;
+  url: string | null;
+}
+
+const LABEL_TIPO_ARTEFATO: Record<string, string> = {
+  image: "Imagem",
+  video: "Vídeo",
+  copy: "Copy",
+  document: "Documento",
+  report: "Relatório",
+  plan: "Plano",
+  campaign_snapshot: "Campanha",
+};
+
 const LABEL_AGENTE: Record<string, string> = {
   design: "Design",
   trafego: "Tráfego",
@@ -73,10 +93,12 @@ export default function VetorMissionTimeline({
   missionId,
   etapas: etapasIniciais,
   approvals: approvalsIniciais,
+  artefatos = [],
 }: {
   missionId: string;
   etapas: MissionStep[];
   approvals: Approval[];
+  artefatos?: Artefato[];
 }) {
   const [etapas, setEtapas] = useState(etapasIniciais);
   const [approvals, setApprovals] = useState(approvalsIniciais);
@@ -140,12 +162,20 @@ export default function VetorMissionTimeline({
   }
 
   const aprovacaoPorEtapa = new Map(approvals.filter((a) => a.mission_step_id).map((a) => [a.mission_step_id as string, a]));
+  const artefatosPorEtapa = new Map<string, Artefato[]>();
+  for (const a of artefatos) {
+    if (!a.missionStepId) continue;
+    const lista = artefatosPorEtapa.get(a.missionStepId) ?? [];
+    lista.push(a);
+    artefatosPorEtapa.set(a.missionStepId, lista);
+  }
 
   return (
     <div className="space-y-3 border-l border-areia/10 pl-5">
       {etapas.map((etapa) => {
         const aprovacao = aprovacaoPorEtapa.get(etapa.id);
         const pendente = aprovacao?.status === "pending" && !decididas.has(aprovacao.id);
+        const artefatosDaEtapa = artefatosPorEtapa.get(etapa.id) ?? [];
 
         return (
           <div key={etapa.id} className="relative rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur">
@@ -153,6 +183,40 @@ export default function VetorMissionTimeline({
               className={`absolute top-5 -left-[25px] size-2 rounded-full ${COR_STATUS[etapa.status] ?? "bg-areia/20"}`}
             />
             <p className="text-sm text-areia">{frasePorEtapa(etapa)}</p>
+
+            {artefatosDaEtapa.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {artefatosDaEtapa.map((art) => (
+                  <div key={art.id} className="rounded-xl border border-areia/10 bg-petroleo/60 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-mono text-[10px] uppercase tracking-wide text-areia/40">
+                        {LABEL_TIPO_ARTEFATO[art.type] ?? art.type} — {art.title}
+                      </p>
+                      {art.url && (
+                        <a
+                          href={art.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0 font-mono text-[11px] text-menta underline underline-offset-2 hover:text-menta-forte"
+                        >
+                          {art.type === "video" || art.type === "image" ? "abrir" : "baixar"}
+                        </a>
+                      )}
+                    </div>
+                    {art.type === "video" && art.url && (
+                      <video src={art.url} controls className="mt-2 max-h-64 w-full rounded-lg" />
+                    )}
+                    {art.type === "image" && art.url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={art.url} alt={art.title} className="mt-2 max-h-64 rounded-lg" />
+                    )}
+                    {art.content && (
+                      <p className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap text-xs text-areia/70">{art.content}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {pendente && aprovacao && (
               <div className="mt-3 flex items-center gap-2">

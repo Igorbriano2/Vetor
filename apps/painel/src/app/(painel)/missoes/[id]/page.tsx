@@ -27,6 +27,36 @@ export default async function MissaoDetalhePage({ params }: { params: Promise<{ 
     .select("id, mission_step_id, acao, risco, status")
     .eq("mission_id", id);
 
+  const { data: artefatosBrutos } = await supabase
+    .from("artifacts")
+    .select("id, mission_step_id, type, title, status, storage_provider, storage_path, metadata")
+    .eq("mission_id", id);
+
+  // URL assinada (bucket próprio) ou URL externa direta (ex: Higgsfield) —
+  // nunca expõe o bucket publicamente. Resolvido aqui (server) porque
+  // storage.objects exige a policy de select scoped por cliente_id, mais
+  // simples de resolver com a sessão já carregada nesta página.
+  const artefatos = await Promise.all(
+    (artefatosBrutos ?? []).map(async (a) => {
+      let url: string | null = null;
+      if (a.storage_provider === "external") {
+        url = a.storage_path as string | null;
+      } else if (a.storage_provider === "supabase" && a.storage_path) {
+        const { data } = await supabase.storage.from("artifacts").createSignedUrl(a.storage_path as string, 60 * 60);
+        url = data?.signedUrl ?? null;
+      }
+      return {
+        id: a.id as string,
+        missionStepId: a.mission_step_id as string | null,
+        type: a.type as string,
+        title: a.title as string,
+        status: a.status as string,
+        content: (a.metadata as { content?: string } | null)?.content ?? null,
+        url,
+      };
+    }),
+  );
+
   return (
     <main className="min-h-screen bg-petroleo px-6 py-10 text-areia">
       <div className="mx-auto max-w-4xl">
@@ -59,7 +89,7 @@ export default async function MissaoDetalhePage({ params }: { params: Promise<{ 
         <section className="mt-10">
           <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-areia/40">Andamento</h2>
           <div className="mt-3">
-            <VetorMissionTimeline missionId={missao.id} etapas={etapas ?? []} approvals={aprovacoes ?? []} />
+            <VetorMissionTimeline missionId={missao.id} etapas={etapas ?? []} approvals={aprovacoes ?? []} artefatos={artefatos} />
           </div>
         </section>
       </div>
