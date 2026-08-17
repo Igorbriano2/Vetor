@@ -19,7 +19,6 @@ import {
 // etapas com progresso, salvamento automático e retomada — nunca um
 // formulário gigante de uma vez só.
 
-const listaParaTexto = (lista: string[] | undefined) => (lista ?? []).join(", ");
 const textoParaLista = (texto: string) =>
   texto
     .split(",")
@@ -291,6 +290,61 @@ function Campo({ label, ajuda, children }: { label: string; ajuda?: string; chil
 const campoClasse =
   "w-full rounded-xl border border-areia/15 bg-petroleo-2/60 px-4 py-3 text-sm text-areia placeholder:text-areia/30 focus:border-menta focus:outline-none";
 
+// Campo de lista separada por vírgula (objetivos, restrições, etc.). Guarda
+// o texto bruto localmente e só reparte/limpa em vírgulas no blur — um
+// campo controlado que reserializava a lista a cada tecla (value =
+// lista.join(", ")) apagava espaço no fim da palavra assim que digitado,
+// porque trim() rodava antes do usuário terminar de escrever a próxima
+// palavra. Digitar livre (inclusive espaço) funciona até sair do campo.
+function CampoListaTexto({
+  valor,
+  onCommit,
+  placeholder,
+}: {
+  valor: string[];
+  onCommit: (lista: string[]) => void;
+  placeholder?: string;
+}) {
+  const [texto, setTexto] = useState(() => valor.join(", "));
+  return (
+    <input
+      value={texto}
+      onChange={(e) => setTexto(e.target.value)}
+      onBlur={() => onCommit(textoParaLista(texto))}
+      placeholder={placeholder}
+      className={campoClasse}
+    />
+  );
+}
+
+// Mesmo problema do CampoListaTexto, só que cada item é "nome:hex" — texto
+// bruto local, parse só no blur.
+function CampoCores({
+  valor,
+  onCommit,
+}: {
+  valor: Array<{ nome: string; hex: string }>;
+  onCommit: (cores: Array<{ nome: string; hex: string }>) => void;
+}) {
+  const [texto, setTexto] = useState(() => valor.map((c) => `${c.nome}:${c.hex}`).join(", "));
+  return (
+    <input
+      value={texto}
+      onChange={(e) => setTexto(e.target.value)}
+      onBlur={() =>
+        onCommit(
+          textoParaLista(texto).map((par) => {
+            const [nome, hex] = par.split(":").map((s) => s.trim());
+            return { nome: nome || par, hex: hex || "" };
+          }),
+        )
+      }
+      placeholder="Ex: primária:#F5B84B, secundária:#101923"
+      className={campoClasse}
+    />
+  );
+}
+
 function EtapaIdentidade({
   perfil,
   setPerfil,
@@ -428,11 +482,10 @@ function EtapaOperacao({
         </div>
       </Campo>
       <Campo label="Áreas atendidas" ajuda="separadas por vírgula, se fizer sentido">
-        <input
-          value={listaParaTexto(perfil.areas_atendimento)}
-          onChange={(e) => setPerfil((p) => ({ ...p, areas_atendimento: textoParaLista(e.target.value) }))}
+        <CampoListaTexto
+          valor={perfil.areas_atendimento}
+          onCommit={(lista) => setPerfil((p) => ({ ...p, areas_atendimento: lista }))}
           placeholder="Ex: Centro, Zona Sul, toda a cidade"
-          className={campoClasse}
         />
       </Campo>
       <Campo label="Horário de funcionamento">
@@ -533,11 +586,7 @@ function EtapaProdutos({
         />
       </Campo>
       <Campo label="Ofertas principais em uma frase" ajuda="separadas por vírgula — usado como resumo rápido pelo Vetor">
-        <input
-          value={listaParaTexto(perfil.ofertas)}
-          onChange={(e) => setPerfil((p) => ({ ...p, ofertas: textoParaLista(e.target.value) }))}
-          className={campoClasse}
-        />
+        <CampoListaTexto valor={perfil.ofertas} onCommit={(lista) => setPerfil((p) => ({ ...p, ofertas: lista }))} />
       </Campo>
     </>
   );
@@ -571,19 +620,14 @@ function EtapaPublico({
         />
       </Campo>
       <Campo label="Objetivos" ajuda="separados por vírgula — pelo menos um é obrigatório">
-        <input
-          value={listaParaTexto(perfil.objetivos)}
-          onChange={(e) => setPerfil((p) => ({ ...p, objetivos: textoParaLista(e.target.value) }))}
+        <CampoListaTexto
+          valor={perfil.objetivos}
+          onCommit={(lista) => setPerfil((p) => ({ ...p, objetivos: lista }))}
           placeholder="Ex: aumentar pedidos delivery, ganhar seguidores, gerar leads"
-          className={campoClasse}
         />
       </Campo>
       <Campo label="Concorrentes" ajuda="separados por vírgula, opcional">
-        <input
-          value={listaParaTexto(perfil.concorrentes)}
-          onChange={(e) => setPerfil((p) => ({ ...p, concorrentes: textoParaLista(e.target.value) }))}
-          className={campoClasse}
-        />
+        <CampoListaTexto valor={perfil.concorrentes} onCommit={(lista) => setPerfil((p) => ({ ...p, concorrentes: lista }))} />
       </Campo>
     </>
   );
@@ -646,23 +690,9 @@ function EtapaVisual({
         ))}
       </div>
       <Campo label="Cores da marca" ajuda="nome:hex separados por vírgula">
-        <input
-          value={brandKit.cores.map((c) => `${c.nome}:${c.hex}`).join(", ")}
-          onChange={(e) =>
-            setBrandKit((b) => ({
-              ...b,
-              cores: e.target.value
-                .split(",")
-                .map((s) => s.trim())
-                .filter(Boolean)
-                .map((par) => {
-                  const [nome, hex] = par.split(":").map((s) => s.trim());
-                  return { nome: nome || par, hex: hex || "" };
-                }),
-            }))
-          }
-          placeholder="Ex: primária:#F5B84B, secundária:#101923"
-          className={campoClasse}
+        <CampoCores
+          valor={brandKit.cores}
+          onCommit={(cores) => setBrandKit((b) => ({ ...b, cores }))}
         />
       </Campo>
       <div className="grid grid-cols-2 gap-4">
@@ -682,10 +712,9 @@ function EtapaVisual({
         </Campo>
       </div>
       <Campo label="Estilos proibidos" ajuda="separados por vírgula — o que os agentes nunca devem usar visualmente">
-        <input
-          value={listaParaTexto(brandKit.estilos_proibidos)}
-          onChange={(e) => setBrandKit((b) => ({ ...b, estilos_proibidos: textoParaLista(e.target.value) }))}
-          className={campoClasse}
+        <CampoListaTexto
+          valor={brandKit.estilos_proibidos}
+          onCommit={(lista) => setBrandKit((b) => ({ ...b, estilos_proibidos: lista }))}
         />
       </Campo>
     </>
@@ -715,25 +744,22 @@ function EtapaVoz({
         />
       </Campo>
       <Campo label="Palavras permitidas" ajuda="separadas por vírgula">
-        <input
-          value={listaParaTexto(brandKit.palavras_permitidas)}
-          onChange={(e) => setBrandKit((b) => ({ ...b, palavras_permitidas: textoParaLista(e.target.value) }))}
-          className={campoClasse}
+        <CampoListaTexto
+          valor={brandKit.palavras_permitidas}
+          onCommit={(lista) => setBrandKit((b) => ({ ...b, palavras_permitidas: lista }))}
         />
       </Campo>
       <Campo label="Palavras proibidas" ajuda="separadas por vírgula">
-        <input
-          value={listaParaTexto(brandKit.palavras_proibidas)}
-          onChange={(e) => setBrandKit((b) => ({ ...b, palavras_proibidas: textoParaLista(e.target.value) }))}
-          className={campoClasse}
+        <CampoListaTexto
+          valor={brandKit.palavras_proibidas}
+          onCommit={(lista) => setBrandKit((b) => ({ ...b, palavras_proibidas: lista }))}
         />
       </Campo>
       <Campo label="Restrições" ajuda="separadas por vírgula — o que os agentes nunca devem fazer/dizer">
-        <input
-          value={listaParaTexto(perfil.restricoes)}
-          onChange={(e) => setPerfil((p) => ({ ...p, restricoes: textoParaLista(e.target.value) }))}
+        <CampoListaTexto
+          valor={perfil.restricoes}
+          onCommit={(lista) => setPerfil((p) => ({ ...p, restricoes: lista }))}
           placeholder="Ex: não prometer prazo de entrega, não citar concorrentes"
-          className={campoClasse}
         />
       </Campo>
     </>
