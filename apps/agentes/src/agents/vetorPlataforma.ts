@@ -362,14 +362,32 @@ export async function processarMensagemPlataforma(
     ? `${getSystemPrompt("vetor")}\n\nCliente autenticado no painel: ${cliente.nome_empresa} (nicho: ${cliente.nicho}, plano: ${cliente.plano_id ?? "não definido"}). Ele já é cliente pagante — não qualifique como lead, vá direto ao ponto.${contextoNegocio ? `\n\n${contextoNegocio}` : ""}`
     : `${getSystemPrompt("vetor")}\n\nNão foi possível identificar o cliente autenticado — avise que algo está errado no cadastro e sugira falar com o suporte.`;
 
-  const resultado = await processarComAgente({
-    agente: "vetor",
-    systemPrompt,
-    historico,
-    cliente,
-    origemLabel: "painel Vetor",
-    tools: [REGISTRAR_TICKET_TOOL, TRANSFERIR_HUMANO_TOOL, PROPOR_MISSAO_TOOL],
-  });
+  let resultado;
+  try {
+    resultado = await processarComAgente({
+      agente: "vetor",
+      systemPrompt,
+      historico,
+      cliente,
+      origemLabel: "painel Vetor",
+      tools: [REGISTRAR_TICKET_TOOL, TRANSFERIR_HUMANO_TOOL, PROPOR_MISSAO_TOOL],
+    });
+  } catch (err) {
+    // Sem isso a solicitação ficava presa em "understanding" pra sempre
+    // quando o Claude falhava (ex: crédito esgotado) — o cliente via um erro
+    // genérico no painel e a conversa nunca mais avançava nem podia ser
+    // reaberta com uma mensagem nova. "failed" só é alcançável a partir de
+    // received/transcribing/understanding no grafo da state machine.
+    try {
+      await avancarSolicitacao(solicitacao.id, statusSolicitacao, "failed");
+    } catch (transicaoErr) {
+      console.warn(
+        `Não foi possível marcar solicitação ${solicitacao.id} como "failed" a partir de "${statusSolicitacao}":`,
+        transicaoErr,
+      );
+    }
+    throw err;
+  }
 
   const intent = extrairMissaoProposta(resultado.toolUses);
   const respostaTexto =
