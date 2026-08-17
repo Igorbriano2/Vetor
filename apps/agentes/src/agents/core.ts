@@ -85,13 +85,25 @@ export async function processarComAgente(params: {
   const tools = params.tools ?? [REGISTRAR_TICKET_TOOL, TRANSFERIR_HUMANO_TOOL];
   const nomesConhecidos = new Set(["registrar_ticket", "transferir_humano"]);
 
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-5",
-    max_tokens: 1024,
-    system: params.systemPrompt,
-    messages: params.historico,
-    tools,
-  });
+  const criarResposta = () =>
+    anthropic.messages.create({
+      model: "claude-sonnet-4-5",
+      max_tokens: 1024,
+      system: params.systemPrompt,
+      messages: params.historico,
+      tools,
+    });
+
+  let response = await criarResposta();
+  if (response.content.length === 0) {
+    // A API às vezes devolve conteúdo vazio (sem texto, sem tool_use) com
+    // stop_reason "end_turn" mesmo com uma chamada válida — visto em produção
+    // e reproduzido de forma consistente numa conversa com histórico
+    // repetitivo. Uma segunda tentativa (nova amostragem) normalmente resolve;
+    // só cai no "não entendi" se a segunda tentativa também vier vazia.
+    console.warn(`[core] Resposta vazia do agente "${params.agente}" (stop_reason=${response.stop_reason}) — tentando de novo.`);
+    response = await criarResposta();
+  }
 
   let respostaTexto = "";
   let ticketCriado = false;
@@ -152,12 +164,10 @@ export async function processarComAgente(params: {
   }
 
   if (!respostaTexto && toolUses.length === 0) {
-    // Diagnóstico temporário: isso não deveria acontecer com stop_reason
-    // "end_turn"/"tool_use" normais — só serve pra descobrir por que a API
-    // devolveu conteúdo sem texto nem tool_use (ex: stop_reason "max_tokens"
-    // cortando no meio, ou tipo de bloco novo que este código ainda não trata).
+    // Chegou aqui mesmo depois do retry em criarResposta() — registra pra
+    // acompanhar a taxa real desse caso em produção.
     console.warn(
-      `[core] Resposta vazia do agente "${params.agente}" — stop_reason=${response.stop_reason}, ` +
+      `[core] Resposta vazia do agente "${params.agente}" mesmo após retry — stop_reason=${response.stop_reason}, ` +
         `blocos=${JSON.stringify(response.content.map((b) => b.type))}`,
     );
     respostaTexto = "Desculpa, não entendi direito. Pode repetir de outro jeito?";

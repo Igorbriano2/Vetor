@@ -427,9 +427,14 @@ export async function processarMensagemPlataforma(
   }
 
   const intent = extrairMissaoProposta(resultado.toolUses);
+  // O fallback precisa variar por missão (nunca um texto fixo repetido) —
+  // um histórico de conversa com a mesma frase byte-idêntica em várias trocas
+  // seguidas (visto ao testar 6 propostas seguidas na mesma conversa) deixa o
+  // padrão degenerado o bastante pra API às vezes devolver conteúdo vazio nas
+  // trocas seguintes (ver diagnóstico em core.ts: stop_reason=end_turn, blocos=[]).
   const respostaTexto =
     resultado.respostaTexto ||
-    (intent ? "Montei uma proposta de missão — dá uma olhada e confirma se está de acordo." : resultado.respostaTexto);
+    (intent ? `Montei uma proposta de missão: "${intent.titulo}" — dá uma olhada e confirma se está de acordo.` : resultado.respostaTexto);
 
   await salvarMensagem(clienteId, "saida", respostaTexto, conversationId);
 
