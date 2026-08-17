@@ -68,6 +68,42 @@ services:
         scope: RUN_TIME
         type: SECRET
         # Gere uma string aleatoria longa e use o MESMO valor no app "agentes" e no app "painel"
+      - key: REDIS_URL
+        scope: RUN_TIME
+        type: SECRET
+        # Necessario para o Mission Orchestrator (fila BullMQ). Sem isso, o server HTTP
+        # sobe normalmente (/health ok) mas criar uma missao (POST /plataforma/missoes)
+        # falha ao tentar enfileirar. Ver docs/STATUS.md "Mission Orchestrator" antes de
+        # preencher — provisionar Redis tem custo recorrente e precisa de confirmacao.
 domains:
   - domain: api.vetormkt.online
     type: PRIMARY
+workers:
+  - name: mission-worker
+    github:
+      repo: Igorbriano2/Vetor
+      branch: main
+      deploy_on_push: true
+    source_dir: apps/agentes
+    environment_slug: node-js
+    build_command: npm run build
+    run_command: npm run start:worker
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    envs:
+      - key: SUPABASE_URL
+        scope: RUN_TIME
+        value: "https://rhqkzhiuweiblfkfsqxm.supabase.co"
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: ANTHROPIC_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: REDIS_URL
+        scope: RUN_TIME
+        type: SECRET
+        # MESMO valor usado no service "agentes" acima.
+      # Processo consumidor da fila de missoes (BullMQ) — nao expoe HTTP, so
+      # roda src/workers/missionWorker.ts. Sem REDIS_URL ele falha ja na
+      # inicializacao (por design, ver src/queue/connection.ts).

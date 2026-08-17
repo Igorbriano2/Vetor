@@ -72,11 +72,31 @@ Nada disso foi "fingido" — o código está implementado contra as APIs reais, 
 | Transcrição de áudio (STT) | Decidir provedor (implementado: OpenAI Whisper) e configurar `STT_PROVIDER=openai` + `OPENAI_API_KEY` | `.env` de `apps/agentes` |
 | Resposta em voz (TTS) | Mesma chave `OPENAI_API_KEY` acima + `TTS_PROVIDER=openai` (implementado: OpenAI TTS, voz configurável em `TTS_VOICE`) | `.env` de `apps/agentes` |
 | Canal "Fale com o Vetor" no painel | `INTERNAL_API_TOKEN` (mesmo valor nos dois apps) + `AGENTES_API_URL` apontando pro backend publicado — **diferente das outras linhas, sem isso o botão de enviar simplesmente não funciona** (erro 503 tratado, não trava a tela) | `.env`/`.env.local` de `apps/agentes` **e** `apps/painel` |
+| Mission Orchestrator (fila de missões) | `REDIS_URL` — **decisão de custo pendente, ver abaixo**, não configurar sem confirmar com o Igor | `.env` de `apps/agentes`, no service `agentes` **e** no worker `mission-worker` |
 
 Sem essas chaves, o sistema roda (builda, sobe, responde health check) mas não troca dados de
 verdade com WhatsApp/Asaas/Anthropic — isso é intencional: nunca conectamos dinheiro ou número real
 sem sandbox testado antes, conforme pedido no documento 06. O "Fale com o Vetor" do painel também
 precisa de `ANTHROPIC_API_KEY` real pra responder de verdade (mesma chave da tabela acima).
+
+### Mission Orchestrator — pendente de decisão de custo (não provisionado)
+
+O Mission Orchestrator (Fase 2: `missions`/`mission_steps`/`approvals` viram execução de verdade,
+com fila BullMQ/Redis) está implementado, testado (28 testes) e com o bug de segurança que ele
+introduziu (aprovação entre clientes diferentes) já corrigido — mas **ainda não está no ar**. Falta
+uma peça de infraestrutura com custo recorrente que este agente (rodando em sandbox, sem acesso à
+API/console da DigitalOcean) não pode e não deve provisionar sozinho:
+
+1. Um Redis (ex.: DigitalOcean Managed Database — Redis, menor tier ~US$15/mês) — gera o `REDIS_URL`.
+2. Um segundo processo (`workers:` já adicionado em `.do/app-agentes.yaml`, componente
+   `mission-worker`) rodando ao lado do `agentes` — mais uma instância `basic-xxs` (~US$5/mês) na
+   conta da DigitalOcean.
+
+Sem isso, nada quebra: o servidor HTTP sobe normal, WhatsApp/demandas/entregas seguem funcionando
+como sempre. Só a criação de uma missão real (`POST /plataforma/missoes`) falharia ao tentar
+enfileirar. Quando o Igor confirmar que quer pagar por isso, os passos são: criar o Redis na
+DigitalOcean, colar o `REDIS_URL` como secret nos dois componentes (`agentes` e `mission-worker`) e
+aplicar o spec atualizado de `.do/app-agentes.yaml` (que já inclui o worker).
 
 ## Limitações conhecidas do MVP (esperadas nesta fase)
 
