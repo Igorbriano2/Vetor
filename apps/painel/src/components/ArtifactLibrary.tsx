@@ -1,0 +1,76 @@
+import Link from "next/link";
+import StatusBadge from "./StatusBadge";
+import type { ArtefatoBiblioteca } from "@/lib/artifacts/fetchArtifacts";
+
+const LABEL_TIPO: Record<string, string> = {
+  image: "Imagem",
+  video: "Vídeo",
+  copy: "Copy",
+  document: "Documento",
+  report: "Relatório",
+  plan: "Plano",
+  campaign_snapshot: "Campanha",
+};
+
+// Biblioteca visual reutilizada por Design/Videomaker/Entregas — mesma
+// lógica de card (thumbnail/preview, tipo, data, origem, status, ação),
+// só a query de artefatos que muda por página (ver fetchArtifacts).
+export default function ArtifactLibrary({
+  artefatos,
+  vazio,
+}: {
+  artefatos: ArtefatoBiblioteca[];
+  vazio: string;
+}) {
+  if (artefatos.length === 0) {
+    return <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">{vazio}</p>;
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {artefatos.map((a) => (
+        <div key={a.id} className="flex flex-col overflow-hidden rounded-2xl border border-areia/10 bg-petroleo-2/60 backdrop-blur">
+          {a.type === "image" && a.url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={a.url} alt={a.title} className="h-36 w-full object-cover" />
+          )}
+          {a.type === "video" && a.url && <video src={a.url} className="h-36 w-full object-cover" muted />}
+          {!(a.url && (a.type === "image" || a.type === "video")) && (
+            <div className="flex h-36 w-full items-center justify-center bg-petroleo/60 font-mono text-[10px] uppercase tracking-wide text-areia/30">
+              {LABEL_TIPO[a.type] ?? a.type}
+            </div>
+          )}
+
+          <div className="flex flex-1 flex-col gap-2 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-mono text-[10px] uppercase tracking-wide text-areia/40">{LABEL_TIPO[a.type] ?? a.type}</span>
+              <StatusBadge status={a.status === "ready" ? "concluida" : a.status} />
+            </div>
+            <p className="text-sm font-medium text-areia">{a.title}</p>
+            {a.content && <p className="line-clamp-2 text-xs text-areia/50">{a.content}</p>}
+            <div className="mt-auto flex items-center justify-between gap-2 pt-2">
+              <span className="font-mono text-[10px] text-areia/30">{new Date(a.createdAt).toLocaleDateString("pt-BR")}</span>
+              <div className="flex items-center gap-3">
+                {a.missionId && (
+                  <Link href={`/missoes/${a.missionId}`} className="font-mono text-[11px] text-areia/50 hover:text-menta">
+                    missão
+                  </Link>
+                )}
+                {a.url && (
+                  <a
+                    href={a.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-[11px] text-menta underline underline-offset-2 hover:text-menta-forte"
+                  >
+                    abrir
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

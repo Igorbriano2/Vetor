@@ -5,16 +5,37 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import LogoutButton from "@/components/LogoutButton";
 
-const NAV_ITEMS = [
-  { href: "/dashboard", label: "Núcleo VETOR" },
-  { href: "/missoes", label: "Missões" },
-  { href: "/solicitacoes", label: "Solicitações" },
-  { href: "/planejamento", label: "Planejamento" },
-  { href: "/trafego", label: "Tráfego" },
-  { href: "/conteudo", label: "Conteúdo" },
-  { href: "/entregas", label: "Entregas" },
-  { href: "/insights", label: "Insights" },
-  { href: "/configuracoes/negocio", label: "Negócio" },
+// Agrupado como departamentos de uma agência (auditoria de arquitetura) —
+// o cliente nunca precisa entender que por trás disso são agentes de IA.
+// /conteudo e /insights continuam existindo como rotas (não removidas), só
+// saíram do menu: o papel deles hoje é coberto por Design/Videomaker (peças)
+// e pelos filtros de Entregas (Resultados), sem duplicar entrada no menu.
+const GRUPOS_NAV: Array<{ titulo: string | null; itens: Array<{ href: string; label: string }> }> = [
+  { titulo: null, itens: [{ href: "/dashboard", label: "VETOR" }] },
+  {
+    titulo: "Operação",
+    itens: [
+      { href: "/missoes", label: "Missões" },
+      { href: "/solicitacoes", label: "Solicitações" },
+    ],
+  },
+  {
+    titulo: "Criação",
+    itens: [
+      { href: "/design", label: "Design" },
+      { href: "/videomaker", label: "Videomaker" },
+    ],
+  },
+  {
+    titulo: "Crescimento",
+    itens: [
+      { href: "/trafego", label: "Tráfego" },
+      { href: "/planejamento", label: "Planejamento" },
+    ],
+  },
+  { titulo: "Biblioteca", itens: [{ href: "/entregas", label: "Entregas" }] },
+  { titulo: "Contexto", itens: [{ href: "/configuracoes/negocio", label: "Negócio" }] },
+  { titulo: "Sistema", itens: [{ href: "/conexoes", label: "Conexões" }] },
 ];
 
 function ehAtivo(pathname: string, href: string): boolean {
@@ -39,22 +60,29 @@ function VetorMark() {
 
 function ListaNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   return (
-    <nav className="flex flex-col gap-0.5">
-      {NAV_ITEMS.map((item) => {
-        const ativo = ehAtivo(pathname, item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            className={`mono-label rounded-lg px-3 py-2 transition ${
-              ativo ? "bg-menta/10 text-menta" : "text-areia-2 hover:bg-areia/5 hover:text-areia"
-            }`}
-          >
-            {item.label}
-          </Link>
-        );
-      })}
+    <nav className="flex flex-col gap-3">
+      {GRUPOS_NAV.map((grupo, i) => (
+        <div key={grupo.titulo ?? `grupo-${i}`} className="flex flex-col gap-0.5">
+          {grupo.titulo && (
+            <p className="mt-1 px-3 font-mono text-[10px] uppercase tracking-widest text-areia/25">{grupo.titulo}</p>
+          )}
+          {grupo.itens.map((item) => {
+            const ativo = ehAtivo(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavigate}
+                className={`mono-label rounded-lg px-3 py-2 transition ${
+                  ativo ? "bg-menta/10 text-menta" : "text-areia-2 hover:bg-areia/5 hover:text-areia"
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      ))}
     </nav>
   );
 }

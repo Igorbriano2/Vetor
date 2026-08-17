@@ -34,6 +34,10 @@ const GRUPO: Record<string, "info" | "decisao" | "sucesso" | "risco"> = {
   awaiting_context: "decisao",
   confirmed: "sucesso",
   converted_to_mission: "sucesso",
+  // Status de artefato (supabase/migrations/0015_artifacts.sql)
+  processing: "info",
+  approved: "sucesso",
+  rejected: "risco",
 };
 
 const CORES: Record<"info" | "decisao" | "sucesso" | "risco", string> = {
@@ -74,6 +78,9 @@ const ROTULOS: Record<string, string> = {
   awaiting_context: "Aguardando informação",
   confirmed: "Confirmada",
   converted_to_mission: "Convertida em missão",
+  processing: "Processando",
+  approved: "Aprovado",
+  rejected: "Rejeitado",
 };
 
 export default function StatusBadge({ status }: { status: string }) {
