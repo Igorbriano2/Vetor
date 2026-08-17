@@ -94,6 +94,10 @@ const FERRAMENTAS_RISCO_MEDIO_ALTO: VetorToolDefinition[] = [
     reversible: false,
     inputSchema: { required: ["imagem_url", "prompt"] },
   }),
+  ferramenta("gerar_imagem_higgsfield", "Gera uma imagem/peça visual a partir de um prompt de texto (Higgsfield).", "medium", {
+    reversible: false,
+    inputSchema: { required: ["prompt"] },
+  }),
 ];
 
 // Alto risco/irreversível — nunca liberadas pra execução automática, mesmo

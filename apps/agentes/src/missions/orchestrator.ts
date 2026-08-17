@@ -12,6 +12,7 @@ import { avaliarRisco, precisaAprovacao, bloqueiaExecucaoAutomatica, type Risco 
 import { enfileirarPlanMission, enfileirarRunAgentStep } from "../queue/missionQueue.js";
 import { executarEspecialista, type ContextoMissaoParaEspecialista } from "../agents/specialistRunner.js";
 import { criarSnapshotDeContexto } from "./businessContextSnapshot.js";
+import { buscarAssetsRelevantes } from "../negocio/businessAssets.js";
 import type { AgenteId } from "../agents/prompts/index.js";
 
 // Agentes cuja etapa promete uma entrega verificável (arte, vídeo) — nunca
@@ -427,6 +428,13 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
     .eq("is_atual", true)
     .maybeSingle();
 
+  // Banco de imagens só custa a chamada extra pra quem de fato produz peça
+  // visual — os demais agentes não precisam disso no contexto.
+  const assetsDisponiveis =
+    etapa.agente === "design" || etapa.agente === "video"
+      ? await buscarAssetsRelevantes(etapa.cliente_id)
+      : undefined;
+
   const contexto: ContextoMissaoParaEspecialista = {
     missaoObjetivo: missao.objetivo,
     missaoHipotese: missao.hipotese,
@@ -436,6 +444,7 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
       nicho: cliente?.nicho ?? "outro",
       perfil: perfil ?? null,
       brandKit: brandKit ?? null,
+      assetsDisponiveis,
     },
   };
 

@@ -1,27 +1,21 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "../db/supabase.js";
 import { getSystemPrompt, type AgenteId } from "./prompts/index.js";
-import { gerarVideoAPartirDeImagem, VideoIndisponivelError } from "../integrations/higgsfield.js";
+import { gerarVideoAPartirDeImagem, gerarImagem, VideoIndisponivelError, ImagemIndisponivelError } from "../integrations/higgsfield.js";
 import { persistirArtefato, type ArtefatoPersistido, type ArtifactType } from "../artifacts/artifactsService.js";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// Tipos de artefato que um especialista sem ferramenta de geração real pode
-// produzir sozinho — sempre texto (documento/copy/plano/relatório). "image" e
-// "video" só existem quando vieram de uma ferramenta de execução real (ver
-// rodarComFerramentaDeVideo) — nunca aceitos do que o LLM alega ter feito.
+// Tipos de artefato que um especialista sem ferramenta de geração conectada
+// pode produzir sozinho — sempre texto (documento/copy/plano/relatório).
+// "image" e "video" só existem quando vieram de uma ferramenta de execução
+// real (ver rodarComFerramentaDeExecucao) — nunca aceitos do que o LLM alega
+// ter feito.
 const TIPOS_ARTEFATO_TEXTO = ["copy", "document", "plan", "report"] as const;
 
 // Contrato de saída — espelha AgentResult<T> de
 // docs/manus-jarvis-spec/docs/04-agentes-e-prompts.md §2. Forçado via
 // tool_choice para nunca sair como prosa livre.
-//
-// "artifacts" é a correção de princípio da auditoria de arquitetura: uma
-// etapa nunca deve alegar "arte criada"/"vídeo pronto" sem um artifact_id
-// verificável. Quem só produz texto (a maioria dos agentes hoje, sem
-// integração de geração de imagem real) só pode declarar artefatos de tipo
-// texto — orchestrator.ts reforça isso de novo no lado do banco antes de
-// marcar a etapa como completed.
 export const ENTREGAR_RESULTADO_TOOL: Anthropic.Tool = {
   name: "entregar_resultado",
   description: "Entrega o resultado estruturado desta etapa da missão. Sempre use esta ferramenta para responder.",
@@ -43,14 +37,33 @@ export const ENTREGAR_RESULTADO_TOOL: Anthropic.Tool = {
         description:
           "Entregas reais desta etapa. Só use type=copy/document/plan/report aqui (texto que você mesmo escreveu). " +
           "NUNCA declare type=image ou type=video — essas só existem quando geradas por uma ferramenta de execução " +
-          "real (ex: gerar_video_higgsfield); dizer 'arte criada' sem isso é proibido, use status=completed só para " +
-          "o que você de fato produziu (ex: um briefing), e explique no summary o que ainda falta gerar de verdade.",
+          "real (ex: gerar_imagem_higgsfield, gerar_video_higgsfield); dizer 'arte criada' sem isso é proibido.",
         items: {
           type: "object",
           properties: {
             type: { type: "string", enum: [...TIPOS_ARTEFATO_TEXTO] },
             title: { type: "string" },
             content: { type: "string", description: "O conteúdo de verdade — o texto do briefing/copy/plano/relatório, não um resumo dele." },
+            periodo: { type: "string", description: "Só pra type=plan — período do planejamento, formato AAAA-MM (ex: '2026-08')." },
+            calendario: {
+              type: "array",
+              description: "Só pra type=plan — calendário editorial real, um item por peça/ação planejada.",
+              items: {
+                type: "object",
+                properties: {
+                  data: { type: "string", description: "AAAA-MM-DD" },
+                  titulo: { type: "string" },
+                  canal: { type: "string" },
+                  tipo: { type: "string" },
+                },
+                required: ["data", "titulo"],
+              },
+            },
+            indicadores: {
+              type: "array",
+              description: "Só pra type=plan — indicadores sugeridos pra acompanhar o período.",
+              items: { type: "string" },
+            },
           },
           required: ["type", "title", "content"],
         },
@@ -62,10 +75,6 @@ export const ENTREGAR_RESULTADO_TOOL: Anthropic.Tool = {
   },
 };
 
-// Único tool de execução real hoje (os outros agentes só produzem
-// texto/estrutura via entregar_resultado) — gera custo real por chamada,
-// por isso a etapa já chega aqui como risco "medium" (ver tools/registry.ts,
-// exige aprovação antes do worker rodar isto).
 const GERAR_VIDEO_TOOL: Anthropic.Tool = {
   name: "gerar_video_higgsfield",
   description: "Gera um vídeo a partir de uma imagem de referência e uma descrição de movimento (Higgsfield).",
@@ -76,6 +85,19 @@ const GERAR_VIDEO_TOOL: Anthropic.Tool = {
       prompt: { type: "string", description: "Descrição do movimento/câmera desejado." },
     },
     required: ["imagem_url", "prompt"],
+  },
+};
+
+const GERAR_IMAGEM_TOOL: Anthropic.Tool = {
+  name: "gerar_imagem_higgsfield",
+  description: "Gera uma imagem/peça visual a partir de uma descrição de texto (Higgsfield).",
+  input_schema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string", description: "Descrição visual completa: composição, cores, texto na peça, estilo." },
+      aspect_ratio: { type: "string", description: "Ex: '1:1' (feed), '9:16' (story/reel), '4:5'. Default 1:1." },
+    },
+    required: ["prompt"],
   },
 };
 
@@ -102,6 +124,7 @@ export interface ContextoMissaoParaEspecialista {
     nicho: string;
     perfil?: { descricao: string | null; tom: string | null; ofertas: unknown; publico: unknown } | null;
     brandKit?: { cores: unknown; fontes: unknown; regras: unknown } | null;
+    assetsDisponiveis?: Array<{ nome: string; url: string; tags: string[] }>;
   };
 }
 
@@ -119,6 +142,48 @@ const DEPARTAMENTO_POR_AGENTE: Record<AgenteId, string> = {
   secretario: "planejamento",
 };
 
+// Agentes com uma ferramenta de execução real (geram custo por chamada,
+// nunca chamadas em loop irrestrito) além de entregar_resultado.
+const FERRAMENTA_GERACAO_POR_AGENTE: Partial<
+  Record<
+    AgenteId,
+    {
+      tool: Anthropic.Tool;
+      tipo: Extract<ArtifactType, "image" | "video">;
+      titulo: string;
+      mimeType: string;
+      executar: (input: Record<string, unknown>) => Promise<{ url: string; requestId: string }>;
+    }
+  >
+> = {
+  video: {
+    tool: GERAR_VIDEO_TOOL,
+    tipo: "video",
+    titulo: "Vídeo gerado (Higgsfield)",
+    mimeType: "video/mp4",
+    executar: async (input) => {
+      try {
+        return await gerarVideoAPartirDeImagem(input.imagem_url as string, input.prompt as string);
+      } catch (err) {
+        throw err instanceof VideoIndisponivelError ? err : new VideoIndisponivelError(err instanceof Error ? err.message : "erro desconhecido");
+      }
+    },
+  },
+  design: {
+    tool: GERAR_IMAGEM_TOOL,
+    tipo: "image",
+    titulo: "Imagem gerada (Higgsfield)",
+    mimeType: "image/png",
+    executar: async (input) => {
+      try {
+        return await gerarImagem(input.prompt as string, { aspectRatio: input.aspect_ratio as string | undefined });
+      } catch (err) {
+        throw err instanceof ImagemIndisponivelError ? err : new ImagemIndisponivelError(err instanceof Error ? err.message : "erro desconhecido");
+      }
+    },
+  },
+};
+
 function montarContexto(ctx: ContextoMissaoParaEspecialista): string {
   const partes = [
     `MISSÃO — objetivo: ${ctx.missaoObjetivo}`,
@@ -128,24 +193,33 @@ function montarContexto(ctx: ContextoMissaoParaEspecialista): string {
     ctx.negocio.perfil?.descricao ? `Perfil de negócio: ${ctx.negocio.perfil.descricao}` : null,
     ctx.negocio.perfil?.tom ? `Tom de voz: ${ctx.negocio.perfil.tom}` : null,
     ctx.negocio.brandKit ? `Brand kit atual: ${JSON.stringify(ctx.negocio.brandKit)}` : null,
+    ctx.negocio.assetsDisponiveis?.length
+      ? `Banco de imagens disponível (use como referência quando fizer sentido): ${ctx.negocio.assetsDisponiveis
+          .map((a) => `${a.nome} [${a.tags.join(", ")}] — ${a.url}`)
+          .join("; ")}`
+      : null,
   ].filter(Boolean);
 
   return partes.join("\n");
 }
 
-interface ResultadoTurnoVideo {
+interface ResultadoTurnoExecucao {
   message: Anthropic.Message;
-  videoGerado?: { url: string; requestId: string };
+  midiaGerada?: { url: string; requestId: string };
 }
 
-// Único agente com um tool de execução real (gerar_video_higgsfield) além de
-// entregar_resultado — loop curto e limitado (máx. 3 idas e voltas): deixa o
-// modelo pedir o vídeo, executa de verdade, devolve o resultado real como
+// Loop curto e limitado (máx. 3 idas e voltas) pro único tipo de agente que
+// tem uma ferramenta de execução real além de entregar_resultado: deixa o
+// modelo pedir a geração, executa de verdade, devolve o resultado real como
 // tool_result, e força entregar_resultado se ele não fechar sozinho depois
-// de ter o vídeo em mãos (nunca deixa rodar indefinidamente).
-async function rodarComFerramentaDeVideo(systemPrompt: string, tarefa: string): Promise<ResultadoTurnoVideo> {
+// de ter a mídia em mãos (nunca deixa rodar indefinidamente).
+async function rodarComFerramentaDeExecucao(
+  systemPrompt: string,
+  tarefa: string,
+  ferramenta: NonNullable<(typeof FERRAMENTA_GERACAO_POR_AGENTE)[AgenteId]>,
+): Promise<ResultadoTurnoExecucao> {
   const mensagens: Anthropic.MessageParam[] = [{ role: "user", content: tarefa }];
-  let videoGerado: ResultadoTurnoVideo["videoGerado"];
+  let midiaGerada: ResultadoTurnoExecucao["midiaGerada"];
 
   for (let turno = 0; turno < 3; turno++) {
     const ultimoTurno = turno === 2;
@@ -154,31 +228,29 @@ async function rodarComFerramentaDeVideo(systemPrompt: string, tarefa: string): 
       max_tokens: 2048,
       system: systemPrompt,
       messages: mensagens,
-      tools: [ENTREGAR_RESULTADO_TOOL, GERAR_VIDEO_TOOL],
+      tools: [ENTREGAR_RESULTADO_TOOL, ferramenta.tool],
       tool_choice: ultimoTurno ? { type: "tool", name: "entregar_resultado" } : { type: "auto" },
     });
 
-    const chamadaVideo = response.content.find(
-      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === "gerar_video_higgsfield",
+    const chamada = response.content.find(
+      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === ferramenta.tool.name,
     );
-    if (!chamadaVideo) return { message: response, videoGerado };
+    if (!chamada) return { message: response, midiaGerada };
 
     mensagens.push({ role: "assistant", content: response.content });
 
-    const input = chamadaVideo.input as { imagem_url: string; prompt: string };
     let resultadoFerramenta: string;
     try {
-      const video = await gerarVideoAPartirDeImagem(input.imagem_url, input.prompt);
-      videoGerado = video;
-      resultadoFerramenta = JSON.stringify({ status: "completed", video_url: video.url, request_id: video.requestId });
+      const midia = await ferramenta.executar(chamada.input as Record<string, unknown>);
+      midiaGerada = midia;
+      resultadoFerramenta = JSON.stringify({ status: "completed", url: midia.url, request_id: midia.requestId });
     } catch (err) {
-      const motivo = err instanceof VideoIndisponivelError ? err.message : err instanceof Error ? err.message : "erro desconhecido";
-      resultadoFerramenta = JSON.stringify({ status: "failed", error: motivo });
+      resultadoFerramenta = JSON.stringify({ status: "failed", error: err instanceof Error ? err.message : "erro desconhecido" });
     }
 
     mensagens.push({
       role: "user",
-      content: [{ type: "tool_result", tool_use_id: chamadaVideo.id, content: resultadoFerramenta }],
+      content: [{ type: "tool_result", tool_use_id: chamada.id, content: resultadoFerramenta }],
     });
   }
 
@@ -192,7 +264,7 @@ async function rodarComFerramentaDeVideo(systemPrompt: string, tarefa: string): 
     tools: [ENTREGAR_RESULTADO_TOOL],
     tool_choice: { type: "tool", name: "entregar_resultado" },
   });
-  return { message: response, videoGerado };
+  return { message: response, midiaGerada };
 }
 
 // Executa um especialista (design, trafego, estrategia...) para uma etapa de
@@ -208,14 +280,15 @@ export async function executarEspecialista(
 ): Promise<AgentResult> {
   const systemPrompt = `${getSystemPrompt(agenteId)}\n\n${montarContexto(contexto)}`;
   const departamento = DEPARTAMENTO_POR_AGENTE[agenteId];
+  const ferramentaGeracao = FERRAMENTA_GERACAO_POR_AGENTE[agenteId];
 
   let response: Anthropic.Message;
-  let videoGerado: ResultadoTurnoVideo["videoGerado"];
+  let midiaGerada: ResultadoTurnoExecucao["midiaGerada"];
 
-  if (agenteId === "video") {
-    const resultadoVideo = await rodarComFerramentaDeVideo(systemPrompt, contexto.etapaTarefa);
-    response = resultadoVideo.message;
-    videoGerado = resultadoVideo.videoGerado;
+  if (ferramentaGeracao) {
+    const resultadoExecucao = await rodarComFerramentaDeExecucao(systemPrompt, contexto.etapaTarefa, ferramentaGeracao);
+    response = resultadoExecucao.message;
+    midiaGerada = resultadoExecucao.midiaGerada;
   } else {
     response = await anthropic.messages.create({
       model: "claude-sonnet-4-5",
@@ -235,38 +308,40 @@ export async function executarEspecialista(
     type: string;
     title: string;
     content: string;
+    periodo?: string;
+    calendario?: Array<{ data: string; titulo: string; canal?: string; tipo?: string }>;
+    indicadores?: string[];
   }
   const bruto = (toolUse?.input ?? {}) as Partial<AgentResult> & { artifacts?: ArtefatoBruto[] };
 
   const artefatosPersistidos: ArtefatoPersistido[] = [];
 
-  // Vídeo real gerado pela ferramenta de execução — sempre um artefato real,
+  // Mídia real gerada pela ferramenta de execução — sempre um artefato real,
   // independente do que o modelo tenha dito em `artifacts` (que só aceita
   // tipos de texto, ver TIPOS_ARTEFATO_TEXTO).
-  if (videoGerado) {
+  if (midiaGerada && ferramentaGeracao) {
     try {
       artefatosPersistidos.push(
         await persistirArtefato({
           clienteId,
           missionId,
           missionStepId,
-          type: "video",
+          type: ferramentaGeracao.tipo,
           department: departamento,
-          title: "Vídeo gerado (Higgsfield)",
-          externalUrl: videoGerado.url,
-          mimeType: "video/mp4",
+          title: ferramentaGeracao.titulo,
+          externalUrl: midiaGerada.url,
+          mimeType: ferramentaGeracao.mimeType,
           criadoPorAgente: agenteId,
         }),
       );
     } catch (err) {
-      console.warn(`Falha ao persistir artefato de vídeo da etapa ${missionStepId}:`, err instanceof Error ? err.message : err);
+      console.warn(`Falha ao persistir artefato de mídia da etapa ${missionStepId}:`, err instanceof Error ? err.message : err);
     }
   }
 
   // Artefatos de texto declarados pelo modelo — só os tipos permitidos no
   // schema chegam aqui, mas revalida no código mesmo assim (nunca confiar só
-  // no schema da API de tool use, ver Fase 4 / bloqueiaExecucaoAutomatica no
-  // mesmo espírito).
+  // no schema da API de tool use).
   for (const item of bruto.artifacts ?? []) {
     if (!(TIPOS_ARTEFATO_TEXTO as readonly string[]).includes(item.type) || !item.content?.trim()) continue;
     try {
@@ -280,6 +355,10 @@ export async function executarEspecialista(
           title: item.title || "Sem título",
           content: item.content,
           criadoPorAgente: agenteId,
+          metadataExtra:
+            item.type === "plan"
+              ? { periodo: item.periodo, calendario: item.calendario ?? [], indicadores: item.indicadores ?? [] }
+              : undefined,
         }),
       );
     } catch (err) {

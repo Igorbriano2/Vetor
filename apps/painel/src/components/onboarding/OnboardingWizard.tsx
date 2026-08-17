@@ -664,7 +664,14 @@ function EtapaVisual({
 
   return (
     <>
-      <p className="text-sm text-areia/60">Envie os arquivos da sua marca — só a referência fica salva, o arquivo vai pro storage seguro.</p>
+      <p className="text-sm text-areia/60">
+        Envie os arquivos da sua marca — só a referência fica salva, o arquivo vai pro storage seguro. Pra um banco
+        de imagens completo (pastas, tags, busca), veja{" "}
+        <a href="/configuracoes/negocio/banco-de-imagens" target="_blank" rel="noreferrer" className="text-menta underline underline-offset-2">
+          Banco de imagens
+        </a>
+        .
+      </p>
       <div className="grid grid-cols-2 gap-4">
         {campos.map(({ campo, label }) => (
           <label key={campo} className="block">

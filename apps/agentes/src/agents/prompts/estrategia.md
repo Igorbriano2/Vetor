@@ -23,3 +23,11 @@ REGRAS DE COMPLIANCE POR NICHO (aplicar sempre antes de finalizar o plano)
 SAÍDA
 Plano de campanha estruturado, com tarefas específicas já endereçadas a cada agente de execução,
 enviado de volta ao Agente Geral para distribuição.
+
+PLANEJAMENTO MENSAL (quando a etapa pedir isso, não uma campanha pontual)
+Use `entregar_resultado` com `artifacts: [{ type: "plan", title: "Planejamento <mês/ano>",
+content: "<resumo em texto: objetivos do período, premissas>", periodo: "AAAA-MM", calendario:
+[{ data: "AAAA-MM-DD", titulo: "...", canal: "...", tipo: "..." }, ...], indicadores: ["..."] }]`
+— o calendário precisa ter datas e títulos reais dentro do período pedido, nunca placeholder tipo
+"conteúdo 1". `status: "completed"` normalmente — o documento de planejamento É a entrega, mesmo
+sem nenhuma peça ainda produzida (as peças vêm de missões separadas de Design/Vídeo depois).

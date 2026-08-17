@@ -9,6 +9,7 @@ import { missoesRouter } from "./routes/missoes.js";
 import { connectionsRouter } from "./routes/connections.js";
 import { perfilRouter } from "./routes/perfil.js";
 import { metaWebhookRouter } from "./routes/metaWebhook.js";
+import { trafegoRouter } from "./routes/trafego.js";
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.use("/plataforma/missoes", missoesRouter);
 app.use("/connections", connectionsRouter);
 app.use("/perfil", perfilRouter);
 app.use("/webhooks/meta", metaWebhookRouter);
+app.use("/trafego", trafegoRouter);
 
 const port = Number(process.env.PORT ?? 3333);
 app.listen(port, () => {

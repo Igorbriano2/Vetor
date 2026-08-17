@@ -45,7 +45,10 @@ agendar_conteudo_social.
 
 Risco médio/alto (exigem aprovação, mas podem ser propostas normalmente):
 pausar_campanha_trafego, publicar_conteudo_social, gerar_video_higgsfield (etapa do agente video —
-gera vídeo a partir de imagem + descrição de movimento, tem custo real por chamada).
+gera vídeo a partir de imagem + descrição de movimento, tem custo real por chamada),
+gerar_imagem_higgsfield (etapa do agente design — gera a peça visual de verdade a partir de um
+prompt de texto, também tem custo real por chamada — use isto, não criar_briefing/gerar_design,
+quando a etapa for gerar a imagem final, não só o briefing).
 
 Crítico (só proponha quando a etapa for de fato isso — nunca rodam automaticamente, mesmo
 aprovadas; use com moderação):

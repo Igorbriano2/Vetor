@@ -27,6 +27,10 @@ export interface ArtifactoParaPersistir {
   mimeType?: string;
   durationSeconds?: number;
   criadoPorAgente: string;
+  // Dados estruturados além do texto — usado por type=plan (calendário,
+  // indicadores, período) sem precisar de tabela própria pro planejamento
+  // (reaproveita artifacts, já versionado via version/parent_artifact_id).
+  metadataExtra?: Record<string, unknown>;
 }
 
 export interface ArtefatoPersistido {
@@ -69,7 +73,7 @@ export async function persistirArtefato(dados: ArtifactoParaPersistir): Promise<
       storage_path: storagePath,
       mime_type: dados.mimeType ?? null,
       duration_seconds: dados.durationSeconds ?? null,
-      metadata: dados.content ? { content: dados.content } : {},
+      metadata: { ...(dados.content ? { content: dados.content } : {}), ...(dados.metadataExtra ?? {}) },
       created_by_agent: dados.criadoPorAgente,
     })
     .select("id, type, title, status")
