@@ -86,15 +86,17 @@ const FERRAMENTAS_RISCO_MEDIO_ALTO: VetorToolDefinition[] = [
   ferramenta("publicar_conteudo_social", "Publica uma peça de conteúdo social.", "medium", {
     reversible: false,
   }),
-  // Gera custo real por chamada (API paga, Higgsfield) — exige aprovação
-  // como qualquer outra ferramenta de risco médio, mas não é "crítica":
-  // gerar um vídeo de teste não é uma ação irreversível sobre um ativo do
-  // cliente, só um gasto que precisa de sinal verde antes de rodar sozinho.
-  ferramenta("gerar_video_higgsfield", "Gera um vídeo a partir de uma imagem + descrição de movimento (Higgsfield).", "medium", {
+  // Gera custo real por chamada (API paga) — exige aprovação como qualquer
+  // outra ferramenta de risco médio, mas não é "crítica": gerar um vídeo/
+  // imagem de teste não é uma ação irreversível sobre um ativo do cliente,
+  // só um gasto que precisa de sinal verde antes de rodar sozinho.
+  ferramenta("gerar_video_higgsfield", "Gera um vídeo a partir de uma imagem + descrição de movimento (Higgsfield — só vídeo).", "medium", {
     reversible: false,
     inputSchema: { required: ["imagem_url", "prompt"] },
   }),
-  ferramenta("gerar_imagem_higgsfield", "Gera uma imagem/peça visual a partir de um prompt de texto (Higgsfield).", "medium", {
+  // Provider-neutro de propósito: o agente de Design nunca fica acoplado a um
+  // vendor específico no nome da ferramenta — ver integrations/imageProvider.ts.
+  ferramenta("gerar_imagem", "Gera a peça visual final a partir de um prompt de texto (provider de imagem configurado no sistema).", "medium", {
     reversible: false,
     inputSchema: { required: ["prompt"] },
   }),

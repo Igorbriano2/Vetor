@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "../db/supabase.js";
 import { getSystemPrompt, type AgenteId } from "./prompts/index.js";
-import { gerarVideoAPartirDeImagem, gerarImagem, VideoIndisponivelError, ImagemIndisponivelError } from "../integrations/higgsfield.js";
+import { gerarVideoAPartirDeImagem, VideoIndisponivelError } from "../integrations/higgsfield.js";
+import { gerarImagem, ImagemIndisponivelError } from "../integrations/imageProvider.js";
 import { persistirArtefato, type ArtefatoPersistido, type ArtifactType } from "../artifacts/artifactsService.js";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -37,7 +39,7 @@ export const ENTREGAR_RESULTADO_TOOL: Anthropic.Tool = {
         description:
           "Entregas reais desta etapa. Só use type=copy/document/plan/report aqui (texto que você mesmo escreveu). " +
           "NUNCA declare type=image ou type=video — essas só existem quando geradas por uma ferramenta de execução " +
-          "real (ex: gerar_imagem_higgsfield, gerar_video_higgsfield); dizer 'arte criada' sem isso é proibido.",
+          "real (ex: gerar_imagem, gerar_video_higgsfield); dizer 'arte criada' sem isso é proibido.",
         items: {
           type: "object",
           properties: {
@@ -89,8 +91,8 @@ const GERAR_VIDEO_TOOL: Anthropic.Tool = {
 };
 
 const GERAR_IMAGEM_TOOL: Anthropic.Tool = {
-  name: "gerar_imagem_higgsfield",
-  description: "Gera uma imagem/peça visual a partir de uma descrição de texto (Higgsfield).",
+  name: "gerar_imagem",
+  description: "Gera a peça visual final a partir de uma descrição de texto (provider de imagem configurado no sistema).",
   input_schema: {
     type: "object",
     properties: {
@@ -142,6 +144,23 @@ const DEPARTAMENTO_POR_AGENTE: Record<AgenteId, string> = {
   secretario: "planejamento",
 };
 
+// O que uma ferramenta de execução real devolve: OU uma URL externa
+// hospedada pelo provider (vídeo, Higgsfield) OU um arquivo já baixado e
+// salvo no nosso bucket (imagem, OpenAI) — nunca os dois. storagePath deixa
+// a Vetor dona do arquivo (URL assinada renovável), diferente de externalUrl
+// que expira junto com o link do provider.
+interface MidiaExecutada {
+  requestId: string;
+  url?: string;
+  storagePath?: string;
+  mimeType?: string;
+}
+
+interface ContextoExecucaoFerramenta {
+  clienteId: string;
+  missionStepId: string;
+}
+
 // Agentes com uma ferramenta de execução real (geram custo por chamada,
 // nunca chamadas em loop irrestrito) além de entregar_resultado.
 const FERRAMENTA_GERACAO_POR_AGENTE: Partial<
@@ -152,7 +171,7 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<
       tipo: Extract<ArtifactType, "image" | "video">;
       titulo: string;
       mimeType: string;
-      executar: (input: Record<string, unknown>) => Promise<{ url: string; requestId: string }>;
+      executar: (input: Record<string, unknown>, ctx: ContextoExecucaoFerramenta) => Promise<MidiaExecutada>;
     }
   >
 > = {
@@ -163,7 +182,8 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<
     mimeType: "video/mp4",
     executar: async (input) => {
       try {
-        return await gerarVideoAPartirDeImagem(input.imagem_url as string, input.prompt as string);
+        const midia = await gerarVideoAPartirDeImagem(input.imagem_url as string, input.prompt as string);
+        return { requestId: midia.requestId, url: midia.url };
       } catch (err) {
         throw err instanceof VideoIndisponivelError ? err : new VideoIndisponivelError(err instanceof Error ? err.message : "erro desconhecido");
       }
@@ -172,11 +192,18 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<
   design: {
     tool: GERAR_IMAGEM_TOOL,
     tipo: "image",
-    titulo: "Imagem gerada (Higgsfield)",
+    titulo: "Imagem gerada",
     mimeType: "image/png",
-    executar: async (input) => {
+    executar: async (input, ctx) => {
       try {
-        return await gerarImagem(input.prompt as string, { aspectRatio: input.aspect_ratio as string | undefined });
+        const imagem = await gerarImagem(input.prompt as string, { aspectRatio: input.aspect_ratio as string | undefined });
+        const requestId = randomUUID();
+        const path = `${ctx.clienteId}/design/${ctx.missionStepId}/${requestId}.png`;
+        const { error } = await supabase.storage
+          .from("artifacts")
+          .upload(path, imagem.bytes, { contentType: imagem.mimeType, upsert: false });
+        if (error) throw new Error(`Falha ao salvar imagem gerada no storage: ${error.message}`);
+        return { requestId, storagePath: path, mimeType: imagem.mimeType };
       } catch (err) {
         throw err instanceof ImagemIndisponivelError ? err : new ImagemIndisponivelError(err instanceof Error ? err.message : "erro desconhecido");
       }
@@ -205,7 +232,7 @@ function montarContexto(ctx: ContextoMissaoParaEspecialista): string {
 
 interface ResultadoTurnoExecucao {
   message: Anthropic.Message;
-  midiaGerada?: { url: string; requestId: string };
+  midiaGerada?: MidiaExecutada;
 }
 
 // Loop curto e limitado (máx. 3 idas e voltas) pro único tipo de agente que
@@ -217,6 +244,7 @@ async function rodarComFerramentaDeExecucao(
   systemPrompt: string,
   tarefa: string,
   ferramenta: NonNullable<(typeof FERRAMENTA_GERACAO_POR_AGENTE)[AgenteId]>,
+  ctx: ContextoExecucaoFerramenta,
 ): Promise<ResultadoTurnoExecucao> {
   const mensagens: Anthropic.MessageParam[] = [{ role: "user", content: tarefa }];
   let midiaGerada: ResultadoTurnoExecucao["midiaGerada"];
@@ -241,9 +269,13 @@ async function rodarComFerramentaDeExecucao(
 
     let resultadoFerramenta: string;
     try {
-      const midia = await ferramenta.executar(chamada.input as Record<string, unknown>);
+      const midia = await ferramenta.executar(chamada.input as Record<string, unknown>, ctx);
       midiaGerada = midia;
-      resultadoFerramenta = JSON.stringify({ status: "completed", url: midia.url, request_id: midia.requestId });
+      resultadoFerramenta = JSON.stringify({
+        status: "completed",
+        request_id: midia.requestId,
+        ...(midia.url ? { url: midia.url } : { armazenado: true }),
+      });
     } catch (err) {
       resultadoFerramenta = JSON.stringify({ status: "failed", error: err instanceof Error ? err.message : "erro desconhecido" });
     }
@@ -286,7 +318,10 @@ export async function executarEspecialista(
   let midiaGerada: ResultadoTurnoExecucao["midiaGerada"];
 
   if (ferramentaGeracao) {
-    const resultadoExecucao = await rodarComFerramentaDeExecucao(systemPrompt, contexto.etapaTarefa, ferramentaGeracao);
+    const resultadoExecucao = await rodarComFerramentaDeExecucao(systemPrompt, contexto.etapaTarefa, ferramentaGeracao, {
+      clienteId,
+      missionStepId,
+    });
     response = resultadoExecucao.message;
     midiaGerada = resultadoExecucao.midiaGerada;
   } else {
@@ -329,8 +364,8 @@ export async function executarEspecialista(
           type: ferramentaGeracao.tipo,
           department: departamento,
           title: ferramentaGeracao.titulo,
-          externalUrl: midiaGerada.url,
-          mimeType: ferramentaGeracao.mimeType,
+          ...(midiaGerada.storagePath ? { storagePath: midiaGerada.storagePath } : { externalUrl: midiaGerada.url }),
+          mimeType: midiaGerada.mimeType ?? ferramentaGeracao.mimeType,
           criadoPorAgente: agenteId,
         }),
       );

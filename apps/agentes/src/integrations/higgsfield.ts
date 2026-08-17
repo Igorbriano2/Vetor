@@ -1,15 +1,16 @@
-// Higgsfield — geração de imagem e vídeo, pros agentes de Design e Vídeo.
+// Higgsfield — geração de VÍDEO pro agente de Vídeo, só isso. Geração de
+// imagem (agente de Design) vive em integrations/imageProvider.ts (gateway
+// de provider próprio, hoje OpenAI) — Higgsfield nunca é usado pra imagem.
 // Contrato confirmado em docs.higgsfield.ai: request assíncrono (POST no
 // endpoint do modelo -> {status, request_id, status_url}) + polling em
 // GET /requests/{id}/status até completed/failed/nsfw/canceled.
 //
-// Endpoint de vídeo/imagem configuráveis por env (HIGGSFIELD_ENDPOINT_PATH /
-// HIGGSFIELD_IMAGE_ENDPOINT_PATH) — a doc pública só documenta um exemplo
-// completo por tipo, então isso pode precisar ajuste sem mexer em código,
-// caso o path real usado pela conta do cliente seja outro.
+// Endpoint de vídeo configurável por env (HIGGSFIELD_ENDPOINT_PATH) — a doc
+// pública só documenta um exemplo completo, então isso pode precisar ajuste
+// sem mexer em código, caso o path real usado pela conta do cliente seja
+// outro.
 
 export class VideoIndisponivelError extends Error {}
-export class ImagemIndisponivelError extends Error {}
 
 export interface MidiaGerada {
   url: string;
@@ -115,26 +116,5 @@ export async function gerarVideoAPartirDeImagem(
     return await executarJobHiggsfield(endpointPath, corpo, opcoes.timeoutMs ?? 120_000);
   } catch (err) {
     throw new VideoIndisponivelError(err instanceof Error ? err.message : "erro desconhecido");
-  }
-}
-
-// Gera uma imagem a partir de um prompt de texto (Agente de Design) — usa o
-// mesmo provider/credenciais do vídeo, endpoint diferente
-// (HIGGSFIELD_IMAGE_ENDPOINT_PATH, default confirmado na doc pública:
-// /higgsfield-ai/soul/standard).
-export async function gerarImagem(
-  prompt: string,
-  opcoes: { aspectRatio?: string; resolution?: string; timeoutMs?: number } = {},
-): Promise<MidiaGerada> {
-  try {
-    const endpointPath = process.env.HIGGSFIELD_IMAGE_ENDPOINT_PATH ?? "/higgsfield-ai/soul/standard";
-    const corpo: Record<string, unknown> = {
-      prompt,
-      aspect_ratio: opcoes.aspectRatio ?? "1:1",
-      resolution: opcoes.resolution ?? "1024p",
-    };
-    return await executarJobHiggsfield(endpointPath, corpo, opcoes.timeoutMs ?? 90_000);
-  } catch (err) {
-    throw new ImagemIndisponivelError(err instanceof Error ? err.message : "erro desconhecido");
   }
 }
