@@ -17,6 +17,19 @@ import { TOOL_REGISTRY } from "../tools/registry.js";
 // de aprovada (ver relatório de teste da Fase 9).
 const NOMES_FERRAMENTAS_VALIDOS = Object.keys(TOOL_REGISTRY);
 
+// Agentes especialistas que de fato executam etapa (exclui "vetor"/"secretario",
+// que não são destinos de delegação) — mesma lista usada no enum do schema e na
+// validação de extrairMissaoProposta, pra nunca divergir.
+const AGENTES_EXECUTORES_VALIDOS = [
+  "design",
+  "trafego",
+  "estrategia",
+  "growth",
+  "social-media",
+  "video",
+  "analitico",
+] as const;
+
 // Só propõe — não grava nada no banco. A missão real só é criada quando o
 // humano confirma no painel via POST /api/missoes (docs/manus-jarvis-spec/
 // docs/07-api-e-eventos.md, fluxo POST /commands -> confirmar -> POST /missions).
@@ -56,7 +69,7 @@ const PROPOR_MISSAO_TOOL: Anthropic.Tool = {
             chave: { type: "string", description: "Identificador curto único dentro deste plano, ex: 'design-1'." },
             agente: {
               type: "string",
-              enum: ["design", "trafego", "estrategia", "growth", "social-media", "video", "analitico"],
+              enum: [...AGENTES_EXECUTORES_VALIDOS],
             },
             tarefa: { type: "string" },
             depende_de: { type: "array", items: { type: "string" }, description: "Chaves de outras etapas deste plano." },
@@ -271,9 +284,19 @@ function extrairMissaoProposta(toolUses: Anthropic.ToolUseBlock[]): MissaoPropos
       // "o backend deve revalidar tudo... nunca confiar em risco... vindos
       // apenas do browser"). O IntentCard só exibe o que vier daqui.
       const risco = avaliarRisco(ferramentas);
+      // O enum do schema é só uma orientação forte pro modelo — não é validado
+      // pela API de tool use, então o Vetor já devolveu agente fora da lista
+      // (ex: "copy") mesmo com o enum presente. Sem isso, executarEspecialista
+      // tenta ler um prompt inexistente e a etapa falha com ENOENT (visto ao
+      // testar a missão até o fim). "growth" é o especialista generalista mais
+      // próximo pra continuar em vez de travar a missão inteira.
+      const agenteValido = (AGENTES_EXECUTORES_VALIDOS as readonly string[]).includes(e.agente);
+      if (!agenteValido) {
+        console.warn(`propor_missao devolveu agente desconhecido "${e.agente}" na etapa "${e.chave}" — usando "growth".`);
+      }
       return {
         chave: e.chave,
-        agente: e.agente,
+        agente: agenteValido ? e.agente : "growth",
         tarefa: e.tarefa,
         dependeDe: e.depende_de ?? [],
         ferramentas,
