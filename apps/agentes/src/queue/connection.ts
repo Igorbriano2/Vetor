@@ -16,5 +16,12 @@ export function getRedisConnection(): Redis {
   }
 
   client = new Redis(url, { maxRetriesPerRequest: null });
+  // Sem isso, o ioredis engole silenciosamente qualquer erro de conexão (é o
+  // comportamento padrão da lib quando não há listener de "error") — combinado
+  // com maxRetriesPerRequest: null, um problema de rede/credencial vira um
+  // comando (ex: enfileirar missão) preso para sempre, sem nenhum log.
+  client.on("error", (err) => {
+    console.error("Erro na conexão Redis (fila de missões):", err.message);
+  });
   return client;
 }
