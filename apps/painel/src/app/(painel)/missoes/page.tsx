@@ -11,17 +11,10 @@ export default async function MissoesPage() {
     .order("created_at", { ascending: false });
 
   return (
-    <main className="min-h-screen bg-petroleo px-6 py-10 text-areia">
+    <main className="min-h-screen px-6 py-10">
       <div className="mx-auto max-w-4xl">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
-            <h1 className="mt-1 text-2xl font-bold text-areia">Missões</h1>
-          </div>
-          <Link href="/dashboard" className="font-mono text-xs uppercase tracking-wide text-areia/50 hover:text-menta">
-            Voltar
-          </Link>
-        </div>
+        <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
+        <h1 className="mt-1 text-2xl font-bold text-areia">Missões</h1>
 
         <div className="mt-8 space-y-3">
           {missoes?.length ? (

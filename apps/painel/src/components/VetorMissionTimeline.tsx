@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { readApiResponse } from "@/lib/api/readApiResponse";
 
 interface MissionStep {
   id: string;
@@ -69,15 +71,55 @@ const COR_STATUS: Record<string, string> = {
 
 export default function VetorMissionTimeline({
   missionId,
-  etapas,
-  approvals,
+  etapas: etapasIniciais,
+  approvals: approvalsIniciais,
 }: {
   missionId: string;
   etapas: MissionStep[];
   approvals: Approval[];
 }) {
+  const [etapas, setEtapas] = useState(etapasIniciais);
+  const [approvals, setApprovals] = useState(approvalsIniciais);
   const [decidindo, setDecidindo] = useState<string | null>(null);
   const [decididas, setDecididas] = useState<Set<string>>(new Set());
+
+  // Timeline viva: assina mudanças em mission_steps/approvals via Supabase Realtime
+  // em vez de exigir refresh manual — o worker atualiza essas tabelas conforme processa a missão.
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+
+    function upsert<T extends { id: string }>(lista: T[], novo: T): T[] {
+      const idx = lista.findIndex((item) => item.id === novo.id);
+      if (idx === -1) return [...lista, novo];
+      const copia = [...lista];
+      copia[idx] = novo;
+      return copia;
+    }
+
+    const channel = supabase
+      .channel(`mission-timeline-${missionId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "mission_steps", filter: `mission_id=eq.${missionId}` },
+        (payload) => {
+          const novo = payload.new as MissionStep | undefined;
+          if (novo) setEtapas((atual) => upsert(atual, novo));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "approvals", filter: `mission_id=eq.${missionId}` },
+        (payload) => {
+          const novo = payload.new as Approval | undefined;
+          if (novo) setApprovals((atual) => upsert(atual, novo));
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [missionId]);
 
   async function decidir(approvalId: string, decisao: "aprovar" | "rejeitar") {
     setDecidindo(approvalId);
@@ -87,11 +129,11 @@ export default function VetorMissionTimeline({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decisao }),
       });
-      if (!res.ok) throw new Error("Falha ao registrar decisão");
+      await readApiResponse(res);
       setDecididas((atual) => new Set(atual).add(approvalId));
     } catch {
       // erro silencioso o suficiente pro botão voltar ao normal; o estado real
-      // vem do banco na próxima vez que a página recarregar.
+      // vem do Realtime/banco de qualquer forma.
     } finally {
       setDecidindo(null);
     }

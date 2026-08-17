@@ -31,6 +31,14 @@ export async function updateSession(request: NextRequest) {
 
   const isLoginRoute = request.nextUrl.pathname.startsWith("/login");
   const isPublicAsset = request.nextUrl.pathname.startsWith("/_next");
+  const isApiRoute = request.nextUrl.pathname.startsWith("/api/");
+
+  if (!user && isApiRoute) {
+    return NextResponse.json(
+      { error: "Não autenticado", code: "AUTH_REQUIRED" },
+      { status: 401 },
+    );
+  }
 
   if (!user && !isLoginRoute && !isPublicAsset) {
     const url = request.nextUrl.clone();

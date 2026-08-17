@@ -9,6 +9,10 @@ const GRUPO: Record<string, "info" | "decisao" | "sucesso" | "risco"> = {
   publicada: "sucesso",
   cancelada: "risco",
   rejeitada: "risco",
+  // conteudo_social (supabase/migrations/0001_init.sql) usa formas masculinas.
+  aprovado: "sucesso",
+  agendado: "info",
+  publicado: "sucesso",
   // Status de missão (supabase/migrations/0004_missions.sql) — mesmo vocabulário
   // visual, chaves em inglês porque é o que fica gravado no banco.
   draft: "info",
@@ -43,15 +47,20 @@ const ROTULOS: Record<string, string> = {
   aprovada: "Aprovada",
   rejeitada: "Rejeitada",
   publicada: "Publicada",
+  aprovado: "Aprovado",
+  agendado: "Agendado",
+  publicado: "Publicado",
   draft: "Rascunho",
   understanding: "Entendendo",
   awaiting_clarification: "Aguardando esclarecimento",
   planned: "Planejada",
+  awaiting_approval: "Aguardando aprovação",
   queued: "Na fila",
   running: "Em execução",
   blocked: "Bloqueada",
   completed: "Concluída",
   failed: "Falhou",
+  cancelled: "Cancelada",
   archived: "Arquivada",
 };
 

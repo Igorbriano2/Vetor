@@ -2,18 +2,21 @@
 
 :root {
   /* Direção JARVIS (ADR-001 em docs/manus-jarvis-spec) — o painel é o cockpit
-     de verdade, então aqui o grafite é o fundo padrão (diferente da landing,
-     que ainda mistura seções claras). */
-  --color-petroleo: #0a0d12;
-  --color-petroleo-2: #12161d;
-  --color-petroleo-3: #191f29;
-  --color-menta: #22d3ee;
-  --color-menta-forte: #0ea5c9;
-  --color-ambar: #f5b833;
-  --color-ambar-forte: #d99a1b;
-  --color-coral: #fb7185;
-  --color-areia: #f5f3ee;
-  --color-areia-2: #ece8de;
+     de verdade. Valores alinhados 1:1 com apps/landing/src/app/globals.css
+     (mesma paleta oklch), mantendo os nomes de token já usados no painel
+     (petroleo/menta/ambar/coral/areia) pra não quebrar componentes existentes. */
+  --color-petroleo: oklch(0.135 0.014 250); /* void — #05070B */
+  --color-petroleo-2: oklch(0.185 0.016 248); /* surface — #0B1118 */
+  --color-petroleo-3: oklch(0.225 0.02 245); /* surface-2 — #101923 */
+  --color-menta: oklch(0.86 0.11 205); /* cyan — #6EE7F9 */
+  --color-menta-forte: oklch(0.68 0.13 205); /* variante mais escura do cyan */
+  --color-electric: oklch(0.68 0.15 245); /* electric — #2AA9FF */
+  --color-ambar: oklch(0.81 0.13 82); /* amber — #F5B84B */
+  --color-ambar-forte: oklch(0.72 0.14 76); /* amber profundo — #D99A24 */
+  --color-coral: oklch(0.7 0.17 20); /* alert — #FF6B6B */
+  --color-areia: oklch(0.97 0.006 230); /* foreground quase-branco */
+  --color-areia-2: oklch(0.72 0.021 245); /* muted-foreground — #91A4B5 */
+  --color-grid: oklch(1 0 0 / 6%);
   --background: var(--color-petroleo);
   --foreground: var(--color-areia);
 }
@@ -24,11 +27,13 @@
   --color-petroleo-3: var(--color-petroleo-3);
   --color-menta: var(--color-menta);
   --color-menta-forte: var(--color-menta-forte);
+  --color-electric: var(--color-electric);
   --color-ambar: var(--color-ambar);
   --color-ambar-forte: var(--color-ambar-forte);
   --color-coral: var(--color-coral);
   --color-areia: var(--color-areia);
   --color-areia-2: var(--color-areia-2);
+  --color-grid: var(--color-grid);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-inter);
@@ -40,6 +45,39 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
 }
+
+/* ————— Superfícies de sistema (portado de apps/landing) ————— */
+
+@utility panel {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--color-petroleo-3) 85%, transparent),
+      color-mix(in oklab, var(--color-petroleo-2) 92%, transparent)
+    );
+  border: 1px solid color-mix(in oklab, var(--color-menta) 12%, transparent);
+  box-shadow:
+    0 24px 70px -40px oklch(0 0 0 / 0.9),
+    inset 0 1px 0 0 color-mix(in oklab, var(--color-menta) 8%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+@utility mono-label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-areia-2);
+}
+
+@utility grid-bg {
+  background-image:
+    linear-gradient(to right, var(--color-grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-grid) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+/* ————— Movimento (portado de apps/landing) ————— */
 
 @keyframes vetor-core-pulse {
   0%,
@@ -57,8 +95,66 @@ body {
   animation: vetor-core-pulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+@keyframes vetor-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@utility animate-breathe {
+  animation: vetor-breathe 4.5s ease-in-out infinite;
+}
+
+@keyframes vetor-spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@utility animate-spin-slow {
+  animation: vetor-spin-slow 42s linear infinite;
+}
+
+@utility animate-spin-slower {
+  animation: vetor-spin-slow 78s linear infinite reverse;
+}
+
+@keyframes vetor-dash {
+  to {
+    stroke-dashoffset: -240;
+  }
+}
+
+@utility animate-dash {
+  animation: vetor-dash 6s linear infinite;
+}
+
+@keyframes vetor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@utility animate-blink {
+  animation: vetor-blink 1.8s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .animate-core-pulse {
-    animation: none !important;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }

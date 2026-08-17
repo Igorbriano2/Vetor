@@ -19,6 +19,16 @@ const PROPOR_MISSAO_TOOL: Anthropic.Tool = {
     properties: {
       titulo: { type: "string" },
       objetivo: { type: "string", description: "Resultado de negócio desejado, não a tarefa literal." },
+      categoria: {
+        type: "string",
+        enum: ["strategy", "content", "traffic", "design", "analytics", "support"],
+        description: "Categoria predominante da missão, pra o painel classificar visualmente.",
+      },
+      confianca: {
+        type: "string",
+        enum: ["high", "medium", "low"],
+        description: "Quão confiante você está de que entendeu o pedido corretamente.",
+      },
       hipotese: { type: "string" },
       criterio_sucesso: { type: "array", items: { type: "string" } },
       perguntas: {
@@ -96,6 +106,8 @@ function extrairMissaoProposta(toolUses: Anthropic.ToolUseBlock[]): MissaoPropos
   const input = bloco.input as {
     titulo: string;
     objetivo: string;
+    categoria?: CategoriaMissao;
+    confianca?: ConfiancaMissao;
     hipotese?: string;
     criterio_sucesso?: string[];
     perguntas?: string[];
@@ -105,6 +117,8 @@ function extrairMissaoProposta(toolUses: Anthropic.ToolUseBlock[]): MissaoPropos
   return {
     titulo: input.titulo,
     objetivo: input.objetivo,
+    category: input.categoria,
+    confidence: input.confianca,
     hipotese: input.hipotese,
     criterioSucesso: input.criterio_sucesso ?? [],
     perguntas: input.perguntas ?? [],
@@ -126,6 +140,10 @@ export interface EtapaIntent {
   ferramentas: string[];
 }
 
+export type CategoriaMissao = "strategy" | "content" | "traffic" | "design" | "analytics" | "support";
+export type ConfiancaMissao = "high" | "medium" | "low";
+export type NextAction = "ask_clarification" | "show_plan";
+
 export interface MissaoProposta {
   titulo: string;
   objetivo: string;
@@ -133,6 +151,8 @@ export interface MissaoProposta {
   criterioSucesso: string[];
   perguntas: string[];
   etapas: EtapaIntent[];
+  category?: CategoriaMissao;
+  confidence?: ConfiancaMissao;
 }
 
 export interface RespostaPlataforma {
@@ -141,6 +161,15 @@ export interface RespostaPlataforma {
   // Preenchido quando o Vetor usa o tool propor_missao — o painel renderiza o
   // IntentCard a partir daqui. Nada é gravado no banco até o humano confirmar.
   intent?: MissaoProposta;
+  // Sinaliza pro painel o que fazer a seguir: mostrar o card de plano, ou
+  // deixar claro que a resposta é uma pergunta de esclarecimento.
+  nextAction?: NextAction;
+}
+
+function inferirNextAction(intent: MissaoProposta | undefined, respostaTexto: string): NextAction | undefined {
+  if (intent) return "show_plan";
+  if (respostaTexto.trim().endsWith("?")) return "ask_clarification";
+  return undefined;
 }
 
 // Canal do Vetor dentro do painel: o cliente já está autenticado, então não há
@@ -176,7 +205,12 @@ export async function processarMensagemPlataforma(
 
   await salvarMensagem(clienteId, "saida", respostaTexto);
 
-  const resposta: RespostaPlataforma = { respostaTexto, ...(intent ? { intent } : {}) };
+  const nextAction = inferirNextAction(intent, respostaTexto);
+  const resposta: RespostaPlataforma = {
+    respostaTexto,
+    ...(intent ? { intent } : {}),
+    ...(nextAction ? { nextAction } : {}),
+  };
 
   if (opcoes.responderEmVoz) {
     try {

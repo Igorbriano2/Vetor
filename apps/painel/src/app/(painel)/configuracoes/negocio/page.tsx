@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 // CRUD simples, sem lógica de negócio/LLM — por isso fala direto com o
@@ -102,15 +101,8 @@ export default function ConfiguracoesNegocioPage() {
   return (
     <main className="min-h-screen bg-petroleo px-6 py-10 text-areia">
       <div className="mx-auto max-w-2xl">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
-            <h1 className="mt-1 text-2xl font-bold text-areia">Sobre o seu negócio</h1>
-          </div>
-          <Link href="/dashboard" className="font-mono text-xs uppercase tracking-wide text-areia/50 hover:text-menta">
-            Voltar
-          </Link>
-        </div>
+        <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
+        <h1 className="mt-1 text-2xl font-bold text-areia">Sobre o seu negócio</h1>
         <p className="mt-2 text-sm text-areia/60">
           Essas informações ajudam o Vetor e os especialistas a proporem trabalho alinhado com o seu negócio,
           sem precisar perguntar toda vez.

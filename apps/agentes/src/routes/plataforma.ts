@@ -1,4 +1,5 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
+import { exigirAuthInterna } from "../middleware/internalAuth.js";
 import { processarMensagemPlataforma, processarAudioPlataforma } from "../agents/vetorPlataforma.js";
 
 export const plataformaRouter = Router();
@@ -7,17 +8,9 @@ export const plataformaRouter = Router();
 // ao navegador. O painel resolve o cliente_id a partir da sessão Supabase do
 // usuário antes de chamar essa rota — nunca confia em cliente_id vindo do
 // navegador diretamente.
-function autenticado(req: Request): boolean {
-  const esperado = process.env.INTERNAL_API_TOKEN;
-  return !!esperado && req.header("x-internal-token") === esperado;
-}
+plataformaRouter.use(exigirAuthInterna);
 
 plataformaRouter.post("/mensagem", async (req, res) => {
-  if (!autenticado(req)) {
-    res.sendStatus(401);
-    return;
-  }
-
   const { cliente_id, texto, responder_em_voz } = req.body ?? {};
   if (!cliente_id || typeof texto !== "string" || !texto.trim()) {
     res.status(400).json({ error: "cliente_id e texto são obrigatórios" });
@@ -36,11 +29,6 @@ plataformaRouter.post("/mensagem", async (req, res) => {
 });
 
 plataformaRouter.post("/audio", async (req, res) => {
-  if (!autenticado(req)) {
-    res.sendStatus(401);
-    return;
-  }
-
   const { cliente_id, audio_base64, mime_type } = req.body ?? {};
   if (!cliente_id || typeof audio_base64 !== "string" || !audio_base64) {
     res.status(400).json({ error: "cliente_id e audio_base64 são obrigatórios" });

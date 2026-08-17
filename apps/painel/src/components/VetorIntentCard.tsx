@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { readApiResponse } from "@/lib/api/readApiResponse";
 
 interface EtapaIntent {
   chave: string;
@@ -11,6 +12,9 @@ interface EtapaIntent {
   ferramentas: string[];
 }
 
+export type CategoriaMissao = "strategy" | "content" | "traffic" | "design" | "analytics" | "support";
+export type ConfiancaMissao = "high" | "medium" | "low";
+
 export interface MissaoProposta {
   titulo: string;
   objetivo: string;
@@ -18,7 +22,24 @@ export interface MissaoProposta {
   criterioSucesso: string[];
   perguntas: string[];
   etapas: EtapaIntent[];
+  category?: CategoriaMissao;
+  confidence?: ConfiancaMissao;
 }
+
+const LABEL_CATEGORIA: Record<CategoriaMissao, string> = {
+  strategy: "estratégia",
+  content: "conteúdo",
+  traffic: "tráfego",
+  design: "design",
+  analytics: "análise",
+  support: "suporte",
+};
+
+const LABEL_CONFIANCA: Record<ConfiancaMissao, string> = {
+  high: "alta confiança",
+  medium: "confiança média",
+  low: "baixa confiança",
+};
 
 const RISCO_POR_FERRAMENTA: Record<string, "low" | "medium" | "high"> = {
   ajustar_orcamento_trafego: "high",
@@ -65,8 +86,7 @@ export default function VetorIntentCard({ intent }: { intent: MissaoProposta }) 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plano: intent }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "Falha ao confirmar missão");
+      await readApiResponse(res);
       setStatus("confirmada");
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Não consegui confirmar a missão agora.");
@@ -76,7 +96,19 @@ export default function VetorIntentCard({ intent }: { intent: MissaoProposta }) 
 
   return (
     <div className="mt-2 max-w-[92%] rounded-2xl border border-ambar/30 bg-petroleo-2/80 p-4 backdrop-blur">
-      <p className="font-mono text-[11px] uppercase tracking-wide text-ambar">Proposta de missão</p>
+      <div className="flex items-center gap-2">
+        <p className="font-mono text-[11px] uppercase tracking-wide text-ambar">Proposta de missão</p>
+        {intent.category && (
+          <span className="rounded-full border border-areia/15 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-areia/50">
+            {LABEL_CATEGORIA[intent.category]}
+          </span>
+        )}
+        {intent.confidence && (
+          <span className="rounded-full border border-areia/15 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-areia/50">
+            {LABEL_CONFIANCA[intent.confidence]}
+          </span>
+        )}
+      </div>
       <h3 className="mt-1 text-base font-semibold text-areia">{intent.titulo}</h3>
       <p className="mt-1 text-sm text-areia/70">{intent.objetivo}</p>
 

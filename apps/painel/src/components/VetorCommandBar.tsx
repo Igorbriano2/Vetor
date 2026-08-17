@@ -3,6 +3,13 @@
 import { useRef, useState } from "react";
 import VetorCore from "./VetorCore";
 import VetorIntentCard, { type MissaoProposta } from "./VetorIntentCard";
+import { readApiResponse } from "@/lib/api/readApiResponse";
+
+interface RespostaComando {
+  respostaTexto: string;
+  audioBase64?: string;
+  intent?: MissaoProposta;
+}
 
 interface Mensagem {
   autor: "cliente" | "vetor";
@@ -68,8 +75,7 @@ export default function VetorCommandBar() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ texto: conteudo, responder_em_voz: false }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "Falha ao falar com o Vetor");
+      const data = await readApiResponse<RespostaComando>(res);
       setMensagens((atual) => [...atual, { autor: "vetor", texto: data.respostaTexto, intent: data.intent }]);
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Não consegui falar com o Vetor agora.");
@@ -116,8 +122,7 @@ export default function VetorCommandBar() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ audio_base64: audioBase64, mime_type: blob.type || "audio/webm" }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "Falha ao processar o áudio");
+      const data = await readApiResponse<RespostaComando>(res);
       setMensagens((atual) => [
         ...atual,
         { autor: "vetor", texto: data.respostaTexto, audioBase64: data.audioBase64, intent: data.intent },
@@ -133,7 +138,7 @@ export default function VetorCommandBar() {
   return (
     <div className="rounded-3xl border border-areia/10 bg-petroleo-2/60 p-5 backdrop-blur">
       <div className="flex items-center justify-between">
-        <VetorCore estado={enviando ? "executando" : "idle"} compact />
+        <VetorCore estado={enviando ? "executing" : "idle"} compact />
         <span className="font-mono text-[11px] uppercase tracking-wide text-areia/30">Fale com o Vetor</span>
       </div>
 
