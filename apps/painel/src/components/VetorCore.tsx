@@ -1,8 +1,11 @@
 export type EstadoCore =
   | "idle"
+  | "welcoming"
   | "listening"
+  | "transcribing"
   | "understanding"
   | "planning"
+  | "speaking"
   | "executing"
   | "approval"
   | "success"
@@ -10,9 +13,12 @@ export type EstadoCore =
 
 const COR_ESTADO: Record<EstadoCore, string> = {
   idle: "var(--color-menta)",
+  welcoming: "var(--color-ambar)",
   listening: "var(--color-menta)",
+  transcribing: "var(--color-electric)",
   understanding: "var(--color-electric)",
   planning: "var(--color-electric)",
+  speaking: "var(--color-ambar)",
   executing: "var(--color-menta)",
   approval: "var(--color-ambar)",
   success: "var(--color-ambar)",
@@ -21,9 +27,12 @@ const COR_ESTADO: Record<EstadoCore, string> = {
 
 const LABEL_ESTADO: Record<EstadoCore, string> = {
   idle: "EM ESPERA",
+  welcoming: "SAUDANDO",
   listening: "OUVINDO",
+  transcribing: "TRANSCREVENDO",
   understanding: "ENTENDENDO",
   planning: "PLANEJANDO",
+  speaking: "RESPONDENDO",
   executing: "EXECUTANDO",
   approval: "AGUARDANDO APROVAÇÃO",
   success: "MISSÃO PRONTA",
@@ -32,9 +41,12 @@ const LABEL_ESTADO: Record<EstadoCore, string> = {
 
 const MENSAGEM_ESTADO: Record<EstadoCore, string> = {
   idle: "Vetor está de olho no seu negócio",
+  welcoming: "Vetor está te dando boas-vindas",
   listening: "Vetor está ouvindo",
+  transcribing: "Vetor está transcrevendo o que você disse",
   understanding: "Vetor está entendendo o seu pedido",
   planning: "Vetor está montando o plano",
+  speaking: "Vetor está respondendo",
   executing: "Vetor está executando a missão",
   approval: "Sua decisão é necessária",
   success: "Missão concluída",
@@ -49,12 +61,18 @@ export default function VetorCore({
   estado = "idle",
   compact = false,
   className = "mx-auto w-40",
+  amplitude,
 }: {
   estado?: EstadoCore;
   compact?: boolean;
   className?: string;
+  // 0..1 — amplitude real do áudio (microfone durante listening, playback
+  // durante speaking). Sem isso, cai no pulso padrão via animate-breathe;
+  // nunca anima "aleatório" sem relação com o áudio real.
+  amplitude?: number;
 }) {
   const cor = COR_ESTADO[estado];
+  const escalaAmplitude = amplitude !== undefined ? 1 + Math.min(1, Math.max(0, amplitude)) * 0.35 : undefined;
 
   if (compact) {
     return (
@@ -123,7 +141,18 @@ export default function VetorCore({
           <circle cx="200" cy="200" r="158" />
         </g>
 
-        <circle cx="200" cy="200" r="78" fill="url(#vetor-core-fill)" className="animate-breathe" />
+        <circle
+          cx="200"
+          cy="200"
+          r="78"
+          fill="url(#vetor-core-fill)"
+          className={escalaAmplitude === undefined ? "animate-breathe" : undefined}
+          style={
+            escalaAmplitude !== undefined
+              ? { transform: `scale(${escalaAmplitude})`, transformOrigin: "200px 200px", transition: "transform 80ms linear" }
+              : undefined
+          }
+        />
         <circle cx="200" cy="200" r="46" fill="none" stroke={cor} strokeOpacity="0.6" />
         <circle cx="200" cy="200" r="22" fill={cor} fillOpacity="0.9" />
         <path

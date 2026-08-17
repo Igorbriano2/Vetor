@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "../db/supabase.js";
 import { getSystemPrompt, type AgenteId } from "./prompts/index.js";
+import { gerarVideoAPartirDeImagem, VideoIndisponivelError } from "../integrations/higgsfield.js";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -25,6 +26,23 @@ export const ENTREGAR_RESULTADO_TOOL: Anthropic.Tool = {
       },
     },
     required: ["status", "summary", "confidence"],
+  },
+};
+
+// Único tool de execução real hoje (os outros agentes só produzem
+// texto/estrutura via entregar_resultado) — gera custo real por chamada,
+// por isso a etapa já chega aqui como risco "medium" (ver tools/registry.ts,
+// exige aprovação antes do worker rodar isto).
+const GERAR_VIDEO_TOOL: Anthropic.Tool = {
+  name: "gerar_video_higgsfield",
+  description: "Gera um vídeo a partir de uma imagem de referência e uma descrição de movimento (Higgsfield).",
+  input_schema: {
+    type: "object",
+    properties: {
+      imagem_url: { type: "string", description: "URL pública da imagem de referência." },
+      prompt: { type: "string", description: "Descrição do movimento/câmera desejado." },
+    },
+    required: ["imagem_url", "prompt"],
   },
 };
 
@@ -64,6 +82,60 @@ function montarContexto(ctx: ContextoMissaoParaEspecialista): string {
   return partes.join("\n");
 }
 
+// Único agente com um tool de execução real (gerar_video_higgsfield) além de
+// entregar_resultado — loop curto e limitado (máx. 3 idas e voltas): deixa o
+// modelo pedir o vídeo, executa de verdade, devolve o resultado real como
+// tool_result, e força entregar_resultado se ele não fechar sozinho depois
+// de ter o vídeo em mãos (nunca deixa rodar indefinidamente).
+async function rodarComFerramentaDeVideo(systemPrompt: string, tarefa: string): Promise<Anthropic.Message> {
+  const mensagens: Anthropic.MessageParam[] = [{ role: "user", content: tarefa }];
+
+  for (let turno = 0; turno < 3; turno++) {
+    const ultimoTurno = turno === 2;
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-5",
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages: mensagens,
+      tools: [ENTREGAR_RESULTADO_TOOL, GERAR_VIDEO_TOOL],
+      tool_choice: ultimoTurno ? { type: "tool", name: "entregar_resultado" } : { type: "auto" },
+    });
+
+    const chamadaVideo = response.content.find(
+      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === "gerar_video_higgsfield",
+    );
+    if (!chamadaVideo) return response;
+
+    mensagens.push({ role: "assistant", content: response.content });
+
+    const input = chamadaVideo.input as { imagem_url: string; prompt: string };
+    let resultadoFerramenta: string;
+    try {
+      const video = await gerarVideoAPartirDeImagem(input.imagem_url, input.prompt);
+      resultadoFerramenta = JSON.stringify({ status: "completed", video_url: video.url, request_id: video.requestId });
+    } catch (err) {
+      const motivo = err instanceof VideoIndisponivelError ? err.message : err instanceof Error ? err.message : "erro desconhecido";
+      resultadoFerramenta = JSON.stringify({ status: "failed", error: motivo });
+    }
+
+    mensagens.push({
+      role: "user",
+      content: [{ type: "tool_result", tool_use_id: chamadaVideo.id, content: resultadoFerramenta }],
+    });
+  }
+
+  // Nunca deveria chegar aqui (o último turno força entregar_resultado),
+  // mas mantém o contrato de retorno se algo inesperado acontecer.
+  return anthropic.messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 2048,
+    system: systemPrompt,
+    messages: mensagens,
+    tools: [ENTREGAR_RESULTADO_TOOL],
+    tool_choice: { type: "tool", name: "entregar_resultado" },
+  });
+}
+
 // Executa um especialista (design, trafego, estrategia...) para uma etapa de
 // missão e devolve resultado estruturado, sempre validado por schema — ver
 // docs/manus-jarvis-spec/docs/03-arquitetura-tecnica.md §3. Genérico: funciona
@@ -77,14 +149,17 @@ export async function executarEspecialista(
 ): Promise<AgentResult> {
   const systemPrompt = `${getSystemPrompt(agenteId)}\n\n${montarContexto(contexto)}`;
 
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-5",
-    max_tokens: 2048,
-    system: systemPrompt,
-    messages: [{ role: "user", content: contexto.etapaTarefa }],
-    tools: [ENTREGAR_RESULTADO_TOOL],
-    tool_choice: { type: "tool", name: "entregar_resultado" },
-  });
+  const response =
+    agenteId === "video"
+      ? await rodarComFerramentaDeVideo(systemPrompt, contexto.etapaTarefa)
+      : await anthropic.messages.create({
+          model: "claude-sonnet-4-5",
+          max_tokens: 2048,
+          system: systemPrompt,
+          messages: [{ role: "user", content: contexto.etapaTarefa }],
+          tools: [ENTREGAR_RESULTADO_TOOL],
+          tool_choice: { type: "tool", name: "entregar_resultado" },
+        });
 
   const toolUse = response.content.find(
     (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === "entregar_resultado",

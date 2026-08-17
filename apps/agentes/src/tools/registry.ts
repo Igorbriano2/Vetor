@@ -86,6 +86,14 @@ const FERRAMENTAS_RISCO_MEDIO_ALTO: VetorToolDefinition[] = [
   ferramenta("publicar_conteudo_social", "Publica uma peça de conteúdo social.", "medium", {
     reversible: false,
   }),
+  // Gera custo real por chamada (API paga, Higgsfield) — exige aprovação
+  // como qualquer outra ferramenta de risco médio, mas não é "crítica":
+  // gerar um vídeo de teste não é uma ação irreversível sobre um ativo do
+  // cliente, só um gasto que precisa de sinal verde antes de rodar sozinho.
+  ferramenta("gerar_video_higgsfield", "Gera um vídeo a partir de uma imagem + descrição de movimento (Higgsfield).", "medium", {
+    reversible: false,
+    inputSchema: { required: ["imagem_url", "prompt"] },
+  }),
 ];
 
 // Alto risco/irreversível — nunca liberadas pra execução automática, mesmo

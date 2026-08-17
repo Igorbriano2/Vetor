@@ -44,7 +44,8 @@ registrar_experimento, solicitar_aprovacao, transferir_humano, registrar_ticket,
 agendar_conteudo_social.
 
 Risco médio/alto (exigem aprovação, mas podem ser propostas normalmente):
-pausar_campanha_trafego, publicar_conteudo_social.
+pausar_campanha_trafego, publicar_conteudo_social, gerar_video_higgsfield (etapa do agente video —
+gera vídeo a partir de imagem + descrição de movimento, tem custo real por chamada).
 
 Crítico (só proponha quando a etapa for de fato isso — nunca rodam automaticamente, mesmo
 aprovadas; use com moderação):

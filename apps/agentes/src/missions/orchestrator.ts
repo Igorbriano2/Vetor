@@ -11,6 +11,7 @@ import {
 import { avaliarRisco, precisaAprovacao, bloqueiaExecucaoAutomatica, type Risco } from "./policyEngine.js";
 import { enfileirarPlanMission, enfileirarRunAgentStep } from "../queue/missionQueue.js";
 import { executarEspecialista, type ContextoMissaoParaEspecialista } from "../agents/specialistRunner.js";
+import { criarSnapshotDeContexto } from "./businessContextSnapshot.js";
 import type { AgenteId } from "../agents/prompts/index.js";
 
 // Plano confirmado pelo humano no painel (vem do tool propor_missao do Vetor,
@@ -261,6 +262,10 @@ export async function criarMissaoDeIntencao(
       .update({ mission_id: missionId, status: "converted_to_mission", updated_at: new Date().toISOString() })
       .eq("id", confirmacao.solicitacaoId);
   }
+
+  // Auditoria (Fase 4) — nunca bloqueia a criação da missão se falhar (ver
+  // comentário em criarSnapshotDeContexto).
+  await criarSnapshotDeContexto(clienteId, missionId);
 
   await enfileirarPlanMission({ missionId });
 
