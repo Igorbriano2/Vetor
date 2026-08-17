@@ -1,41 +1,456 @@
 @import "tailwindcss";
 
-:root {
-  /* Direção JARVIS (ADR-001 em docs/manus-jarvis-spec) — grafite quase preto +
-     ciano elétrico como identidade + âmbar para decisão + coral para risco.
-     "petroleo"/"menta" mantêm o nome por compatibilidade com os componentes
-     existentes; os VALORES já são a nova paleta. "areia" (seções claras) ainda
-     não migrou — ver docs/09-plano-de-migracao-jarvis.md. */
-  --color-petroleo: #0a0d12;
-  --color-petroleo-2: #12161d;
-  --color-menta: #22d3ee;
-  --color-menta-forte: #0ea5c9;
-  --color-ambar: #f5b833;
-  --color-ambar-forte: #d99a1b;
-  --color-coral: #fb7185;
-  --color-areia: #f5f3ee;
-  --color-areia-2: #ece8de;
-  --background: var(--color-areia);
-  --foreground: var(--color-petroleo);
-}
+/*
+ * VETOR — Growth Operating System design tokens.
+ * Dark command-console system. All colors in oklch.
+ * Ported from the Lovable reference design (vetor-ai-marketing).
+ */
 
 @theme inline {
-  --color-petroleo: var(--color-petroleo);
-  --color-petroleo-2: var(--color-petroleo-2);
-  --color-menta: var(--color-menta);
-  --color-menta-forte: var(--color-menta-forte);
-  --color-ambar: var(--color-ambar);
-  --color-ambar-forte: var(--color-ambar-forte);
-  --color-coral: var(--color-coral);
-  --color-areia: var(--color-areia);
-  --color-areia-2: var(--color-areia-2);
+  --font-sans: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
+
+  --color-cyan: var(--cyan);
+  --color-electric: var(--electric);
+  --color-amber: var(--amber);
+  --color-alert: var(--alert);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-grid: var(--grid);
+  --color-void: var(--void);
+
+  --shadow-glow: 0 0 40px -12px color-mix(in oklab, var(--cyan) 45%, transparent);
+  --shadow-panel:
+    0 24px 70px -40px oklch(0 0 0 / 0.9), inset 0 1px 0 0 color-mix(in oklab, var(--cyan) 8%, transparent);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
+:root {
+  --radius: 0.75rem;
+
+  /* Núcleo do sistema */
+  --void: oklch(0.135 0.014 250); /* #05070B */
+  --surface: oklch(0.185 0.016 248); /* #0B1118 */
+  --surface-2: oklch(0.225 0.02 245); /* #101923 */
+  --cyan: oklch(0.86 0.11 205); /* #6EE7F9 */
+  --electric: oklch(0.68 0.15 245); /* #2AA9FF */
+  --amber: oklch(0.81 0.13 82); /* #F5B84B */
+  --alert: oklch(0.7 0.17 20); /* #FF6B6B */
+  --grid: oklch(1 0 0 / 6%);
+
+  --background: var(--void);
+  --foreground: oklch(0.97 0.006 230);
+  --card: var(--surface);
+  --card-foreground: oklch(0.97 0.006 230);
+  --popover: var(--surface);
+  --popover-foreground: oklch(0.97 0.006 230);
+  --primary: var(--cyan);
+  --primary-foreground: oklch(0.15 0.02 245);
+  --secondary: var(--surface-2);
+  --secondary-foreground: oklch(0.97 0.006 230);
+  --muted: var(--surface-2);
+  --muted-foreground: oklch(0.72 0.021 245); /* #91A4B5 */
+  --accent: var(--surface-2);
+  --accent-foreground: oklch(0.97 0.006 230);
+  --destructive: var(--alert);
+  --destructive-foreground: oklch(0.15 0.02 245);
+  --border: oklch(0.86 0.11 205 / 14%);
+  --input: oklch(0.86 0.11 205 / 18%);
+  --ring: var(--cyan);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-weight: 600;
+    letter-spacing: -0.025em;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--cyan) 30%, transparent);
+  }
+}
+
+/* ————— Superfícies de sistema ————— */
+
+@utility panel {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-2) 85%, transparent),
+      color-mix(in oklab, var(--surface) 92%, transparent)
+    );
+  border: 1px solid color-mix(in oklab, var(--cyan) 12%, transparent);
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: blur(10px);
+}
+
+@utility mono-label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+@utility grid-bg {
+  background-image:
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+@utility grain {
+  position: relative;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+}
+
+/* ————— Movimento ————— */
+
+@keyframes vetor-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@utility animate-pop-in {
+  animation: vetor-pop-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes vetor-spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@utility animate-spin-slow {
+  animation: vetor-spin-slow 42s linear infinite;
+}
+
+@utility animate-spin-slower {
+  animation: vetor-spin-slow 78s linear infinite reverse;
+}
+
+@keyframes vetor-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@utility animate-breathe {
+  animation: vetor-breathe 4.5s ease-in-out infinite;
+}
+
+@keyframes vetor-dash {
+  to {
+    stroke-dashoffset: -240;
+  }
+}
+
+@utility animate-dash {
+  animation: vetor-dash 6s linear infinite;
+}
+
+@keyframes vetor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@utility animate-blink {
+  animation: vetor-blink 1.8s ease-in-out infinite;
+}
+
+@keyframes vetor-highlight-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--cyan) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 34px 2px color-mix(in oklab, var(--cyan) 25%, transparent);
+  }
+}
+
+@utility animate-highlight-pulse {
+  animation: vetor-highlight-pulse 3.4s ease-in-out infinite;
+}
+
+.reveal {
+  opacity: 0;
+  transform: translate3d(0, 20px, 0);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.reveal[data-visible="true"] {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  will-change: auto;
+}
+
+@utility hover-lift {
+  transition:
+    transform 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+
+  &:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in oklab, var(--cyan) 45%, transparent);
+    box-shadow: 0 0 34px -18px color-mix(in oklab, var(--cyan) 80%, transparent);
+  }
+}
+
+@utility hover-pop {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: scale(0.985);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ————— Modo de operação (amarelo) ————— */
+
+:root {
+  --op-yellow: oklch(0.84 0.14 88); /* #F5C542 */
+  --op-amber-deep: oklch(0.72 0.14 76); /* #D99A24 */
+  --op-yellow-lum: oklch(0.93 0.08 92); /* #FFE59A */
+  --op-field: oklch(0.8 0.14 85); /* #E7B735 */
+  --op-field-2: oklch(0.85 0.13 88); /* #F0C94C */
+  --op-ink: oklch(0.19 0.014 250); /* #11151A */
+  --op-warm-white: oklch(0.98 0.02 92); /* #FFF9E8 */
+}
+
+@utility op-field-bg {
+  background:
+    radial-gradient(
+      120% 90% at 50% 30%,
+      color-mix(in oklab, var(--op-yellow-lum) 85%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      100% 80% at 15% 90%,
+      color-mix(in oklab, var(--op-amber-deep) 70%, transparent),
+      transparent 65%
+    ),
+    linear-gradient(160deg, var(--op-field-2), var(--op-field) 55%, var(--op-amber-deep));
+}
+
+@utility op-grid {
+  background-image:
+    linear-gradient(to right, oklch(0.19 0.014 250 / 10%) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(0.19 0.014 250 / 10%) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+@keyframes vetor-field-expand {
+  from {
+    clip-path: circle(0% at var(--op-x, 50%) var(--op-y, 50%));
+  }
+  to {
+    clip-path: circle(150% at var(--op-x, 50%) var(--op-y, 50%));
+  }
+}
+
+@utility animate-field-expand {
+  animation: vetor-field-expand 0.95s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes vetor-field-collapse {
+  from {
+    clip-path: circle(150% at var(--op-x, 50%) var(--op-y, 50%));
+    opacity: 1;
+  }
+  to {
+    clip-path: circle(0% at var(--op-x, 50%) var(--op-y, 50%));
+    opacity: 0.4;
+  }
+}
+
+@utility animate-field-collapse {
+  animation: vetor-field-collapse 0.5s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+@keyframes vetor-ring-out {
+  0% {
+    transform: scale(0.2);
+    opacity: 0.75;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+@utility animate-ring-out {
+  animation: vetor-ring-out 3.2s ease-out infinite;
+}
+
+@keyframes vetor-stream-in {
+  from {
+    opacity: 0;
+    transform: translate3d(var(--sx, 0), var(--sy, 0), 0) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@utility animate-stream-in {
+  animation: vetor-stream-in 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes vetor-command-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--op-yellow) 70%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 26px transparent;
+  }
+}
+
+@utility animate-command-pulse {
+  animation: vetor-command-pulse 0.5s ease-out;
+}
+
+/* ————— Camada fullscreen de operação ————— */
+
+.vetor-operation-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  min-height: 100vh;
+  z-index: 9999;
+  overflow: hidden;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+@utility op-scene-bg {
+  background: radial-gradient(circle at 50% 45%, #ffe59a 0%, #f5c542 30%, #d99a24 100%);
+}
+
+@utility vetor-dimmed {
+  filter: brightness(0.35) saturate(0.25);
+  transition: filter 380ms ease-out;
+}
+
+@keyframes vetor-node-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@utility animate-node-in {
+  animation: vetor-node-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes vetor-status-in {
+  from {
+    opacity: 0;
+    letter-spacing: 0.5em;
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    letter-spacing: 0.22em;
+    filter: blur(0);
+  }
+}
+
+@utility animate-status-in {
+  animation: vetor-status-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
 }

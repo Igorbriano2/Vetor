@@ -3,6 +3,23 @@
 Este documento resume o que foi construído até agora, o que já é real e funcional, e o que ainda
 precisa de decisão ou credencial de negócio antes de ir para produção.
 
+**2026-08-17 — landing page substituída pelo design "command console":** a LP de
+`apps/landing` foi trocada pela referência visual construída no Lovable
+(`vetor-ai-marketing`, repositório externo, não faz parte deste monorepo) — tema escuro
+oklch, fontes Sora + JetBrains Mono, painéis com blur/scanlines, animações de scroll
+reveal, núcleo `VetorCore` orbital e uma sequência interativa de "diagnóstico" (boot
+sequence + modo de operação em tela cheia). O design/layout/componentes React vieram do
+Lovable; os dados factuais (plano Completo R$ 1.997/mês com cota+excedente, os 7 papéis
+reais — Design, Estrategista, Social Media, Editor de Vídeo, Copywriter, Gestor de
+Tráfego, Atendente —, a comparação de custo de montar a equipe e o FAQ) vieram dos
+componentes antigos (`Planos.tsx`, `CustoAgencia.tsx`, `Comparativo.tsx`, `Faq.tsx`,
+`PorTras.tsx`), pois o Lovable foi montado antes do posicionamento/preço final e tinha
+números de placeholder. O formulário de lead continua gravando em `leads` via
+`/api/leads` (mesmo contrato com `SUPABASE_SERVICE_ROLE_KEY`); o número de WhatsApp
+placeholder em `src/lib/whatsapp.ts` não mudou. Nenhuma dependência do Supabase do
+Lovable foi usada — o único componente puramente demonstrativo (`CommandBar`, a
+simulação de diagnóstico) ficou local/estático, sem chamar nenhum backend externo.
+
 **2026-08-14 — mudança de direção:** o dono do negócio decidiu adotar a spec do Manus
 (`docs/manus-jarvis-spec/`) como norte do produto (cockpit, missões, governança por risco,
 créditos), migrando o que já existe aos poucos. Ver `docs/09-plano-de-migracao-jarvis.md` para o
@@ -21,9 +38,11 @@ em voz quando o cliente perguntar por áudio (ver seção de áudio abaixo).
   `conteudo_social`, `assinaturas`, `relatorios`, `log_agentes`, `leads`, `mensagens_whatsapp` —
   todas com Row Level Security habilitada e isolamento por `cliente_id` (multi-tenancy). Migrations
   versionadas em `supabase/migrations/`.
-- **Landing page completa** (`apps/landing`), com todas as 9 seções do documento 02, na ordem
-  descrita, com a identidade visual (cores/tipografia) do documento 01 aplicada. Testada em
-  desktop e mobile. Formulário de lead grava direto na tabela `leads` via `/api/leads`.
+- **Landing page completa** (`apps/landing`), agora no design "command console" escuro
+  portado do Lovable (ver nota de 2026-08-17 acima) — boot sequence, rede de agentes
+  orbital com os 7 papéis reais, seletor de vertical, comparação de custo, planos e FAQ
+  com o conteúdo/preço aprovados. Testada em desktop e mobile (build + lint limpos).
+  Formulário de lead grava direto na tabela `leads` via `/api/leads`.
 - **Painel do cliente** (`apps/painel`): login com Supabase Auth, visual cockpit (grafite/ciano/
   âmbar, núcleo `VetorCore` com estado computado a partir dos dados reais, sinais, timeline de
   demandas), protegido por middleware. Testado (build + telas renderizadas).
