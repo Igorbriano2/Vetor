@@ -152,6 +152,14 @@ export async function processarComAgente(params: {
   }
 
   if (!respostaTexto && toolUses.length === 0) {
+    // Diagnóstico temporário: isso não deveria acontecer com stop_reason
+    // "end_turn"/"tool_use" normais — só serve pra descobrir por que a API
+    // devolveu conteúdo sem texto nem tool_use (ex: stop_reason "max_tokens"
+    // cortando no meio, ou tipo de bloco novo que este código ainda não trata).
+    console.warn(
+      `[core] Resposta vazia do agente "${params.agente}" — stop_reason=${response.stop_reason}, ` +
+        `blocos=${JSON.stringify(response.content.map((b) => b.type))}`,
+    );
     respostaTexto = "Desculpa, não entendi direito. Pode repetir de outro jeito?";
   }
 
