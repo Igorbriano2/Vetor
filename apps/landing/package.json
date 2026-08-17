@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "build": "next build && mkdir -p .next/standalone/apps/landing/.next && cp -r public .next/standalone/apps/landing/public && cp -r .next/static .next/standalone/apps/landing/.next/static",
+    "start": "node .next/standalone/apps/landing/server.js",
     "lint": "eslint"
   },
   "dependencies": {

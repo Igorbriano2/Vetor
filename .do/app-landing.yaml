@@ -12,6 +12,9 @@ services:
       deploy_on_push: true
     source_dir: apps/landing
     environment_slug: node-js
+    # build/start usam output "standalone" do Next (ver next.config.ts) — o
+    # runtime da DO só inclui source_dir, então sem standalone o react/react-dom
+    # hoisted pra raiz do workspace npm somem e o processo nem sobe.
     build_command: npm run build
     run_command: npm run start
     instance_size_slug: basic-xxs

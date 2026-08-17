@@ -10,6 +10,8 @@ services:
       deploy_on_push: true
     source_dir: apps/painel
     environment_slug: node-js
+    # build/start usam output "standalone" do Next (ver next.config.ts) — mesmo
+    # motivo do app-landing.yaml.
     build_command: npm run build
     run_command: npm run start
     instance_size_slug: basic-xxs

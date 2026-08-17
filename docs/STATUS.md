@@ -3,6 +3,21 @@
 Este documento resume o que foi construído até agora, o que já é real e funcional, e o que ainda
 precisa de decisão ou credencial de negócio antes de ir para produção.
 
+**2026-08-17 — corrigido deploy quebrado (`apps/landing` e `apps/painel`):** o push da nova
+landing page derrubou o deploy na DigitalOcean com `Cannot find module 'react'` — a DO só
+publica o conteúdo de `source_dir` (ex.: `apps/landing/`), não o monorepo inteiro, e o
+`npm install` deste workspace hoisted `react`/`react-dom` pro `node_modules` da raiz depois
+que novas dependências foram instaladas. O build local mascarava isso (rodava com o monorepo
+inteiro ao lado). Corrigido ativando `output: "standalone"` no `next.config.ts` dos dois apps
+Next.js (`apps/landing` e `apps/painel` — mesmo risco, mesma causa, `apps/painel` só ainda não
+tinha sido redeployado desde a mudança) e ajustando o script `build` pra copiar `public/` e
+`.next/static/` pra dentro de `.next/standalone/`, e o script `start` pra rodar
+`node .next/standalone/apps/<app>/server.js` diretamente. Testado copiando o `.next/standalone/`
+resultante pra um diretório isolado, sem nenhum acesso ao resto do monorepo, e confirmando que o
+servidor sobe e responde normalmente — reproduz o ambiente de runtime da DO. `apps/agentes` já
+tinha resolvido o mesmo tipo de problema antes com bundle via esbuild (`dist/server.js`
+standalone); esse é o equivalente pro Next.js.
+
 **2026-08-17 — landing page substituída pelo design "command console":** a LP de
 `apps/landing` foi trocada pela referência visual construída no Lovable
 (`vetor-ai-marketing`, repositório externo, não faz parte deste monorepo) — tema escuro
