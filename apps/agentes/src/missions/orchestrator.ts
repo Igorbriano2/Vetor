@@ -261,18 +261,32 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
   await avancarMissao(etapa.mission_id);
 }
 
-// 5) Decisão humana sobre uma aprovação pendente.
+// Lançado quando o cliente autenticado tenta decidir uma aprovação que não é
+// dele — rota chama isso pra devolver 403, não 500.
+export class AprovacaoDeOutroClienteError extends Error {
+  constructor(approvalId: string) {
+    super(`Aprovação ${approvalId} não pertence a este cliente`);
+    this.name = "AprovacaoDeOutroClienteError";
+  }
+}
+
+// 5) Decisão humana sobre uma aprovação pendente. `clienteId` vem da sessão
+// autenticada resolvida pelo painel (nunca do corpo da requisição) — o Supabase
+// client aqui é service-role e ignora RLS, então a checagem de posse precisa
+// ser explícita, ou qualquer cliente autenticado aprova/rejeita missão alheia.
 export async function decidirAprovacao(
   approvalId: string,
   decisao: "aprovar" | "rejeitar",
   usuarioId: string,
+  clienteId: string,
 ): Promise<void> {
   const { data: aprovacao, error } = await supabase
     .from("approvals")
-    .select("id, mission_id, mission_step_id, status")
+    .select("id, mission_id, mission_step_id, status, cliente_id")
     .eq("id", approvalId)
     .single();
   if (error || !aprovacao) throw new Error(`Aprovação ${approvalId} não encontrada: ${error?.message}`);
+  if (aprovacao.cliente_id !== clienteId) throw new AprovacaoDeOutroClienteError(approvalId);
   if (aprovacao.status !== "pending") throw new Error(`Aprovação ${approvalId} já foi decidida (status: ${aprovacao.status})`);
 
   await supabase

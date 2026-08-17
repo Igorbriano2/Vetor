@@ -1,7 +1,12 @@
 import { Router } from "express";
 import { supabase } from "../db/supabase.js";
 import { exigirAuthInterna } from "../middleware/internalAuth.js";
-import { criarMissaoDeIntencao, decidirAprovacao, type PlanoConfirmado } from "../missions/orchestrator.js";
+import {
+  criarMissaoDeIntencao,
+  decidirAprovacao,
+  AprovacaoDeOutroClienteError,
+  type PlanoConfirmado,
+} from "../missions/orchestrator.js";
 
 export const missoesRouter = Router();
 missoesRouter.use(exigirAuthInterna);
@@ -56,16 +61,20 @@ async function decidir(
   decisao: "aprovar" | "rejeitar",
 ): Promise<void> {
   const { approvalId } = req.params;
-  const { usuario_id } = req.body ?? {};
-  if (!usuario_id) {
-    res.status(400).json({ error: "usuario_id é obrigatório" });
+  const { usuario_id, cliente_id } = req.body ?? {};
+  if (!usuario_id || !cliente_id) {
+    res.status(400).json({ error: "usuario_id e cliente_id são obrigatórios" });
     return;
   }
 
   try {
-    await decidirAprovacao(approvalId, decisao, usuario_id);
+    await decidirAprovacao(approvalId, decisao, usuario_id, cliente_id);
     res.json({ status: "ok" });
   } catch (err) {
+    if (err instanceof AprovacaoDeOutroClienteError) {
+      res.status(403).json({ error: "Esta aprovação não pertence ao seu cliente" });
+      return;
+    }
     console.error(`Erro ao decidir aprovação ${approvalId}:`, err);
     res.status(500).json({ error: "Falha ao decidir aprovação" });
   }

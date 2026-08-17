@@ -13,6 +13,16 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
 
+  const { data: usuario } = await supabase
+    .from("usuarios")
+    .select("cliente_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!usuario?.cliente_id) {
+    return NextResponse.json({ error: "Seu usuário ainda não está vinculado a um cliente" }, { status: 403 });
+  }
+
   const body = await request.json().catch(() => null);
   const decisao = body?.decisao;
 
@@ -33,8 +43,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const upstream = await fetch(`${agentesUrl}/plataforma/missoes/${missaoId}/aprovacoes/${approvalId}/${rota}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-internal-token": internalToken },
-      body: JSON.stringify({ usuario_id: user.id }),
+      body: JSON.stringify({ usuario_id: user.id, cliente_id: usuario.cliente_id }),
     });
+
+    if (upstream.status === 403) {
+      return NextResponse.json({ error: "Esta aprovação não pertence à sua empresa" }, { status: 403 });
+    }
 
     if (!upstream.ok) {
       throw new Error(`apps/agentes respondeu ${upstream.status}`);
