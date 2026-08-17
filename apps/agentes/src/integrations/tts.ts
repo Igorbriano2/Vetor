@@ -29,6 +29,10 @@ export async function sintetizarFala(texto: string): Promise<AudioSintetizado> {
     return sintetizarComOpenAI(texto);
   }
 
+  if (provider === "fish") {
+    return sintetizarComFishAudio(texto);
+  }
+
   throw new SinteseVozIndisponivelError(`TTS_PROVIDER "${provider}" não suportado`);
 }
 
@@ -57,6 +61,48 @@ async function sintetizarComOpenAI(texto: string): Promise<AudioSintetizado> {
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Falha na síntese de voz via OpenAI (${res.status}): ${body}`);
+  }
+
+  return {
+    bytes: await res.arrayBuffer(),
+    mimeType: "audio/ogg",
+  };
+}
+
+// Fish Audio — modelo de voz próprio do cliente (reference_id), pra dar uma
+// voz consistente ao Vetor em vez de uma voz genérica de provedor. Ver
+// https://fish.audio/pt/blog/s2-1-pro-free-api/ — a única diferença de outras
+// chamadas Fish Audio é o header "model" fixando o tier gratuito.
+async function sintetizarComFishAudio(texto: string): Promise<AudioSintetizado> {
+  const apiKey = process.env.FISH_AUDIO_API_KEY;
+  if (!apiKey) {
+    throw new SinteseVozIndisponivelError("FISH_AUDIO_API_KEY é obrigatório quando TTS_PROVIDER=fish");
+  }
+
+  const referenceId = process.env.FISH_AUDIO_VOICE_ID;
+  if (!referenceId) {
+    throw new SinteseVozIndisponivelError("FISH_AUDIO_VOICE_ID é obrigatório quando TTS_PROVIDER=fish");
+  }
+
+  const modelo = process.env.FISH_AUDIO_MODEL ?? "s2.1-pro-free";
+
+  const res = await fetch("https://api.fish.audio/v1/tts", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      model: modelo,
+    },
+    body: JSON.stringify({
+      text: texto,
+      reference_id: referenceId,
+      format: "opus",
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Falha na síntese de voz via Fish Audio (${res.status}): ${body}`);
   }
 
   return {

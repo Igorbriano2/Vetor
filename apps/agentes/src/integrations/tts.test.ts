@@ -27,4 +27,19 @@ describe("sintetizarFala", () => {
     delete process.env.OPENAI_API_KEY;
     await expect(sintetizarFala("oi")).rejects.toBeInstanceOf(SinteseVozIndisponivelError);
   });
+
+  it("lanca SinteseVozIndisponivelError quando fish sem chave configurada", async () => {
+    process.env.TTS_PROVIDER = "fish";
+    delete process.env.FISH_AUDIO_API_KEY;
+    delete process.env.FISH_AUDIO_VOICE_ID;
+    await expect(sintetizarFala("oi")).rejects.toBeInstanceOf(SinteseVozIndisponivelError);
+  });
+
+  it("lanca SinteseVozIndisponivelError quando fish sem voice id configurado", async () => {
+    process.env.TTS_PROVIDER = "fish";
+    process.env.FISH_AUDIO_API_KEY = "chave-de-teste";
+    delete process.env.FISH_AUDIO_VOICE_ID;
+    await expect(sintetizarFala("oi")).rejects.toBeInstanceOf(SinteseVozIndisponivelError);
+    delete process.env.FISH_AUDIO_API_KEY;
+  });
 });
