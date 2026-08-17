@@ -52,6 +52,10 @@ describe("transicionarEtapa", () => {
     expect(transicionarEtapa("awaiting_approval", "ready")).toBe("ready");
   });
 
+  it("permite barrar etapa de risco alto antes de rodar (processarPlanMission)", () => {
+    expect(transicionarEtapa("pending", "awaiting_approval")).toBe("awaiting_approval");
+  });
+
   it("rejeita transição inválida", () => {
     expect(() => transicionarEtapa("completed", "running")).toThrow(TransicaoInvalidaError);
     expect(() => transicionarEtapa("pending", "completed")).toThrow(TransicaoInvalidaError);

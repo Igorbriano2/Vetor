@@ -83,7 +83,10 @@ export const MISSION_TRANSITIONS: Record<MissionStatus, MissionStatus[]> = {
 };
 
 export const STEP_TRANSITIONS: Record<StepStatus, StepStatus[]> = {
-  pending: ["ready", "blocked", "cancelled", "skipped"],
+  // "awaiting_approval" a partir de "pending" é o caminho normal para etapas
+  // de risco alto/crítico: o Policy Engine barra a execução antes mesmo dela
+  // começar (processarPlanMission), não só no meio de uma etapa já rodando.
+  pending: ["ready", "awaiting_approval", "blocked", "cancelled", "skipped"],
   ready: ["running", "cancelled"],
   running: ["awaiting_approval", "completed", "failed", "blocked"],
   awaiting_approval: ["ready", "cancelled", "blocked"],
