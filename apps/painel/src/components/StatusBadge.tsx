@@ -27,6 +27,13 @@ const GRUPO: Record<string, "info" | "decisao" | "sucesso" | "risco"> = {
   failed: "risco",
   cancelled: "risco",
   archived: "info",
+  // Status de solicitação (supabase/migrations/0009_conversas_solicitacoes.sql)
+  // — mesmo vocabulário visual acima, chaves em inglês (é o que fica gravado).
+  received: "info",
+  transcribing: "info",
+  awaiting_context: "decisao",
+  confirmed: "sucesso",
+  converted_to_mission: "sucesso",
 };
 
 const CORES: Record<"info" | "decisao" | "sucesso" | "risco", string> = {
@@ -62,6 +69,11 @@ const ROTULOS: Record<string, string> = {
   failed: "Falhou",
   cancelled: "Cancelada",
   archived: "Arquivada",
+  received: "Recebida",
+  transcribing: "Transcrevendo",
+  awaiting_context: "Aguardando informação",
+  confirmed: "Confirmada",
+  converted_to_mission: "Convertida em missão",
 };
 
 export default function StatusBadge({ status }: { status: string }) {

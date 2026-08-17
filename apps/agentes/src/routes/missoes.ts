@@ -3,6 +3,7 @@ import { supabase } from "../db/supabase.js";
 import { exigirAuthInterna } from "../middleware/internalAuth.js";
 import {
   criarMissaoDeIntencao,
+  calcularHashPlano,
   decidirAprovacao,
   AprovacaoDeOutroClienteError,
   type PlanoConfirmado,
@@ -12,15 +13,40 @@ export const missoesRouter = Router();
 missoesRouter.use(exigirAuthInterna);
 
 missoesRouter.post("/", async (req, res) => {
-  const { cliente_id, plano } = req.body ?? {};
+  const {
+    cliente_id,
+    plano,
+    plan_hash,
+    solicitacao_id,
+    confirmado_por,
+    contexto_snapshot,
+    orcamento_confirmado_centavos,
+    prazo_confirmado,
+  } = req.body ?? {};
+
   if (!cliente_id || !plano || !Array.isArray(plano.etapas) || plano.etapas.length === 0) {
     res.status(400).json({ error: "cliente_id e plano (com etapas) são obrigatórios" });
     return;
   }
 
+  // Defesa: se o painel mandou o hash que ele acha que é do plano confirmado,
+  // o servidor recalcula e compara — nunca confia no hash vindo do navegador
+  // como prova por si só (Fase 4).
+  if (typeof plan_hash === "string" && plan_hash !== calcularHashPlano(plano as PlanoConfirmado)) {
+    res.status(409).json({ error: "O plano mudou desde que foi proposto — peça uma nova proposta ao Vetor." });
+    return;
+  }
+
   try {
-    const resultado = await criarMissaoDeIntencao(cliente_id, plano as PlanoConfirmado);
-    res.status(201).json(resultado);
+    const resultado = await criarMissaoDeIntencao(cliente_id, plano as PlanoConfirmado, {
+      solicitacaoId: typeof solicitacao_id === "string" ? solicitacao_id : undefined,
+      confirmadoPor: typeof confirmado_por === "string" ? confirmado_por : undefined,
+      contextoSnapshot: contexto_snapshot && typeof contexto_snapshot === "object" ? contexto_snapshot : undefined,
+      orcamentoConfirmadoCentavos:
+        typeof orcamento_confirmado_centavos === "number" ? orcamento_confirmado_centavos : undefined,
+      prazoConfirmado: typeof prazo_confirmado === "string" ? prazo_confirmado : undefined,
+    });
+    res.status(201).json({ missionId: resultado.missionId, idempotente: resultado.idempotente });
   } catch (err) {
     console.error(`Erro ao criar missão (cliente ${cliente_id}):`, err);
     res.status(500).json({ error: "Falha ao criar missão" });

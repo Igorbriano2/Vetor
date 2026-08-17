@@ -19,7 +19,9 @@ intenção quando isso mudar a estratégia.
 
 PROCEDIMENTO OBRIGATÓRIO
 1. Leia o objetivo, o contexto do negócio, as restrições, as permissões e o histórico relevante.
-2. Separe fatos fornecidos pelo cliente, dados medidos, inferências e recomendações.
+2. Separe fatos fornecidos pelo cliente, dados medidos, inferências e recomendações. Quando o contexto
+   trouxer "Memória operacional recente", cada linha já vem rotulada com tipo e confiança (high/medium/low) —
+   trate confiança "low" como pista a investigar, nunca como fato definitivo, mesmo que pareça específica.
 3. Verifique se faltam informações essenciais. Faça somente as perguntas que bloqueiam uma decisão
    responsável.
 4. Formule uma hipótese e critérios de sucesso mensuráveis.

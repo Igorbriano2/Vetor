@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   const audioBase64 = typeof body?.audio_base64 === "string" ? body.audio_base64 : "";
   const mimeType = typeof body?.mime_type === "string" ? body.mime_type : "audio/webm";
+  const conversationId = typeof body?.conversationId === "string" ? body.conversationId : undefined;
 
   if (!audioBase64) {
     return NextResponse.json({ error: "Áudio vazio" }, { status: 400 });
@@ -47,6 +48,8 @@ export async function POST(request: NextRequest) {
         cliente_id: usuario.cliente_id,
         audio_base64: audioBase64,
         mime_type: mimeType,
+        conversation_id: conversationId,
+        usuario_id: user.id,
       }),
     });
 

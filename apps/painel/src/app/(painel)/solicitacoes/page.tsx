@@ -2,19 +2,75 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import StatusBadge from "@/components/StatusBadge";
 
-const STATUS_ABERTO = ["novo", "em_andamento", "aguardando_aprovacao"];
+const DEMANDA_STATUS_ABERTO = ["novo", "em_andamento", "aguardando_aprovacao"];
+
+// Fase 3 — solicitações multimodais (painel texto/áudio) somam ao canal legado
+// de demandas (WhatsApp) nesta mesma tela, sem trocar o layout: cada linha só
+// aprende a nascer de duas tabelas diferentes.
+const SOLICITACAO_STATUS_ABERTO = [
+  "received",
+  "transcribing",
+  "understanding",
+  "awaiting_context",
+  "planned",
+  "confirmed",
+];
+interface LinhaUnificada {
+  id: string;
+  titulo: string;
+  descricao: string;
+  status: string;
+  origem: string;
+  missionId: string | null;
+  createdAt: string;
+}
 
 export default async function SolicitacoesPage() {
   const supabase = await createSupabaseServerClient();
 
-  const { data: demandas } = await supabase
-    .from("demandas")
-    .select("id, tipo_demanda, descricao, status, urgencia, mission_id, created_at")
-    .order("created_at", { ascending: false });
+  const [{ data: demandas }, { data: solicitacoes }] = await Promise.all([
+    supabase
+      .from("demandas")
+      .select("id, tipo_demanda, descricao, status, mission_id, created_at")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("solicitacoes")
+      .select("id, origem, texto, transcricao, status, mission_id, created_at")
+      .order("created_at", { ascending: false }),
+  ]);
 
-  const abertas = (demandas ?? []).filter((d) => STATUS_ABERTO.includes(d.status) && !d.mission_id);
-  const convertidas = (demandas ?? []).filter((d) => !!d.mission_id);
-  const arquivadas = (demandas ?? []).filter((d) => !STATUS_ABERTO.includes(d.status) && !d.mission_id);
+  const linhasDemandas: LinhaUnificada[] = (demandas ?? []).map((d) => ({
+    id: d.id,
+    titulo: d.tipo_demanda,
+    descricao: d.descricao,
+    status: d.status,
+    origem: "whatsapp",
+    missionId: d.mission_id,
+    createdAt: d.created_at,
+  }));
+
+  const linhasSolicitacoes: LinhaUnificada[] = (solicitacoes ?? []).map((s) => ({
+    id: s.id,
+    titulo: LABEL_ORIGEM[s.origem] ?? "Conversa com o Vetor",
+    descricao: s.texto || s.transcricao || "Ainda sem conteúdo — aguardando o cliente enviar a mensagem.",
+    status: s.status,
+    origem: s.origem,
+    missionId: s.mission_id,
+    createdAt: s.created_at,
+  }));
+
+  const todas = [...linhasDemandas, ...linhasSolicitacoes].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  const abertas = todas.filter(
+    (l) => !l.missionId && (DEMANDA_STATUS_ABERTO.includes(l.status) || SOLICITACAO_STATUS_ABERTO.includes(l.status)),
+  );
+  const convertidas = todas.filter((l) => !!l.missionId);
+  const arquivadas = todas.filter(
+    (l) =>
+      !l.missionId &&
+      !DEMANDA_STATUS_ABERTO.includes(l.status) &&
+      !SOLICITACAO_STATUS_ABERTO.includes(l.status),
+  );
 
   return (
     <div className="px-6 py-10">
@@ -34,15 +90,12 @@ export default async function SolicitacoesPage() {
   );
 }
 
-interface DemandaLinha {
-  id: string;
-  tipo_demanda: string;
-  descricao: string;
-  status: string;
-  urgencia: string;
-  mission_id: string | null;
-  created_at: string;
-}
+const LABEL_ORIGEM: Record<string, string> = {
+  painel_texto: "Conversa com o Vetor (texto)",
+  painel_audio: "Conversa com o Vetor (áudio)",
+  whatsapp: "WhatsApp",
+  evento: "Evento automático",
+};
 
 function Secao({
   titulo,
@@ -50,7 +103,7 @@ function Secao({
   mostrarLinkMissao = false,
 }: {
   titulo: string;
-  itens: DemandaLinha[];
+  itens: LinhaUnificada[];
   mostrarLinkMissao?: boolean;
 }) {
   return (
@@ -60,17 +113,17 @@ function Secao({
       </h2>
       <div className="mt-3 space-y-3">
         {itens.length ? (
-          itens.map((d) => (
-            <div key={d.id} className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur">
+          itens.map((l) => (
+            <div key={l.id} className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur">
               <div className="flex items-center justify-between gap-4">
-                <p className="font-medium text-areia">{d.tipo_demanda}</p>
-                <StatusBadge status={d.status} />
+                <p className="font-medium text-areia">{l.titulo}</p>
+                <StatusBadge status={l.status} />
               </div>
-              <p className="mt-1 text-sm text-areia/60">{d.descricao}</p>
+              <p className="mt-1 text-sm text-areia/60">{l.descricao}</p>
               <div className="mt-2 flex items-center gap-3 font-mono text-[11px] text-areia/30">
-                <span>{new Date(d.created_at).toLocaleString("pt-BR")}</span>
-                {mostrarLinkMissao && d.mission_id && (
-                  <Link href={`/missoes/${d.mission_id}`} className="text-menta hover:underline">
+                <span>{new Date(l.createdAt).toLocaleString("pt-BR")}</span>
+                {mostrarLinkMissao && l.missionId && (
+                  <Link href={`/missoes/${l.missionId}`} className="text-menta hover:underline">
                     ver missão
                   </Link>
                 )}

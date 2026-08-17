@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null);
   const texto = typeof body?.texto === "string" ? body.texto.trim() : "";
+  const conversationId = typeof body?.conversationId === "string" ? body.conversationId : undefined;
 
   if (!texto) {
     return NextResponse.json({ error: "Mensagem vazia" }, { status: 400 });
@@ -46,6 +47,8 @@ export async function POST(request: NextRequest) {
         cliente_id: usuario.cliente_id,
         texto,
         responder_em_voz: !!body?.responder_em_voz,
+        conversation_id: conversationId,
+        usuario_id: user.id,
       }),
     });
 

@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null);
   const plano = body?.plano;
+  const solicitacaoId = typeof body?.solicitacao_id === "string" ? body.solicitacao_id : undefined;
 
   if (!plano || !Array.isArray(plano.etapas) || plano.etapas.length === 0) {
     return NextResponse.json({ error: "Plano de missão inválido" }, { status: 400 });
@@ -44,7 +45,14 @@ export async function POST(request: NextRequest) {
     const res = await fetch(`${agentesUrl}/plataforma/missoes`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-internal-token": internalToken },
-      body: JSON.stringify({ cliente_id: usuario.cliente_id, plano }),
+      body: JSON.stringify({
+        cliente_id: usuario.cliente_id,
+        plano,
+        solicitacao_id: solicitacaoId,
+        // Quem confirma vem sempre da sessão autenticada no servidor, nunca do
+        // corpo da requisição vindo do navegador (Fase 4).
+        confirmado_por: user.id,
+      }),
     });
 
     if (!res.ok) {

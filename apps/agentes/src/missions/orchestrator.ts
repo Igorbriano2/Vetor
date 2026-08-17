@@ -1,5 +1,13 @@
+import { createHash } from "node:crypto";
 import { supabase } from "../db/supabase.js";
-import { transicionarMissao, transicionarEtapa, type MissionStatus, type StepStatus } from "./stateMachine.js";
+import {
+  transicionarMissao,
+  transicionarEtapa,
+  transicionarSolicitacao,
+  type MissionStatus,
+  type StepStatus,
+  type SolicitacaoStatus,
+} from "./stateMachine.js";
 import { avaliarRisco, precisaAprovacao, bloqueiaExecucaoAutomatica, type Risco } from "./policyEngine.js";
 import { enfileirarPlanMission, enfileirarRunAgentStep } from "../queue/missionQueue.js";
 import { executarEspecialista, type ContextoMissaoParaEspecialista } from "../agents/specialistRunner.js";
@@ -43,23 +51,141 @@ async function buscarMissao(missionId: string): Promise<MissionRow> {
   return data as MissionRow;
 }
 
-async function atualizarStatusMissao(missionId: string, atual: MissionStatus, proximo: MissionStatus): Promise<void> {
+// Ator que provocou uma transição — "sistema" cobre o caminho automático do
+// orchestrator/worker; "cliente"/"usuario" cobrem decisão humana (aprovação).
+export interface Ator {
+  tipo: "sistema" | "cliente" | "usuario";
+  id?: string;
+}
+
+const ATOR_SISTEMA: Ator = { tipo: "sistema" };
+
+async function registrarEventoMissao(params: {
+  missionId: string;
+  clienteId: string;
+  stepId?: string;
+  estadoAnterior: string | null;
+  estadoNovo: string;
+  ator: Ator;
+  motivo?: string;
+}): Promise<void> {
+  await supabase.from("mission_events").insert({
+    mission_id: params.missionId,
+    mission_step_id: params.stepId ?? null,
+    cliente_id: params.clienteId,
+    ator_tipo: params.ator.tipo,
+    ator_id: params.ator.id ?? null,
+    estado_anterior: params.estadoAnterior,
+    estado_novo: params.estadoNovo,
+    motivo: params.motivo ?? null,
+  });
+}
+
+async function atualizarStatusMissao(
+  missionId: string,
+  atual: MissionStatus,
+  proximo: MissionStatus,
+  opcoes: { clienteId?: string; ator?: Ator; motivo?: string } = {},
+): Promise<void> {
   transicionarMissao(atual, proximo); // lança TransicaoInvalidaError se inválida
   const { error } = await supabase.from("missions").update({ status: proximo, updated_at: new Date().toISOString() }).eq("id", missionId);
   if (error) throw new Error(`Falha ao atualizar status da missão ${missionId}: ${error.message}`);
+
+  const clienteId = opcoes.clienteId ?? (await buscarMissao(missionId)).cliente_id;
+  await registrarEventoMissao({
+    missionId,
+    clienteId,
+    estadoAnterior: atual,
+    estadoNovo: proximo,
+    ator: opcoes.ator ?? ATOR_SISTEMA,
+    motivo: opcoes.motivo,
+  });
 }
 
-async function atualizarStatusEtapa(stepId: string, atual: StepStatus, proximo: StepStatus): Promise<void> {
+async function atualizarStatusEtapa(
+  stepId: string,
+  atual: StepStatus,
+  proximo: StepStatus,
+  opcoes: { missionId: string; clienteId: string; ator?: Ator; motivo?: string },
+): Promise<void> {
   transicionarEtapa(atual, proximo);
   const { error } = await supabase.from("mission_steps").update({ status: proximo, updated_at: new Date().toISOString() }).eq("id", stepId);
   if (error) throw new Error(`Falha ao atualizar status da etapa ${stepId}: ${error.message}`);
+
+  await registrarEventoMissao({
+    missionId: opcoes.missionId,
+    clienteId: opcoes.clienteId,
+    stepId,
+    estadoAnterior: atual,
+    estadoNovo: proximo,
+    ator: opcoes.ator ?? ATOR_SISTEMA,
+    motivo: opcoes.motivo,
+  });
+}
+
+// sha256 de uma versão canônica do plano (etapas ordenadas por chave, chaves
+// de objeto em ordem fixa) — usado pra provar que a missão foi criada a
+// partir exatamente do plano que o humano confirmou no IntentCard.
+export function calcularHashPlano(plano: PlanoConfirmado): string {
+  const canonico = {
+    titulo: plano.titulo,
+    objetivo: plano.objetivo,
+    hipotese: plano.hipotese ?? null,
+    criterioSucesso: [...plano.criterioSucesso].sort(),
+    etapas: [...plano.etapas]
+      .sort((a, b) => a.chave.localeCompare(b.chave))
+      .map((e) => ({
+        chave: e.chave,
+        agente: e.agente,
+        tarefa: e.tarefa,
+        dependeDe: [...e.dependeDe].sort(),
+        ferramentas: [...e.ferramentas].sort(),
+      })),
+  };
+  return createHash("sha256").update(JSON.stringify(canonico)).digest("hex");
+}
+
+export interface ConfirmacaoMissao {
+  // Liga a missão à solicitação que a originou — ver
+  // supabase/migrations/0009_conversas_solicitacoes.sql. Quando presente,
+  // criarMissaoDeIntencao vira idempotente: confirmar duas vezes a mesma
+  // solicitação nunca cria duas missões (Fase 5 — "confirmação cria missão
+  // apenas uma vez").
+  solicitacaoId?: string;
+  confirmadoPor?: string; // usuario_id, nunca confiar em cliente_id vindo do navegador
+  contextoSnapshot?: Record<string, unknown>;
+  orcamentoConfirmadoCentavos?: number;
+  prazoConfirmado?: string;
 }
 
 // 1) Cria a missão + etapas a partir do plano já confirmado pelo humano.
 // Não chama LLM aqui — a proposta já veio pronta do Vetor via propor_missao.
 // Transição draft -> understanding -> planned é síncrona (o "entendimento" já
-// aconteceu na conversa que gerou o plano confirmado).
-export async function criarMissaoDeIntencao(clienteId: string, plano: PlanoConfirmado): Promise<{ missionId: string }> {
+// aconteceu na conversa que gerou o plano confirmado). Risco de cada etapa é
+// SEMPRE recalculado aqui a partir de policyEngine/tools/registry — nunca
+// aceito do que veio do navegador (Fase 4: "nunca confie em risco... vindos
+// apenas do navegador").
+export async function criarMissaoDeIntencao(
+  clienteId: string,
+  plano: PlanoConfirmado,
+  confirmacao: ConfirmacaoMissao = {},
+): Promise<{ missionId: string; idempotente: boolean }> {
+  let statusSolicitacaoAtual: SolicitacaoStatus | undefined;
+  if (confirmacao.solicitacaoId) {
+    const { data: solicitacaoExistente } = await supabase
+      .from("solicitacoes")
+      .select("mission_id, status")
+      .eq("id", confirmacao.solicitacaoId)
+      .eq("cliente_id", clienteId)
+      .maybeSingle();
+    if (solicitacaoExistente?.mission_id) {
+      return { missionId: solicitacaoExistente.mission_id as string, idempotente: true };
+    }
+    statusSolicitacaoAtual = solicitacaoExistente?.status as SolicitacaoStatus | undefined;
+  }
+
+  const planHash = calcularHashPlano(plano);
+
   const { data: missao, error: erroMissao } = await supabase
     .from("missions")
     .insert({
@@ -69,6 +195,12 @@ export async function criarMissaoDeIntencao(clienteId: string, plano: PlanoConfi
       hipotese: plano.hipotese ?? null,
       criterio_sucesso: plano.criterioSucesso,
       status: "draft",
+      plan_hash: planHash,
+      contexto_snapshot: confirmacao.contextoSnapshot ?? null,
+      confirmado_por: confirmacao.confirmadoPor ?? null,
+      confirmado_em: new Date().toISOString(),
+      orcamento_confirmado_centavos: confirmacao.orcamentoConfirmadoCentavos ?? null,
+      prazo_confirmado: confirmacao.prazoConfirmado ?? null,
     })
     .select("id")
     .single();
@@ -104,12 +236,35 @@ export async function criarMissaoDeIntencao(clienteId: string, plano: PlanoConfi
     await supabase.from("mission_steps").update({ depende_de: dependeDeIds }).eq("id", chaveParaId.get(etapa.chave));
   }
 
-  await atualizarStatusMissao(missionId, "draft", "understanding");
-  await atualizarStatusMissao(missionId, "understanding", "planned");
+  await atualizarStatusMissao(missionId, "draft", "understanding", { clienteId });
+  await atualizarStatusMissao(missionId, "understanding", "planned", { clienteId });
+
+  if (confirmacao.solicitacaoId) {
+    // planned -> confirmed -> converted_to_mission: dois hops validados pela
+    // state machine, nunca um update solto (lifecycle de solicitação sempre
+    // passa por transicionarSolicitacao — mesma postura de defesa em
+    // profundidade usada para missão/etapa).
+    if (statusSolicitacaoAtual === "planned") {
+      transicionarSolicitacao("planned", "confirmed");
+      transicionarSolicitacao("confirmed", "converted_to_mission");
+    } else if (statusSolicitacaoAtual !== undefined) {
+      // Estado inesperado pra uma confirmação (o IntentCard só existe quando a
+      // solicitação está "planned") — não bloqueia a criação da missão, só
+      // deixa o desvio visível pra investigar depois.
+      console.warn(
+        `Missão ${missionId} confirmada a partir de solicitação ${confirmacao.solicitacaoId} em status inesperado "${statusSolicitacaoAtual}" (esperado "planned").`,
+      );
+    }
+
+    await supabase
+      .from("solicitacoes")
+      .update({ mission_id: missionId, status: "converted_to_mission", updated_at: new Date().toISOString() })
+      .eq("id", confirmacao.solicitacaoId);
+  }
 
   await enfileirarPlanMission({ missionId });
 
-  return { missionId };
+  return { missionId, idempotente: false };
 }
 
 // 2) Job "plan-mission": passa cada etapa pelo Policy Engine, cria aprovações
@@ -138,14 +293,17 @@ export async function processarPlanMission(missionId: string): Promise<void> {
         risco: etapa.risco,
         status: "pending",
       });
-      await atualizarStatusEtapa(etapa.id, etapa.status as StepStatus, "awaiting_approval");
+      await atualizarStatusEtapa(etapa.id, etapa.status as StepStatus, "awaiting_approval", {
+        missionId,
+        clienteId: missao.cliente_id,
+      });
     }
-    await atualizarStatusMissao(missionId, "planned", "awaiting_approval");
+    await atualizarStatusMissao(missionId, "planned", "awaiting_approval", { clienteId: missao.cliente_id });
     // Etapas de baixo risco sem dependência ainda podem avançar em paralelo às
     // aprovações pendentes — avancarMissao decide isso olhando status real de cada uma.
   } else {
-    await atualizarStatusMissao(missionId, "planned", "queued");
-    await atualizarStatusMissao(missionId, "queued", "running");
+    await atualizarStatusMissao(missionId, "planned", "queued", { clienteId: missao.cliente_id });
+    await atualizarStatusMissao(missionId, "queued", "running", { clienteId: missao.cliente_id });
   }
 
   await avancarMissao(missionId);
@@ -163,22 +321,25 @@ export async function avancarMissao(missionId: string): Promise<void> {
   if (error) throw new Error(`Falha ao ler etapas da missão ${missionId}: ${error.message}`);
 
   const statusPorId = new Map((etapas ?? []).map((e) => [e.id as string, e.status as StepStatus]));
-
-  for (const etapa of etapas ?? []) {
-    if (etapa.status !== "pending") continue;
+  const etapasParaAvancar = (etapas ?? []).filter((etapa) => {
+    if (etapa.status !== "pending") return false;
     const dependencias: string[] = etapa.depende_de ?? [];
-    const todasCompletas = dependencias.every((id) => statusPorId.get(id) === "completed");
-    if (!todasCompletas) continue;
+    return dependencias.every((id) => statusPorId.get(id) === "completed");
+  });
 
-    await atualizarStatusEtapa(etapa.id, "pending", "ready");
-    await enfileirarRunAgentStep({ missionStepId: etapa.id });
+  if (etapasParaAvancar.length > 0) {
+    const clienteId = (await buscarMissao(missionId)).cliente_id;
+    for (const etapa of etapasParaAvancar) {
+      await atualizarStatusEtapa(etapa.id, "pending", "ready", { missionId, clienteId });
+      await enfileirarRunAgentStep({ missionStepId: etapa.id });
+    }
   }
 
   await checarConclusaoMissao(missionId);
 }
 
 async function checarConclusaoMissao(missionId: string): Promise<void> {
-  const { data: etapas } = await supabase.from("mission_steps").select("status").eq("mission_id", missionId);
+  const { data: etapas } = await supabase.from("mission_steps").select("status, resultado").eq("mission_id", missionId);
   if (!etapas || etapas.length === 0) return;
 
   const todasFinalizadas = etapas.every((e) => ["completed", "skipped", "cancelled"].includes(e.status as string));
@@ -188,9 +349,34 @@ async function checarConclusaoMissao(missionId: string): Promise<void> {
   if (!todasFinalizadas) return;
 
   const missao = await buscarMissao(missionId);
-  if (missao.status === "running") {
-    await atualizarStatusMissao(missionId, "running", "completed");
+  if (missao.status !== "running") return;
+
+  // Checkpoint de qualidade: alguma etapa completou com baixa confiança? A
+  // missão não fecha como "completed" limpo — passa por quality_review e
+  // resolve como completed_with_caveats, com o motivo registrado no evento
+  // (hoje resolvido automaticamente; não há revisão humana intermediária
+  // nesta rodada, ver relatório final). "needs_clarification" do especialista
+  // já vira step status "failed" antes de chegar aqui (comportamento
+  // pré-existente, fora do escopo desta mudança).
+  const ressalvas = etapas
+    .map((e) => e.resultado as { confidence?: number; summary?: string } | null)
+    .filter((r): r is { confidence?: number; summary?: string } => !!r)
+    .filter((r) => typeof r.confidence === "number" && r.confidence < 0.5);
+
+  if (ressalvas.length > 0) {
+    const motivo = `${ressalvas.length} etapa(s) com baixa confiança ou pedindo esclarecimento: ${ressalvas
+      .map((r) => r.summary)
+      .filter(Boolean)
+      .join(" | ")}`;
+    await atualizarStatusMissao(missionId, "running", "quality_review", { clienteId: missao.cliente_id, motivo });
+    await atualizarStatusMissao(missionId, "quality_review", "completed_with_caveats", {
+      clienteId: missao.cliente_id,
+      motivo,
+    });
+    return;
   }
+
+  await atualizarStatusMissao(missionId, "running", "completed", { clienteId: missao.cliente_id });
 }
 
 // 4) Job "run-agent-step": chama o especialista de fato e grava o resultado.
@@ -242,19 +428,30 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
     },
   };
 
-  await atualizarStatusEtapa(etapa.id, etapa.status as StepStatus, "running");
+  const opcoesEtapa = { missionId: etapa.mission_id as string, clienteId: etapa.cliente_id as string };
+
+  await atualizarStatusEtapa(etapa.id, etapa.status as StepStatus, "running", opcoesEtapa);
 
   try {
-    const resultado = await executarEspecialista(etapa.agente as AgenteId, contexto, etapa.id, etapa.cliente_id);
+    const resultado = await executarEspecialista(
+      etapa.agente as AgenteId,
+      contexto,
+      etapa.id,
+      etapa.cliente_id,
+      etapa.mission_id as string,
+    );
     await supabase.from("mission_steps").update({ resultado }).eq("id", etapa.id);
 
     if (resultado.status === "completed") {
-      await atualizarStatusEtapa(etapa.id, "running", "completed");
+      await atualizarStatusEtapa(etapa.id, "running", "completed", { ...opcoesEtapa, motivo: resultado.summary });
     } else {
-      await atualizarStatusEtapa(etapa.id, "running", "failed");
+      await atualizarStatusEtapa(etapa.id, "running", "failed", { ...opcoesEtapa, motivo: resultado.summary });
     }
   } catch (err) {
-    await atualizarStatusEtapa(etapa.id, "running", "failed");
+    await atualizarStatusEtapa(etapa.id, "running", "failed", {
+      ...opcoesEtapa,
+      motivo: err instanceof Error ? err.message : "erro desconhecido",
+    });
     throw err;
   }
 
@@ -300,11 +497,21 @@ export async function decidirAprovacao(
 
   if (!aprovacao.mission_step_id) return;
 
+  const ator: Ator = { tipo: "usuario", id: usuarioId };
+
   if (decisao === "aprovar") {
-    await atualizarStatusEtapa(aprovacao.mission_step_id, "awaiting_approval", "ready");
+    await atualizarStatusEtapa(aprovacao.mission_step_id, "awaiting_approval", "ready", {
+      missionId: aprovacao.mission_id,
+      clienteId,
+      ator,
+    });
     await enfileirarRunAgentStep({ missionStepId: aprovacao.mission_step_id });
   } else {
-    await atualizarStatusEtapa(aprovacao.mission_step_id, "awaiting_approval", "cancelled");
+    await atualizarStatusEtapa(aprovacao.mission_step_id, "awaiting_approval", "cancelled", {
+      missionId: aprovacao.mission_id,
+      clienteId,
+      ator,
+    });
   }
 
   // Se a missão estava esperando aprovação e não há mais nenhuma pendente,
@@ -318,8 +525,8 @@ export async function decidirAprovacao(
   if (!pendentes || pendentes.length === 0) {
     const missao = await buscarMissao(aprovacao.mission_id);
     if (missao.status === "awaiting_approval") {
-      await atualizarStatusMissao(aprovacao.mission_id, "awaiting_approval", "queued");
-      await atualizarStatusMissao(aprovacao.mission_id, "queued", "running");
+      await atualizarStatusMissao(aprovacao.mission_id, "awaiting_approval", "queued", { clienteId, ator });
+      await atualizarStatusMissao(aprovacao.mission_id, "queued", "running", { clienteId, ator });
     }
   }
 

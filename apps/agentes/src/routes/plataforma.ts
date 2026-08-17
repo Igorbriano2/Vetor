@@ -11,7 +11,7 @@ export const plataformaRouter = Router();
 plataformaRouter.use(exigirAuthInterna);
 
 plataformaRouter.post("/mensagem", async (req, res) => {
-  const { cliente_id, texto, responder_em_voz } = req.body ?? {};
+  const { cliente_id, texto, responder_em_voz, conversation_id, usuario_id } = req.body ?? {};
   if (!cliente_id || typeof texto !== "string" || !texto.trim()) {
     res.status(400).json({ error: "cliente_id e texto são obrigatórios" });
     return;
@@ -20,6 +20,8 @@ plataformaRouter.post("/mensagem", async (req, res) => {
   try {
     const resultado = await processarMensagemPlataforma(cliente_id, texto, {
       responderEmVoz: !!responder_em_voz,
+      conversationId: typeof conversation_id === "string" ? conversation_id : undefined,
+      usuarioId: typeof usuario_id === "string" ? usuario_id : undefined,
     });
     res.json(resultado);
   } catch (err) {
@@ -29,7 +31,7 @@ plataformaRouter.post("/mensagem", async (req, res) => {
 });
 
 plataformaRouter.post("/audio", async (req, res) => {
-  const { cliente_id, audio_base64, mime_type } = req.body ?? {};
+  const { cliente_id, audio_base64, mime_type, conversation_id, usuario_id } = req.body ?? {};
   if (!cliente_id || typeof audio_base64 !== "string" || !audio_base64) {
     res.status(400).json({ error: "cliente_id e audio_base64 são obrigatórios" });
     return;
@@ -38,7 +40,10 @@ plataformaRouter.post("/audio", async (req, res) => {
   try {
     const buffer = Buffer.from(audio_base64, "base64");
     const bytes = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
-    const resultado = await processarAudioPlataforma(cliente_id, bytes, mime_type ?? "audio/webm");
+    const resultado = await processarAudioPlataforma(cliente_id, bytes, mime_type ?? "audio/webm", {
+      conversationId: typeof conversation_id === "string" ? conversation_id : undefined,
+      usuarioId: typeof usuario_id === "string" ? usuario_id : undefined,
+    });
     res.json(resultado);
   } catch (err) {
     console.error(`Erro ao processar áudio da plataforma (cliente ${cliente_id}):`, err);

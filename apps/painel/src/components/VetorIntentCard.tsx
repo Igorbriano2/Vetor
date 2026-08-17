@@ -4,12 +4,19 @@ import { useState } from "react";
 import Link from "next/link";
 import { readApiResponse } from "@/lib/api/readApiResponse";
 
+export type RiscoEtapa = "low" | "medium" | "high" | "critical";
+
 interface EtapaIntent {
   chave: string;
   agente: string;
   tarefa: string;
   dependeDe: string[];
   ferramentas: string[];
+  // Calculado no backend (policyEngine + gateway de ferramentas) — nunca no
+  // navegador. Opcional só por compatibilidade com respostas antigas em cache;
+  // na prática o backend sempre preenche.
+  risco?: RiscoEtapa;
+  requerAprovacao?: boolean;
 }
 
 export type CategoriaMissao = "strategy" | "content" | "traffic" | "design" | "analytics" | "support";
@@ -41,39 +48,35 @@ const LABEL_CONFIANCA: Record<ConfiancaMissao, string> = {
   low: "baixa confiança",
 };
 
-const RISCO_POR_FERRAMENTA: Record<string, "low" | "medium" | "high"> = {
-  ajustar_orcamento_trafego: "high",
-  pausar_campanha_trafego: "medium",
-  publicar_conteudo_social: "medium",
-  agendar_conteudo_social: "low",
-  gerar_copy: "low",
-  gerar_design: "low",
-  gerar_relatorio: "low",
-};
-
-function riscoDaEtapa(ferramentas: string[]): "low" | "medium" | "high" {
-  const ordem = ["low", "medium", "high"] as const;
-  let maior: "low" | "medium" | "high" = "low";
-  for (const f of ferramentas) {
-    const r = RISCO_POR_FERRAMENTA[f] ?? "high";
-    if (ordem.indexOf(r) > ordem.indexOf(maior)) maior = r;
-  }
-  return maior;
-}
-
-const BADGE_RISCO: Record<"low" | "medium" | "high", string> = {
+// Risco por etapa vem sempre calculado pelo backend (policyEngine + gateway de
+// ferramentas em apps/agentes) — o painel só exibe, nunca reclassifica aqui
+// (antes desta rodada havia uma cópia local desse mapa, que podia divergir do
+// backend; removida em favor da fonte única).
+const BADGE_RISCO: Record<RiscoEtapa, string> = {
   low: "border-menta/30 bg-menta/10 text-menta",
   medium: "border-ambar/40 bg-ambar/10 text-ambar",
   high: "border-coral/40 bg-coral/10 text-coral",
+  critical: "border-coral/60 bg-coral/20 text-coral",
 };
 
-const LABEL_RISCO: Record<"low" | "medium" | "high", string> = {
+const LABEL_RISCO: Record<RiscoEtapa, string> = {
   low: "baixo risco",
   medium: "precisa aprovação",
   high: "alto risco",
+  critical: "crítico — nunca automático",
 };
 
-export default function VetorIntentCard({ intent }: { intent: MissaoProposta }) {
+export default function VetorIntentCard({
+  intent,
+  solicitacaoId,
+}: {
+  intent: MissaoProposta;
+  // Id da solicitação que gerou esta proposta (Fase 3/5) — enviado de volta na
+  // confirmação pra o backend linkar a missão criada e garantir que confirmar
+  // duas vezes nunca crie duas missões. Opcional só por segurança de tipo;
+  // respostas atuais do Vetor sempre incluem.
+  solicitacaoId?: string;
+}) {
   const [status, setStatus] = useState<"pendente" | "enviando" | "confirmada" | "erro">("pendente");
   const [erro, setErro] = useState<string | null>(null);
 
@@ -84,7 +87,7 @@ export default function VetorIntentCard({ intent }: { intent: MissaoProposta }) 
       const res = await fetch("/api/missoes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plano: intent }),
+        body: JSON.stringify({ plano: intent, solicitacao_id: solicitacaoId }),
       });
       await readApiResponse(res);
       setStatus("confirmada");
@@ -131,7 +134,10 @@ export default function VetorIntentCard({ intent }: { intent: MissaoProposta }) 
 
       <div className="mt-3 space-y-2">
         {intent.etapas.map((etapa) => {
-          const risco = riscoDaEtapa(etapa.ferramentas);
+          // Falha fechado: se por algum motivo o backend não mandou risco
+          // (resposta antiga em cache), trata como crítico em vez de assumir
+          // baixo risco silenciosamente — mesma postura de tools/registry.ts.
+          const risco = etapa.risco ?? "critical";
           return (
             <div key={etapa.chave} className="flex items-start justify-between gap-3 rounded-xl border border-areia/10 bg-petroleo/50 p-3">
               <div>

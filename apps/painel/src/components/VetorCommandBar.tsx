@@ -1,11 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import VetorCore from "./VetorCore";
 import VetorIntentCard, { type MissaoProposta } from "./VetorIntentCard";
 import { readApiResponse } from "@/lib/api/readApiResponse";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface RespostaComando {
+  conversationId: string;
+  solicitacaoId: string;
   respostaTexto: string;
   audioBase64?: string;
   intent?: MissaoProposta;
@@ -16,7 +19,13 @@ interface Mensagem {
   texto: string;
   audioBase64?: string;
   intent?: MissaoProposta;
+  solicitacaoId?: string;
 }
+
+// Fase 3 — conversationId persiste entre reloads dentro da mesma aba: a
+// conversa continua sendo a mesma pro Vetor (mesmo histórico, mesma
+// solicitação em aberto) mesmo se o cliente atualizar a página.
+const CHAVE_CONVERSATION_ID = "vetor:conversationId";
 
 const COMANDOS_RAPIDOS = [
   "Preciso de posts pra essa semana",
@@ -49,6 +58,43 @@ export default function VetorCommandBar() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Guardado em ref (não em state) porque só é lido dentro de callbacks de
+  // rede, nunca renderizado diretamente — evita re-render a cada resposta.
+  const conversationIdRef = useRef<string | undefined>(undefined);
+
+  // Recupera a conversa em aberto ao recarregar a página: lê o
+  // conversationId salvo nesta aba e repõe o histórico de texto já trocado
+  // (RLS já isola por cliente). O card de proposta de missão em si não é
+  // reconstruído — só a estrutura de texto persiste hoje.
+  useEffect(() => {
+    const conversationId = sessionStorage.getItem(CHAVE_CONVERSATION_ID);
+    if (!conversationId) return;
+    conversationIdRef.current = conversationId;
+
+    (async () => {
+      const supabase = createSupabaseBrowserClient();
+      const { data } = await supabase
+        .from("mensagens_plataforma")
+        .select("direcao, texto")
+        .eq("conversa_id", conversationId)
+        .order("created_at", { ascending: true })
+        .limit(20);
+
+      if (data && data.length > 0) {
+        setMensagens(
+          data.map((m) => ({
+            autor: m.direcao === "entrada" ? "cliente" : "vetor",
+            texto: m.texto,
+          })),
+        );
+      }
+    })();
+  }, []);
+
+  function guardarConversationId(id: string) {
+    conversationIdRef.current = id;
+    sessionStorage.setItem(CHAVE_CONVERSATION_ID, id);
+  }
 
   async function tocarAudio(base64: string) {
     const audio = new Audio(`data:audio/ogg;base64,${base64}`);
@@ -73,10 +119,18 @@ export default function VetorCommandBar() {
       const res = await fetch("/api/comando", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texto: conteudo, responder_em_voz: false }),
+        body: JSON.stringify({
+          texto: conteudo,
+          responder_em_voz: false,
+          conversationId: conversationIdRef.current,
+        }),
       });
       const data = await readApiResponse<RespostaComando>(res);
-      setMensagens((atual) => [...atual, { autor: "vetor", texto: data.respostaTexto, intent: data.intent }]);
+      guardarConversationId(data.conversationId);
+      setMensagens((atual) => [
+        ...atual,
+        { autor: "vetor", texto: data.respostaTexto, intent: data.intent, solicitacaoId: data.solicitacaoId },
+      ]);
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Não consegui falar com o Vetor agora.");
     } finally {
@@ -120,12 +174,23 @@ export default function VetorCommandBar() {
       const res = await fetch("/api/comando/audio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ audio_base64: audioBase64, mime_type: blob.type || "audio/webm" }),
+        body: JSON.stringify({
+          audio_base64: audioBase64,
+          mime_type: blob.type || "audio/webm",
+          conversationId: conversationIdRef.current,
+        }),
       });
       const data = await readApiResponse<RespostaComando>(res);
+      guardarConversationId(data.conversationId);
       setMensagens((atual) => [
         ...atual,
-        { autor: "vetor", texto: data.respostaTexto, audioBase64: data.audioBase64, intent: data.intent },
+        {
+          autor: "vetor",
+          texto: data.respostaTexto,
+          audioBase64: data.audioBase64,
+          intent: data.intent,
+          solicitacaoId: data.solicitacaoId,
+        },
       ]);
       if (data.audioBase64) await tocarAudio(data.audioBase64);
     } catch (err) {
@@ -181,7 +246,7 @@ export default function VetorCommandBar() {
                 </button>
               )}
             </div>
-            {m.intent && <VetorIntentCard intent={m.intent} />}
+            {m.intent && <VetorIntentCard intent={m.intent} solicitacaoId={m.solicitacaoId} />}
           </div>
         ))}
       </div>

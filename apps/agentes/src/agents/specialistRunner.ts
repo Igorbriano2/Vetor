@@ -73,6 +73,7 @@ export async function executarEspecialista(
   contexto: ContextoMissaoParaEspecialista,
   missionStepId: string,
   clienteId: string,
+  missionId?: string,
 ): Promise<AgentResult> {
   const systemPrompt = `${getSystemPrompt(agenteId)}\n\n${montarContexto(contexto)}`;
 
@@ -110,6 +111,20 @@ export async function executarEspecialista(
     resultado,
     erro: resultado.status === "failed" ? resultado.summary : null,
   });
+
+  // Fase 7 — memória operacional: todo resultado de etapa vira uma entrada,
+  // rotulada com a confiança real do especialista (nunca tratada como fato
+  // definitivo — buscarContextoDeNegocio() reapresenta isso com o rótulo).
+  if (resultado.status === "completed") {
+    await supabase.from("memoria_operacional").insert({
+      cliente_id: clienteId,
+      tipo: "resultado_experimento",
+      conteudo: resultado.summary,
+      origem: agenteId,
+      confianca: resultado.confidence >= 0.75 ? "high" : resultado.confidence >= 0.4 ? "medium" : "low",
+      mission_id: missionId ?? null,
+    });
+  }
 
   return resultado;
 }
