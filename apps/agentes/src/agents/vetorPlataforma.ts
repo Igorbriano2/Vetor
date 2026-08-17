@@ -7,6 +7,15 @@ import { transcreverAudio, TranscricaoIndisponivelError } from "../integrations/
 import { sintetizarFala, SinteseVozIndisponivelError } from "../integrations/tts.js";
 import { avaliarRisco, precisaAprovacao, type Risco } from "../missions/policyEngine.js";
 import { transicionarSolicitacao, type SolicitacaoStatus } from "../missions/stateMachine.js";
+import { TOOL_REGISTRY } from "../tools/registry.js";
+
+// Nomes de ferramenta que o tool propor_missao aceita — sempre os do gateway
+// (tools/registry.ts), nunca texto livre. Antes desta rodada o schema não
+// restringia esse campo: o Vetor inventava nomes descritivos que nunca batiam
+// com o registro, então toda etapa caía no fail-closed "crítico" de
+// buscarFerramenta() e nenhuma missão conseguia executar sozinha mesmo depois
+// de aprovada (ver relatório de teste da Fase 9).
+const NOMES_FERRAMENTAS_VALIDOS = Object.keys(TOOL_REGISTRY);
 
 // Só propõe — não grava nada no banco. A missão real só é criada quando o
 // humano confirma no painel via POST /api/missoes (docs/manus-jarvis-spec/
@@ -51,7 +60,12 @@ const PROPOR_MISSAO_TOOL: Anthropic.Tool = {
             },
             tarefa: { type: "string" },
             depende_de: { type: "array", items: { type: "string" }, description: "Chaves de outras etapas deste plano." },
-            ferramentas: { type: "array", items: { type: "string" } },
+            ferramentas: {
+              type: "array",
+              items: { type: "string", enum: NOMES_FERRAMENTAS_VALIDOS },
+              description:
+                "Só nomes deste gateway (nunca invente um nome novo): " + NOMES_FERRAMENTAS_VALIDOS.join(", ") + ".",
+            },
           },
           required: ["chave", "agente", "tarefa"],
         },
