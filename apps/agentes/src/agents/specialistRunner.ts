@@ -373,6 +373,11 @@ const DEPARTAMENTO_SKILL_POR_AGENTE: Partial<Record<AgenteId, SkillDepartment>> 
   design: "design",
   video: "video",
   trafego: "traffic",
+  // O Vetor às vezes roteia tarefa de auditoria/análise de tráfego pro
+  // agente analítico em vez do agente de tráfego (ex: "faz uma auditoria da
+  // conta" vira etapa ANALITICO) — mesmo departamento de skill nos dois,
+  // já que buscarContextoTrafego() também é injetado pra analitico.
+  analitico: "traffic",
 };
 
 // Seleciona (por trigger) e carrega no máximo 1 skill pra etapa atual —
