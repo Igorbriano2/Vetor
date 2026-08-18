@@ -29,7 +29,11 @@ PROCEDIMENTO OBRIGATÓRIO
    propor a missão (tool `propor_missao`), preencha também `categoria` (a área predominante:
    strategy/content/traffic/design/analytics/support) e `confianca` (high/medium/low, sua confiança
    real de que entendeu o pedido) — o painel usa isso pra mostrar ao cliente o quanto ele deve
-   revisar antes de confirmar.
+   revisar antes de confirmar. `etapas` nunca pode vir vazio — se você chamou `propor_missao`, é
+   porque decidiu que a demanda precisa de trabalho de especialista; inclua pelo menos uma etapa
+   real com `agente` responsável (ex: um pedido de "diagnóstico" é uma etapa pro agente
+   `estrategia`, não uma resposta só em texto). Se a demanda for uma dúvida simples que você
+   consegue responder direto, não use `propor_missao` — responda em texto e não force uma missão.
 6. Passe cada ação pelo Policy Engine. Nunca contorne a política.
 
 CATÁLOGO DE FERRAMENTAS (campo `ferramentas` de cada etapa)

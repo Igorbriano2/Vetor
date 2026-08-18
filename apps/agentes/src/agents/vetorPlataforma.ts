@@ -269,6 +269,17 @@ function extrairMissaoProposta(toolUses: Anthropic.ToolUseBlock[]): MissaoPropos
     etapas: Array<{ chave: string; agente: string; tarefa: string; depende_de?: string[]; ferramentas?: string[] }>;
   };
 
+  // O schema do tool marca `etapas` como obrigatório, mas a API de tool use
+  // não impõe minItems — o Vetor já devolveu propor_missao com etapas: []
+  // (ex: pedido de "diagnóstico"), o que renderizava um card de missão no
+  // painel cujo botão "Confirmar" sempre falhava com 400 ("Plano de missão
+  // inválido"). Trata como se não houvesse intent: o painel mostra só o
+  // texto normal da resposta, nunca um card condenado a quebrar.
+  if (!input.etapas || input.etapas.length === 0) {
+    console.warn('propor_missao devolveu "etapas" vazio — ignorando intent, respondendo só com o texto.');
+    return undefined;
+  }
+
   return {
     titulo: input.titulo,
     objetivo: input.objetivo,
