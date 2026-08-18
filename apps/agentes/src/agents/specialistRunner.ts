@@ -5,7 +5,7 @@ import { getSystemPrompt, type AgenteId } from "./prompts/index.js";
 import { gerarVideoAPartirDeImagem, VideoIndisponivelError } from "../integrations/higgsfield.js";
 import { gerarImagem, ImagemIndisponivelError } from "../integrations/imageProvider.js";
 import { persistirArtefato, type ArtefatoPersistido, type ArtifactType } from "../artifacts/artifactsService.js";
-import { selecionarSkills, carregarSkillsSelecionadas } from "../skills/registry.js";
+import { selecionarSkills, carregarSkillsSelecionadas, listarTodosOsManifestos } from "../skills/registry.js";
 import type { SkillDefinition, SkillDepartment } from "../skills/types.js";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -242,7 +242,20 @@ function selecionarESkillDaEtapa(agenteId: AgenteId, contexto: ContextoMissaoPar
     .join(" ");
 
   const candidatas = selecionarSkills(department, textoParaCasar);
-  if (candidatas.length === 0) return null;
+  // Diagnóstico temporário — achado em produção que nenhuma skill de
+  // Estratégia estava sendo selecionada mesmo com trigger óbvio no título da
+  // missão; precisa distinguir "nenhum manifesto carregado" (problema de
+  // path/build) de "carregou mas não casou nenhum trigger" (problema de
+  // seleção) antes de decidir o que corrigir.
+  if (candidatas.length === 0) {
+    console.log(
+      `[skills] nenhuma skill casou pra "${department}" — manifestos disponíveis: ${listarTodosOsManifestos()
+        .filter((m) => m.department === department)
+        .map((m) => m.id)
+        .join(", ") || "(nenhum)"}; texto: "${textoParaCasar.slice(0, 200)}"`,
+    );
+    return null;
+  }
 
   const [carregada] = carregarSkillsSelecionadas([candidatas[0].id]);
   return carregada ?? null;
