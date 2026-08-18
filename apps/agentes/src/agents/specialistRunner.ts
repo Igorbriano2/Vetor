@@ -120,6 +120,7 @@ export interface AgentResult {
 }
 
 export interface ContextoMissaoParaEspecialista {
+  missaoTitulo: string;
   missaoObjetivo: string;
   missaoHipotese: string | null;
   etapaTarefa: string;
@@ -225,11 +226,22 @@ const DEPARTAMENTO_SKILL_POR_AGENTE: Partial<Record<AgenteId, SkillDepartment>> 
 // nunca o catálogo inteiro do departamento (carregamento progressivo,
 // princípio 8 do Skill Registry). Sem match, o especialista roda só com o
 // prompt base, sem skill anexada.
-function selecionarESkillDaEtapa(agenteId: AgenteId, etapaTarefa: string): SkillDefinition | null {
+//
+// Casa contra título + objetivo + hipótese da missão, não só a tarefa
+// granular da etapa: o texto da etapa (gerado pelo Vetor ao propor o plano,
+// ex: "cruzar dados coletados com benchmarks...") raramente repete a mesma
+// palavra que o cliente usou (ex: "diagnóstico") — testado ao vivo numa
+// missão real de diagnóstico onde a etapa sozinha não batia com nenhum
+// trigger, mas o título da missão batia direto.
+function selecionarESkillDaEtapa(agenteId: AgenteId, contexto: ContextoMissaoParaEspecialista): SkillDefinition | null {
   const department = DEPARTAMENTO_SKILL_POR_AGENTE[agenteId];
   if (!department) return null;
 
-  const candidatas = selecionarSkills(department, etapaTarefa);
+  const textoParaCasar = [contexto.missaoTitulo, contexto.missaoObjetivo, contexto.missaoHipotese, contexto.etapaTarefa]
+    .filter(Boolean)
+    .join(" ");
+
+  const candidatas = selecionarSkills(department, textoParaCasar);
   if (candidatas.length === 0) return null;
 
   const [carregada] = carregarSkillsSelecionadas([candidatas[0].id]);
@@ -335,7 +347,7 @@ export async function executarEspecialista(
   clienteId: string,
   missionId?: string,
 ): Promise<AgentResult> {
-  const skillSelecionada = selecionarESkillDaEtapa(agenteId, contexto.etapaTarefa);
+  const skillSelecionada = selecionarESkillDaEtapa(agenteId, contexto);
   const blocoSkill = skillSelecionada
     ? `\n\nSKILL SELECIONADA: ${skillSelecionada.manifest.name} (${skillSelecionada.manifest.id} v${skillSelecionada.manifest.version})\n${skillSelecionada.instructions}`
     : "";

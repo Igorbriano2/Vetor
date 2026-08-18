@@ -45,6 +45,7 @@ interface MissionRow {
   id: string;
   cliente_id: string;
   status: MissionStatus;
+  titulo: string;
   objetivo: string;
   hipotese: string | null;
 }
@@ -52,7 +53,7 @@ interface MissionRow {
 async function buscarMissao(missionId: string): Promise<MissionRow> {
   const { data, error } = await supabase
     .from("missions")
-    .select("id, cliente_id, status, objetivo, hipotese")
+    .select("id, cliente_id, status, titulo, objetivo, hipotese")
     .eq("id", missionId)
     .single();
   if (error || !data) throw new Error(`Missão ${missionId} não encontrada: ${error?.message}`);
@@ -436,6 +437,7 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
       : undefined;
 
   const contexto: ContextoMissaoParaEspecialista = {
+    missaoTitulo: missao.titulo,
     missaoObjetivo: missao.objetivo,
     missaoHipotese: missao.hipotese,
     etapaTarefa: etapa.tarefa,
