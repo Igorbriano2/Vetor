@@ -15,11 +15,7 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: usuario } = await supabase
-    .from("usuarios")
-    .select("cliente_id, welcome_audio_played_at")
-    .eq("id", user?.id ?? "")
-    .maybeSingle();
+  const { data: usuario } = await supabase.from("usuarios").select("cliente_id").eq("id", user?.id ?? "").maybeSingle();
 
   const { data: missoes } = await supabase
     .from("missions")
@@ -57,7 +53,11 @@ export default async function DashboardPage() {
       missaoAtual={missaoAtual ? { id: missaoAtual.id, titulo: missaoAtual.titulo, status: missaoAtual.status } : null}
       contagemPendentes={contagemPendentes}
       contagemAtivas={missoesAtivas.length}
-      saudacaoJaTocada={!!usuario.welcome_audio_played_at}
+      // A pedido explícito do dono do produto: a saudação toca toda vez que
+      // o usuário entra ou atualiza a página, não só na primeira vez — ver
+      // apps/agentes/src/routes/perfil.ts (não é mais idempotente por
+      // usuário).
+      saudacaoJaTocada={false}
     />
   );
 }

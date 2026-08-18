@@ -6,11 +6,12 @@ import { sintetizarFala, SinteseVozIndisponivelError } from "../integrations/tts
 export const perfilRouter = Router();
 perfilRouter.use(exigirAuthInterna);
 
-// Saudação de áudio no primeiro carregamento autenticado do painel —
-// idempotente por usuário: welcome_audio_played_at só é setado uma vez,
-// então um refresh não repete a fala. Erro de TTS nunca quebra a rota: o
-// texto sempre volta, o áudio é best-effort (spec: "tratar erro de TTS sem
-// quebrar o painel").
+// Saudação de áudio em todo carregamento/refresh autenticado do painel —
+// a pedido explícito do dono do produto (deixou de ser "só na primeira
+// vez"; welcome_audio_played_at não é mais lido nem escrito aqui, a coluna
+// fica só como histórico de quando a saudação tocou pela primeira vez).
+// Erro de TTS nunca quebra a rota: o texto sempre volta, o áudio é
+// best-effort (spec: "tratar erro de TTS sem quebrar o painel").
 perfilRouter.post("/saudacao", async (req, res) => {
   const { usuario_id } = req.body ?? {};
   if (typeof usuario_id !== "string") {
@@ -20,7 +21,7 @@ perfilRouter.post("/saudacao", async (req, res) => {
 
   const { data: usuario, error } = await supabase
     .from("usuarios")
-    .select("nome, welcome_audio_played_at, preferencias, clientes(nome_empresa)")
+    .select("nome, preferencias, clientes(nome_empresa)")
     .eq("id", usuario_id)
     .maybeSingle();
 
@@ -32,16 +33,6 @@ perfilRouter.post("/saudacao", async (req, res) => {
   const nome =
     usuario.nome || (usuario.clientes as unknown as { nome_empresa?: string } | null)?.nome_empresa || "";
   const texto = nome ? `Olá, ${nome}. Como posso ser útil para você hoje?` : "Olá! Como posso ser útil para você hoje?";
-
-  if (usuario.welcome_audio_played_at) {
-    res.json({ texto, audioBase64: null, jaTocada: true });
-    return;
-  }
-
-  await supabase
-    .from("usuarios")
-    .update({ welcome_audio_played_at: new Date().toISOString() })
-    .eq("id", usuario_id);
 
   const preferencias = (usuario.preferencias as { silenciar_audio?: boolean } | null) ?? {};
   if (preferencias.silenciar_audio) {

@@ -65,8 +65,9 @@ export default function VetorCockpit({ missaoAtual, contagemPendentes, contagemA
     if (id) conversationIdRef.current = id;
   }, []);
 
-  // Saudação de áudio — uma vez por login (backend garante idempotência via
-  // welcome_audio_played_at; o ref aqui só evita disparo duplo em StrictMode).
+  // Saudação de áudio — toca toda vez que a página carrega/atualiza (pedido
+  // explícito do dono do produto). O ref aqui só evita disparo duplo dentro
+  // do mesmo mount em StrictMode, não é mais uma guarda de "só uma vez".
   useEffect(() => {
     if (saudacaoDisparadaRef.current || saudacaoJaTocada) return;
     saudacaoDisparadaRef.current = true;
