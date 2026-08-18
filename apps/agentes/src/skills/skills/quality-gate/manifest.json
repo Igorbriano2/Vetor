@@ -1,0 +1,18 @@
+{
+  "id": "quality-gate",
+  "version": "1.0.0",
+  "name": "Checklist de qualidade de vídeo",
+  "description": "Checklist final antes de marcar uma etapa de vídeo como concluída — formato/canal corretos, marca respeitada, sem alegar entrega que não existe.",
+  "department": "video",
+  "triggers": [
+    "confere esse vídeo antes de aprovar",
+    "checklist de qualidade do vídeo",
+    "revisa antes de entregar o vídeo",
+    "validação final do vídeo"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
+  "allowedTools": ["ler_brand_kit", "ler_historico"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "document"
+}

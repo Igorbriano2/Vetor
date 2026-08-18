@@ -63,6 +63,55 @@ export interface ResultadoSincronizacao {
   analiseId: string;
 }
 
+export interface ContextoTrafegoParaEspecialista {
+  contaConectada: boolean;
+  campanhas: Array<{
+    nome: string;
+    status: string;
+    orcamentoCentavos: number | null;
+    tetoCustoResultadoCentavos: number | null;
+    metricas: unknown;
+  }>;
+  ultimaAnalise: { data: string; diagnostico: string | null; metricasUsadas: unknown } | null;
+}
+
+// Contexto real injetado no prompt do especialista de Tráfego/Analítico —
+// nunca chama a Graph API aqui (isso é sincronizarTrafego, rodado à parte),
+// só lê o que já foi sincronizado e persistido. Sem conexão ativa,
+// contaConectada fica false e o resto vem vazio — nunca inventa dado.
+export async function buscarContextoTrafego(clienteId: string): Promise<ContextoTrafegoParaEspecialista> {
+  const conexao = await tokenAtivoDoCliente(clienteId);
+
+  const { data: campanhas } = await supabase
+    .from("campanhas_trafego")
+    .select("nome, status, orcamento_centavos, teto_custo_resultado_centavos, metricas")
+    .eq("cliente_id", clienteId)
+    .order("updated_at", { ascending: false })
+    .limit(20);
+
+  const { data: analise } = await supabase
+    .from("trafego_analises")
+    .select("data, diagnostico, metricas_usadas")
+    .eq("cliente_id", clienteId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return {
+    contaConectada: conexao !== null,
+    campanhas: (campanhas ?? []).map((c) => ({
+      nome: c.nome as string,
+      status: c.status as string,
+      orcamentoCentavos: c.orcamento_centavos as number | null,
+      tetoCustoResultadoCentavos: c.teto_custo_resultado_centavos as number | null,
+      metricas: c.metricas,
+    })),
+    ultimaAnalise: analise
+      ? { data: analise.data as string, diagnostico: analise.diagnostico as string | null, metricasUsadas: analise.metricas_usadas }
+      : null,
+  };
+}
+
 export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSincronizacao> {
   const conexao = await tokenAtivoDoCliente(clienteId);
   if (!conexao) throw new ContaDeAnuncioNaoConectadaError("Nenhuma conta de anúncios Meta conectada.");

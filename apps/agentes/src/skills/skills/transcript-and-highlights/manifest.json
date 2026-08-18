@@ -1,0 +1,19 @@
+{
+  "id": "transcript-and-highlights",
+  "version": "1.0.0",
+  "name": "Transcrição e destaques",
+  "description": "Extrai trechos de destaque (timestamps, citações) de um roteiro/transcrição fornecido como texto — nunca finge ter transcrito um vídeo que não recebeu em texto.",
+  "department": "video",
+  "triggers": [
+    "quais os melhores momentos desse vídeo",
+    "destaca os trechos principais",
+    "identifica os highlights",
+    "corta os melhores momentos",
+    "melhores trechos da gravação"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
+  "allowedTools": ["ler_historico", "criar_briefing", "criar_relatorio"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "document"
+}

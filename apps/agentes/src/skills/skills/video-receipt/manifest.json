@@ -1,0 +1,18 @@
+{
+  "id": "video-receipt",
+  "version": "1.0.0",
+  "name": "Recibo de entrega de vídeo",
+  "description": "Monta o resumo final de uma entrega de vídeo já gerada de verdade — o que foi produzido, com quais ativos de origem, pronto pra aprovação do cliente.",
+  "department": "video",
+  "triggers": [
+    "resume essa entrega de vídeo",
+    "recibo do vídeo gerado",
+    "prepara pra aprovação do cliente",
+    "fecha a entrega do vídeo"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
+  "allowedTools": ["ler_historico", "solicitar_aprovacao"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "document"
+}

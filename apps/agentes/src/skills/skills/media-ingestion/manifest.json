@@ -1,0 +1,19 @@
+{
+  "id": "media-ingestion",
+  "version": "1.0.0",
+  "name": "Ingestão de mídia bruta",
+  "description": "Organiza vídeo/áudio bruto enviado pelo cliente no Drive do negócio antes de qualquer edição — categoriza, valida o que falta (roteiro/transcrição) e nunca inventa contexto sobre um arquivo que não pôde ser lido.",
+  "department": "video",
+  "triggers": [
+    "recebi um vídeo bruto",
+    "o cliente mandou uma gravação",
+    "organizar esse material bruto",
+    "ingestão de mídia",
+    "material bruto do cliente"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
+  "allowedTools": ["ler_historico", "criar_briefing"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "document"
+}

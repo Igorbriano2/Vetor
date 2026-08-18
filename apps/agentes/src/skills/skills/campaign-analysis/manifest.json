@@ -1,0 +1,18 @@
+{
+  "id": "campaign-analysis",
+  "version": "1.0.0",
+  "name": "Análise de campanha",
+  "description": "Analisa o desempenho real de uma campanha específica (gasto, cliques, CTR/CPC/CPM já sincronizados) e aponta oportunidades — só com números que realmente vieram do Meta Ads.",
+  "department": "traffic",
+  "triggers": [
+    "como está performando essa campanha",
+    "analisa o desempenho da campanha",
+    "essa campanha está funcionando",
+    "revisão de performance"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
+  "allowedTools": ["ler_historico", "criar_relatorio", "salvar_hipotese"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "report"
+}

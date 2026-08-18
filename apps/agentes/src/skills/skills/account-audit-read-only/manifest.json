@@ -1,0 +1,18 @@
+{
+  "id": "account-audit-read-only",
+  "version": "1.0.0",
+  "name": "Auditoria de conta (somente leitura)",
+  "description": "Audita a conta de anúncios conectada usando só dado real já sincronizado do Meta Ads — nunca cria, pausa ou altera nada; reporta honestamente quando não há conta conectada.",
+  "department": "traffic",
+  "triggers": [
+    "audita minha conta de anúncios",
+    "revisão da conta de tráfego",
+    "diagnóstico da conta de ads",
+    "auditoria de campanhas"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
+  "allowedTools": ["ler_historico", "criar_relatorio"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "report"
+}

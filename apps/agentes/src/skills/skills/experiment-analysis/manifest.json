@@ -1,0 +1,18 @@
+{
+  "id": "experiment-analysis",
+  "version": "1.0.0",
+  "name": "Análise de experimento",
+  "description": "Avalia um experimento/hipótese de tráfego contra o critério de sucesso da missão, usando só métrica real sincronizada — nunca declara um teste vencedor sem dado suficiente.",
+  "department": "traffic",
+  "triggers": [
+    "esse teste deu certo",
+    "análise do experimento",
+    "resultado do teste a/b de campanha",
+    "a hipótese se confirmou"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa", "missaoHipotese"],
+  "allowedTools": ["ler_historico", "registrar_experimento", "criar_relatorio"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "report"
+}

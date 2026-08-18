@@ -13,6 +13,7 @@ import { enfileirarPlanMission, enfileirarRunAgentStep } from "../queue/missionQ
 import { executarEspecialista, type ContextoMissaoParaEspecialista } from "../agents/specialistRunner.js";
 import { criarSnapshotDeContexto } from "./businessContextSnapshot.js";
 import { buscarAssetsRelevantes } from "../negocio/businessAssets.js";
+import { buscarContextoTrafego } from "../connections/metaAdsSync.js";
 import type { AgenteId } from "../agents/prompts/index.js";
 
 // Agentes cuja etapa promete uma entrega verificável (arte, vídeo) — nunca
@@ -436,6 +437,12 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
       ? await buscarAssetsRelevantes(etapa.cliente_id)
       : undefined;
 
+  // Só custa a consulta extra pra quem de fato analisa/audita tráfego pago —
+  // nunca inventa campanha: sem conexão Meta ativa, contaConectada fica false
+  // e a lista vem vazia (ver montarContexto em specialistRunner.ts).
+  const trafego =
+    etapa.agente === "trafego" || etapa.agente === "analitico" ? await buscarContextoTrafego(etapa.cliente_id) : undefined;
+
   const contexto: ContextoMissaoParaEspecialista = {
     missaoTitulo: missao.titulo,
     missaoObjetivo: missao.objetivo,
@@ -448,6 +455,7 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
       brandKit: brandKit ?? null,
       assetsDisponiveis,
     },
+    trafego,
   };
 
   const opcoesEtapa = { missionId: etapa.mission_id as string, clienteId: etapa.cliente_id as string };

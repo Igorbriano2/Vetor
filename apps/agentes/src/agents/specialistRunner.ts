@@ -187,6 +187,20 @@ export interface ContextoMissaoParaEspecialista {
     } | null;
     assetsDisponiveis?: AssetDisponivel[];
   };
+  // Preenchido só pro agente de Tráfego/Analítico — dado real sincronizado do
+  // Meta Ads (metaAdsSync.ts), nunca inventado. Ausência de conexão vira lista
+  // vazia + ultimaAnalise null, nunca métrica fictícia.
+  trafego?: {
+    contaConectada: boolean;
+    campanhas: Array<{
+      nome: string;
+      status: string;
+      orcamentoCentavos: number | null;
+      tetoCustoResultadoCentavos: number | null;
+      metricas: unknown;
+    }>;
+    ultimaAnalise: { data: string; diagnostico: string | null; metricasUsadas: unknown } | null;
+  };
 }
 
 // Departamento pro artefato (Design/Videomaker/Tráfego/Planejamento/
@@ -357,6 +371,8 @@ const DEPARTAMENTO_SKILL_POR_AGENTE: Partial<Record<AgenteId, SkillDepartment>> 
   estrategia: "strategy",
   "social-media": "social",
   design: "design",
+  video: "video",
+  trafego: "traffic",
 };
 
 // Seleciona (por trigger) e carrega no máximo 1 skill pra etapa atual —
@@ -416,6 +432,22 @@ function montarContexto(ctx: ContextoMissaoParaEspecialista): string {
               `- [id: ${a.id}] ${a.nome}${a.isLogoPrincipal ? " (LOGO)" : ""} (categoria: ${a.categoria})${a.tags.length ? ` [${a.tags.join(", ")}]` : ""}${a.descricao ? ` — ${a.descricao}` : ""}`,
           )
           .join("\n")
+      : null,
+    ctx.trafego
+      ? !ctx.trafego.contaConectada
+        ? "TRÁFEGO: nenhuma conta de anúncios conectada — não invente métrica, campanha ou gasto. " +
+          "Diga isso claramente e, se a etapa pedir análise, ofereça pedir a conexão da conta em vez de simular dado."
+        : `TRÁFEGO (dado real sincronizado do Meta Ads, última análise: ${ctx.trafego.ultimaAnalise?.data ?? "nunca"}):\n` +
+          (ctx.trafego.campanhas.length === 0
+            ? "- Nenhuma campanha encontrada na conta conectada."
+            : ctx.trafego.campanhas
+                .map(
+                  (c) =>
+                    `- ${c.nome} (${c.status})${c.orcamentoCentavos != null ? `, orçamento: R$ ${(c.orcamentoCentavos / 100).toFixed(2)}` : ""}` +
+                    `${c.tetoCustoResultadoCentavos != null ? `, teto custo/resultado: R$ ${(c.tetoCustoResultadoCentavos / 100).toFixed(2)}` : ""} — métricas: ${JSON.stringify(c.metricas)}`,
+                )
+                .join("\n")) +
+          (ctx.trafego.ultimaAnalise?.diagnostico ? `\nÚltimo diagnóstico registrado: ${ctx.trafego.ultimaAnalise.diagnostico}` : "")
       : null,
   ].filter(Boolean);
 

@@ -1,0 +1,18 @@
+{
+  "id": "cross-platform-report",
+  "version": "1.0.0",
+  "name": "Relatório multi-plataforma",
+  "description": "Consolida o desempenho de tráfego pago entre plataformas — hoje só Meta Ads tem integração real; reporta honestamente as demais como não conectadas em vez de estimar.",
+  "department": "traffic",
+  "triggers": [
+    "relatório de todas as plataformas",
+    "compara meta e google ads",
+    "visão geral de tráfego pago",
+    "relatório consolidado de campanhas"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
+  "allowedTools": ["ler_historico", "criar_relatorio"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "report"
+}

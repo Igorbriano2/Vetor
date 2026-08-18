@@ -1,0 +1,18 @@
+{
+  "id": "attribution-check",
+  "version": "1.0.0",
+  "name": "Checagem de atribuição",
+  "description": "Verifica se a conta conectada está devolvendo dado de conversão/atribuição real (eventos, pixel) e sinaliza lacunas — nunca declara atribuição saudável sem evidência real.",
+  "department": "traffic",
+  "triggers": [
+    "o pixel está funcionando",
+    "checagem de atribuição",
+    "as conversões estão sendo contadas",
+    "o rastreamento de conversão está certo"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
+  "allowedTools": ["ler_historico", "criar_relatorio"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "report"
+}

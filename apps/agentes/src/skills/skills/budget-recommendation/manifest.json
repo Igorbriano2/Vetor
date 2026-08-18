@@ -1,0 +1,18 @@
+{
+  "id": "budget-recommendation",
+  "version": "1.0.0",
+  "name": "Recomendação de orçamento",
+  "description": "Recomenda (nunca executa) ajuste de orçamento com base em dado real de custo por resultado vs. teto definido — respeita o limite de 90 dias sem alteração autônoma.",
+  "department": "traffic",
+  "triggers": [
+    "devo aumentar o orçamento",
+    "recomendação de orçamento",
+    "vale a pena escalar essa campanha",
+    "sugestão de investimento em tráfego"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
+  "allowedTools": ["ler_historico", "criar_relatorio", "solicitar_aprovacao"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "recommendation"
+}

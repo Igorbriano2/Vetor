@@ -1,0 +1,18 @@
+{
+  "id": "captions-and-format",
+  "version": "1.0.0",
+  "name": "Legendas e formatação por canal",
+  "description": "Escreve a legenda/copy de acompanhamento de uma peça de vídeo, ajustada ao canal e ao tom de marca — texto para publicação, não legenda queimada no vídeo (sem motor de edição nesta versão).",
+  "department": "video",
+  "triggers": [
+    "escreve a legenda desse vídeo",
+    "legenda pro reels",
+    "texto de acompanhamento do vídeo",
+    "formata pro instagram/tiktok/youtube"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
+  "allowedTools": ["ler_brand_kit", "ler_historico", "criar_copy"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "document"
+}

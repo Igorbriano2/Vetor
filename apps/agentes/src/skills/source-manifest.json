@@ -112,5 +112,77 @@
     "commit": "n/a",
     "license": "proprietary",
     "importedAt": "2026-08-18T00:00:00Z"
+  },
+  "media-ingestion": {
+    "repository": "vetor-original",
+    "commit": "n/a",
+    "license": "proprietary",
+    "importedAt": "2026-08-18T00:00:00Z"
+  },
+  "transcript-and-highlights": {
+    "repository": "vetor-original",
+    "commit": "n/a",
+    "license": "proprietary",
+    "importedAt": "2026-08-18T00:00:00Z"
+  },
+  "short-form-repurpose": {
+    "repository": "vetor-original",
+    "commit": "n/a",
+    "license": "proprietary",
+    "importedAt": "2026-08-18T00:00:00Z"
+  },
+  "captions-and-format": {
+    "repository": "vetor-original",
+    "commit": "n/a",
+    "license": "proprietary",
+    "importedAt": "2026-08-18T00:00:00Z"
+  },
+  "quality-gate": {
+    "repository": "vetor-original",
+    "commit": "n/a",
+    "license": "proprietary",
+    "importedAt": "2026-08-18T00:00:00Z"
+  },
+  "video-receipt": {
+    "repository": "vetor-original",
+    "commit": "n/a",
+    "license": "proprietary",
+    "importedAt": "2026-08-18T00:00:00Z"
+  },
+  "account-audit-read-only": {
+    "repository": "vetor-original",
+    "commit": "n/a",
+    "license": "proprietary",
+    "importedAt": "2026-08-18T00:00:00Z"
+  },
+  "campaign-analysis": {
+    "repository": "vetor-original",
+    "commit": "n/a",
+    "license": "proprietary",
+    "importedAt": "2026-08-18T00:00:00Z"
+  },
+  "cross-platform-report": {
+    "repository": "vetor-original",
+    "commit": "n/a",
+    "license": "proprietary",
+    "importedAt": "2026-08-18T00:00:00Z"
+  },
+  "attribution-check": {
+    "repository": "vetor-original",
+    "commit": "n/a",
+    "license": "proprietary",
+    "importedAt": "2026-08-18T00:00:00Z"
+  },
+  "budget-recommendation": {
+    "repository": "vetor-original",
+    "commit": "n/a",
+    "license": "proprietary",
+    "importedAt": "2026-08-18T00:00:00Z"
+  },
+  "experiment-analysis": {
+    "repository": "vetor-original",
+    "commit": "n/a",
+    "license": "proprietary",
+    "importedAt": "2026-08-18T00:00:00Z"
   }
 }

@@ -1,0 +1,19 @@
+{
+  "id": "short-form-repurpose",
+  "version": "1.0.0",
+  "name": "Reaproveitamento em formato curto",
+  "description": "Transforma um destaque/roteiro em peças de vídeo curtas por canal (reels, stories, shorts) — cada formato é uma chamada real e separada de geração, nunca reaproveita o mesmo arquivo redimensionado.",
+  "department": "video",
+  "triggers": [
+    "corta isso em reels",
+    "transforma em vídeo curto",
+    "versão pro tiktok",
+    "shorts a partir desse vídeo",
+    "reaproveita esse conteúdo em vídeo curto"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
+  "allowedTools": ["ler_brand_kit", "ler_historico", "gerar_video_higgsfield"],
+  "riskLevel": "medium",
+  "requiresApproval": true,
+  "outputType": "video"
+}
