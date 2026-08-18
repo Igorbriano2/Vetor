@@ -1,4 +1,5 @@
 import SidebarNav from "./SidebarNav";
+import VetorVoiceProvider from "@/components/voice/VetorVoiceProvider";
 
 export default function VetorAppShell({
   orgNome,
@@ -10,9 +11,15 @@ export default function VetorAppShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-petroleo text-areia">
-      <SidebarNav orgNome={orgNome} userNome={userNome} />
-      <main className="lg:pl-64">{children}</main>
-    </div>
+    // Instância única do assistente de voz por sessão — vive aqui (dentro do
+    // layout autenticado, fora de qualquer página específica) pra funcionar
+    // em qualquer rota e desmontar sozinha no logout (a árvore inteira sai
+    // quando o layout (painel) deixa de renderizar).
+    <VetorVoiceProvider>
+      <div className="min-h-screen bg-petroleo text-areia">
+        <SidebarNav orgNome={orgNome} userNome={userNome} />
+        <main className="lg:pl-64">{children}</main>
+      </div>
+    </VetorVoiceProvider>
   );
 }

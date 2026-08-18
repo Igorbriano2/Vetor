@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import LogoutButton from "@/components/LogoutButton";
+import VoiceIndicator from "@/components/voice/VoiceIndicator";
 
 // Agrupado como departamentos de uma agência (auditoria de arquitetura) —
 // o cliente nunca precisa entender que por trás disso são agentes de IA.
@@ -115,9 +116,12 @@ export default function SidebarNav({
 
         <ListaNav pathname={pathname} />
 
-        <div className="mt-auto space-y-3 border-t border-areia/10 pt-4">
-          <p className="mono-label truncate">{userNome ?? "conta"}</p>
-          <LogoutButton />
+        <div className="mt-auto space-y-3">
+          <VoiceIndicator />
+          <div className="space-y-3 border-t border-areia/10 pt-4">
+            <p className="mono-label truncate">{userNome ?? "conta"}</p>
+            <LogoutButton />
+          </div>
         </div>
       </aside>
 
@@ -153,9 +157,12 @@ export default function SidebarNav({
             </div>
             <p className="mono-label -mt-4 truncate">{orgNome ?? "sua empresa"}</p>
             <ListaNav pathname={pathname} onNavigate={() => setAberto(false)} />
-            <div className="mt-auto space-y-3 border-t border-areia/10 pt-4">
-              <p className="mono-label truncate">{userNome ?? "conta"}</p>
-              <LogoutButton />
+            <div className="mt-auto space-y-3">
+              <VoiceIndicator />
+              <div className="space-y-3 border-t border-areia/10 pt-4">
+                <p className="mono-label truncate">{userNome ?? "conta"}</p>
+                <LogoutButton />
+              </div>
             </div>
           </div>
         </div>

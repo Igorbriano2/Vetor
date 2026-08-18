@@ -54,10 +54,20 @@ services:
         type: SECRET
       - key: STT_PROVIDER
         scope: RUN_TIME
-        value: "sandbox"
+        value: "openai"
+        # Precisa ser "openai" (nao "sandbox") pra transcricao de audio real
+        # funcionar - usado pelo Secretario (WhatsApp) e pelo assistente de
+        # voz (wake word). Reusa a mesma OPENAI_API_KEY abaixo.
       - key: TTS_PROVIDER
         scope: RUN_TIME
         value: "sandbox"
+        # NAO mexer aqui sem checar o valor real na DigitalOcean primeiro:
+        # ha evidencia (scripts em scratchpad/apply_fish_audio.sh) de que a
+        # producao pode ja estar rodando TTS_PROVIDER=fish (voz clonada
+        # propria via Fish Audio) aplicado direto pela API, sem passar por
+        # este arquivo - sobrescrever aqui e fazer deploy poderia REGREDIR
+        # a voz de producao pra uma generica. So mude isto depois de
+        # confirmar o valor atual via GET /v2/apps/{id}.
       - key: TTS_VOICE
         scope: RUN_TIME
         value: "onyx"

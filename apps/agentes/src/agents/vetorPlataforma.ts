@@ -99,8 +99,11 @@ async function buscarCliente(clienteId: string): Promise<(ContextoCliente & { pl
 
 // Fase 3 — persistência de conversa/solicitação. Origem só cobre os canais que
 // passam por este módulo (comando do painel); WhatsApp continua no Secretário,
-// sem tocar nestas tabelas nesta rodada.
-export type SolicitacaoOrigem = "painel_texto" | "painel_audio";
+// sem tocar nestas tabelas nesta rodada. "voice_wake_word" é a solicitação
+// capturada pelo assistente de voz global (wake word "vetor") — mesmo
+// pipeline de /plataforma/audio, só rotulada de forma diferente pra auditoria
+// (nunca um agente/histórico paralelo).
+export type SolicitacaoOrigem = "painel_texto" | "painel_audio" | "voice_wake_word";
 
 // Status em que uma solicitação ainda é "a mesma conversa em aberto" — uma
 // segunda mensagem do cliente reaproveita essa linha em vez de abrir outra.
@@ -496,9 +499,9 @@ export async function processarAudioPlataforma(
   clienteId: string,
   bytes: ArrayBuffer,
   mimeType: string,
-  opcoes: { conversationId?: string; usuarioId?: string } = {},
+  opcoes: { conversationId?: string; usuarioId?: string; origem?: SolicitacaoOrigem } = {},
 ): Promise<RespostaPlataforma> {
-  const origem: SolicitacaoOrigem = "painel_audio";
+  const origem: SolicitacaoOrigem = opcoes.origem ?? "painel_audio";
   const conversationId = await resolverConversa(clienteId, opcoes.usuarioId, origem, opcoes.conversationId);
   const solicitacao = await resolverSolicitacaoAberta(clienteId, conversationId, origem);
 

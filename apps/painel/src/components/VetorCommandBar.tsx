@@ -5,6 +5,7 @@ import VetorCore from "./VetorCore";
 import VetorIntentCard, { type MissaoProposta } from "./VetorIntentCard";
 import { readApiResponse } from "@/lib/api/readApiResponse";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { lerConversationId, salvarConversationId } from "@/lib/conversation";
 
 interface RespostaComando {
   conversationId: string;
@@ -21,11 +22,6 @@ interface Mensagem {
   intent?: MissaoProposta;
   solicitacaoId?: string;
 }
-
-// Fase 3 — conversationId persiste entre reloads dentro da mesma aba: a
-// conversa continua sendo a mesma pro Vetor (mesmo histórico, mesma
-// solicitação em aberto) mesmo se o cliente atualizar a página.
-const CHAVE_CONVERSATION_ID = "vetor:conversationId";
 
 const COMANDOS_RAPIDOS = [
   "Preciso de posts pra essa semana",
@@ -67,7 +63,7 @@ export default function VetorCommandBar() {
   // (RLS já isola por cliente). O card de proposta de missão em si não é
   // reconstruído — só a estrutura de texto persiste hoje.
   useEffect(() => {
-    const conversationId = sessionStorage.getItem(CHAVE_CONVERSATION_ID);
+    const conversationId = lerConversationId();
     if (!conversationId) return;
     conversationIdRef.current = conversationId;
 
@@ -93,7 +89,7 @@ export default function VetorCommandBar() {
 
   function guardarConversationId(id: string) {
     conversationIdRef.current = id;
-    sessionStorage.setItem(CHAVE_CONVERSATION_ID, id);
+    salvarConversationId(id);
   }
 
   async function tocarAudio(base64: string) {

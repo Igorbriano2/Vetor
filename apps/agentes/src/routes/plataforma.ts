@@ -1,6 +1,11 @@
 import { Router } from "express";
 import { exigirAuthInterna } from "../middleware/internalAuth.js";
-import { processarMensagemPlataforma, processarAudioPlataforma } from "../agents/vetorPlataforma.js";
+import { processarMensagemPlataforma, processarAudioPlataforma, type SolicitacaoOrigem } from "../agents/vetorPlataforma.js";
+
+// Únicas origens que o painel pode declarar pra /audio — nunca confia
+// cegamente num valor livre vindo do navegador (fail-closed: origem
+// desconhecida cai no default "painel_audio", nunca gravada como está).
+const ORIGENS_AUDIO_VALIDAS: SolicitacaoOrigem[] = ["painel_audio", "voice_wake_word"];
 
 export const plataformaRouter = Router();
 
@@ -31,7 +36,7 @@ plataformaRouter.post("/mensagem", async (req, res) => {
 });
 
 plataformaRouter.post("/audio", async (req, res) => {
-  const { cliente_id, audio_base64, mime_type, conversation_id, usuario_id } = req.body ?? {};
+  const { cliente_id, audio_base64, mime_type, conversation_id, usuario_id, origem } = req.body ?? {};
   if (!cliente_id || typeof audio_base64 !== "string" || !audio_base64) {
     res.status(400).json({ error: "cliente_id e audio_base64 são obrigatórios" });
     return;
@@ -40,9 +45,11 @@ plataformaRouter.post("/audio", async (req, res) => {
   try {
     const buffer = Buffer.from(audio_base64, "base64");
     const bytes = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    const origemValidada = ORIGENS_AUDIO_VALIDAS.includes(origem) ? (origem as SolicitacaoOrigem) : undefined;
     const resultado = await processarAudioPlataforma(cliente_id, bytes, mime_type ?? "audio/webm", {
       conversationId: typeof conversation_id === "string" ? conversation_id : undefined,
       usuarioId: typeof usuario_id === "string" ? usuario_id : undefined,
+      origem: origemValidada,
     });
     res.json(resultado);
   } catch (err) {
