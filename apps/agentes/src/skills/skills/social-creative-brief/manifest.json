@@ -1,0 +1,18 @@
+{
+  "id": "social-creative-brief",
+  "version": "1.0.0",
+  "name": "Briefing criativo pro Design",
+  "description": "Traduz a pauta/legenda já definida num briefing visual estruturado pro agente de Design gerar a peça — handoff entre Social Media e Design.",
+  "department": "social",
+  "triggers": [
+    "briefing pro design",
+    "passar pro design",
+    "pedir a arte",
+    "encomendar a peça visual"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
+  "allowedTools": ["ler_brand_kit", "criar_briefing"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "document"
+}

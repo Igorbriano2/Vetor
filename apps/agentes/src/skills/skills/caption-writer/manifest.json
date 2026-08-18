@@ -1,0 +1,19 @@
+{
+  "id": "caption-writer",
+  "version": "1.0.0",
+  "name": "Legenda de post",
+  "description": "Escreve a legenda de uma peça específica já definida (não decide pauta) — gancho, corpo, CTA, no tom de voz cadastrado.",
+  "department": "social",
+  "triggers": [
+    "legenda",
+    "caption",
+    "escrever o texto do post",
+    "texto pra esse post",
+    "gancho pro post"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
+  "allowedTools": ["ler_brand_kit", "criar_copy", "gerar_copy"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "document"
+}

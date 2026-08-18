@@ -1,0 +1,20 @@
+{
+  "id": "content-calendar",
+  "version": "1.0.0",
+  "name": "Calendário editorial de redes sociais",
+  "description": "Monta o calendário do período por pilares de conteúdo, com datas reais e plataforma definida por peça — vira artifact type=plan versionado.",
+  "department": "social",
+  "triggers": [
+    "calendário de conteúdo",
+    "calendário editorial",
+    "pauta da semana",
+    "pauta do mês",
+    "cronograma de posts",
+    "planejar os posts"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "missaoObjetivo"],
+  "allowedTools": ["ler_perfil_negocio", "ler_brand_kit", "ler_historico", "criar_artefato"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "schedule"
+}

@@ -1,0 +1,19 @@
+{
+  "id": "social-performance-review",
+  "version": "1.0.0",
+  "name": "Revisão de performance social",
+  "description": "Revisa o que já foi publicado/agendado com base no histórico real do sistema — nunca inventa métrica de engajamento sem conexão de dados real.",
+  "department": "social",
+  "triggers": [
+    "como estão performando os posts",
+    "revisão de redes sociais",
+    "o que funcionou",
+    "análise de engajamento",
+    "resultado dos posts"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa"],
+  "allowedTools": ["ler_historico", "criar_relatorio"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "report"
+}

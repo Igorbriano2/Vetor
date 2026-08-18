@@ -1,0 +1,20 @@
+{
+  "id": "brand-onboarding",
+  "version": "1.0.0",
+  "name": "Onboarding de marca pro Social Media",
+  "description": "Capta objetivo, público, tom de voz e recursos disponíveis pra redes sociais antes de qualquer peça — nunca cria conteúdo sem essa base.",
+  "department": "social",
+  "triggers": [
+    "começar a postar",
+    "primeira vez postando",
+    "definir tom de voz",
+    "estratégia de redes sociais",
+    "não sei por onde começar nas redes",
+    "onboarding social"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa"],
+  "allowedTools": ["ler_perfil_negocio", "ler_brand_kit", "criar_briefing", "salvar_hipotese"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "document"
+}

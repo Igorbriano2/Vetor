@@ -51,3 +51,43 @@ describe("skills reais em disco", () => {
     expect(todos.length).toBeGreaterThanOrEqual(9);
   });
 });
+
+describe("skills reais em disco — Social Media", () => {
+  beforeEach(() => invalidarCache());
+
+  it("descobre as 5 skills de Social Media sem nenhuma reprovada em permissions.ts", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const manifestos = manifestosPorDepartamento("social");
+    const idsEsperados = [
+      "brand-onboarding",
+      "content-calendar",
+      "caption-writer",
+      "social-creative-brief",
+      "social-performance-review",
+    ];
+
+    expect(manifestos.map((m) => m.id).sort()).toEqual([...idsEsperados].sort());
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("toda skill de social declara proveniência (repo interno ou externo com licença)", () => {
+    for (const m of manifestosPorDepartamento("social")) {
+      expect(m.source.license).toBeTruthy();
+      expect(m.source.repository).toBeTruthy();
+    }
+  });
+
+  it("seleciona content-calendar pra um texto de etapa sobre calendário editorial", () => {
+    const selecionadas = selecionarSkills("social", "preciso montar o calendário editorial do mês");
+    expect(selecionadas[0]?.id).toBe("content-calendar");
+  });
+
+  it("nenhuma skill de social usa ferramenta de risco acima de low (nunca publica sozinha)", () => {
+    for (const m of manifestosPorDepartamento("social")) {
+      expect(m.riskLevel).toBe("low");
+      expect(m.requiresApproval).toBe(false);
+      expect(m.allowedTools).not.toContain("publicar_conteudo_social");
+    }
+  });
+});
