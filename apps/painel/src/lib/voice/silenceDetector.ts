@@ -15,6 +15,14 @@ export interface ConfigDetectorDeSilencio {
 export class DetectorDeSilencio {
   private inicioMs: number | null = null;
   private inicioDoSilencioMs: number | null = null;
+  // Bug real observado em produção: sem essa flag, o silêncio ANTES da
+  // pessoa começar a falar (reação natural ao bipe + latência de abrir o
+  // microfone) já contava pro timeout — a captura parava sozinha antes de
+  // qualquer fala de verdade ser gravada, e a OpenAI devolvia "sem texto".
+  // Agora o timeout de silêncio só passa a valer depois da primeira amostra
+  // acima do limiar (alguém falou pelo menos uma vez); antes disso, só o
+  // teto absoluto (maxDurationMs) pode encerrar a captura.
+  private falouAlgumaVez = false;
 
   constructor(private readonly config: ConfigDetectorDeSilencio) {}
 
@@ -25,10 +33,12 @@ export class DetectorDeSilencio {
     if (timestampMs - this.inicioMs >= this.config.maxDurationMs) return true;
 
     if (amplitude < this.config.limiar) {
+      if (!this.falouAlgumaVez) return false; // ainda esperando a pessoa começar a falar
       if (this.inicioDoSilencioMs === null) this.inicioDoSilencioMs = timestampMs;
       return timestampMs - this.inicioDoSilencioMs >= this.config.silenceTimeoutMs;
     }
 
+    this.falouAlgumaVez = true;
     this.inicioDoSilencioMs = null; // voltou a falar — reseta a contagem de silêncio
     return false;
   }
@@ -36,6 +46,7 @@ export class DetectorDeSilencio {
   reiniciar(): void {
     this.inicioMs = null;
     this.inicioDoSilencioMs = null;
+    this.falouAlgumaVez = false;
   }
 }
 

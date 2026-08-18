@@ -7,6 +7,7 @@
 
 import VetorCore, { type EstadoCore } from "@/components/VetorCore";
 import VetorIntentCard from "@/components/VetorIntentCard";
+import VetorVoiceOverlay from "@/components/VetorVoiceOverlay";
 import { useVetorVoice } from "./VetorVoiceProvider";
 import type { VoiceState } from "@/lib/voice/types";
 
@@ -31,6 +32,13 @@ const ESTADO_CORE_POR_VOZ: Record<VoiceState, EstadoCore> = {
 // erro), mesmo que o usuário já tenha ligado a voz antes.
 const ESTADOS_ESCUTANDO: VoiceState[] = ["standby", "wake_word_detected", "listening_request"];
 
+// A partir daqui o "vetor" foi detectado (ou o pedido já está sendo
+// processado) — merece a atenção do usuário de verdade, não só o ponto
+// discreto da sidebar. Reusa o mesmo VetorVoiceOverlay fullscreen que o
+// cockpit (mic manual) já usa, pra não ter duas identidades visuais de voz
+// diferentes no produto.
+const ESTADOS_COM_OVERLAY: VoiceState[] = ["wake_word_detected", "listening_request", "transcribing", "thinking", "speaking"];
+
 export default function VoiceIndicator() {
   const voz = useVetorVoice();
 
@@ -38,9 +46,17 @@ export default function VoiceIndicator() {
 
   const escutando = ESTADOS_ESCUTANDO.includes(voz.state);
   const ligada = voz.state !== "disabled";
+  const overlayAtivo = ESTADOS_COM_OVERLAY.includes(voz.state);
 
   return (
     <div className="space-y-2 border-t border-areia/10 pt-3">
+      <VetorVoiceOverlay
+        ativo={overlayAtivo}
+        estado={ESTADO_CORE_POR_VOZ[voz.state]}
+        amplitude={voz.amplitude || undefined}
+        transcricaoParcial={voz.state === "thinking" ? "Processando sua solicitação..." : undefined}
+        onParar={voz.pararTurnoAtual}
+      />
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <VetorCore estado={ESTADO_CORE_POR_VOZ[voz.state]} compact amplitude={voz.amplitude || undefined} />

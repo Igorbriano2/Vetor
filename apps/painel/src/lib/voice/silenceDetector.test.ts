@@ -35,9 +35,19 @@ describe("DetectorDeSilencio", () => {
     expect(detector.registrar(0.3, 10001)).toBe(true);
   });
 
+  it("nunca para por silêncio ANTES da pessoa falar pela primeira vez (bug real: silêncio inicial — reação ao bipe, latência de abrir o mic — não pode ser confundido com 'terminou de falar')", () => {
+    const detector = new DetectorDeSilencio(CONFIG);
+    expect(detector.registrar(0.01, 0)).toBe(false);
+    expect(detector.registrar(0.01, 900)).toBe(false);
+    expect(detector.registrar(0.01, 2000)).toBe(false); // bem além de silenceTimeoutMs, mas ninguém falou ainda
+    expect(detector.registrar(0.3, 2100)).toBe(false); // agora sim começou a falar
+    expect(detector.registrar(0.01, 2200)).toBe(false); // silêncio recém-começado, ainda dentro do timeout
+    expect(detector.registrar(0.01, 3200)).toBe(true); // 1000ms de silêncio depois da fala
+  });
+
   it("reiniciar() permite reusar o mesmo detector numa captura seguinte", () => {
     const detector = new DetectorDeSilencio(CONFIG);
-    detector.registrar(0.01, 0);
+    detector.registrar(0.3, 0);
     detector.registrar(0.01, 1500); // já pararia
     detector.reiniciar();
     expect(detector.registrar(0.3, 5000)).toBe(false); // conta do zero de novo
