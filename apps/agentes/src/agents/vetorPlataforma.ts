@@ -443,9 +443,18 @@ export async function processarMensagemPlataforma(
   // seguidas (visto ao testar 6 propostas seguidas na mesma conversa) deixa o
   // padrão degenerado o bastante pra API às vezes devolver conteúdo vazio nas
   // trocas seguintes (ver diagnóstico em core.ts: stop_reason=end_turn, blocos=[]).
+  //
+  // Quando propor_missao veio com etapas vazias (extrairMissaoProposta já
+  // descartou o intent pra não mostrar um card fadado a quebrar — ver ali),
+  // o Claude tipicamente não emite texto nenhum junto do tool_use (só a
+  // chamada da ferramenta) — sem este terceiro fallback, respostaTexto virava
+  // "" e a mensagem salva/exibida ficava vazia (achado ao vivo testando
+  // skills de Estratégia: chat parecia travado, na real só não tinha texto).
   const respostaTexto =
     resultado.respostaTexto ||
-    (intent ? `Montei uma proposta de missão: "${intent.titulo}" — dá uma olhada e confirma se está de acordo.` : resultado.respostaTexto);
+    (intent
+      ? `Montei uma proposta de missão: "${intent.titulo}" — dá uma olhada e confirma se está de acordo.`
+      : "Entendi o pedido, mas preciso estruturar melhor as etapas antes de propor um plano — pode me dar mais detalhes sobre o resultado que você espera?");
 
   await salvarMensagem(clienteId, "saida", respostaTexto, conversationId);
 
