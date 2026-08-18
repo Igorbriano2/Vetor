@@ -3,10 +3,17 @@ import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "../db/supabase.js";
 import { getSystemPrompt, type AgenteId } from "./prompts/index.js";
 import { gerarVideoAPartirDeImagem, VideoIndisponivelError } from "../integrations/higgsfield.js";
-import { gerarImagem, ImagemIndisponivelError } from "../integrations/imageProvider.js";
+import { gerarImagem, gerarImagemComReferencia, ImagemIndisponivelError, type ReferenciaImagem } from "../integrations/imageProvider.js";
 import { persistirArtefato, type ArtefatoPersistido, type ArtifactType } from "../artifacts/artifactsService.js";
 import { selecionarSkills, carregarSkillsSelecionadas, listarTodosOsManifestos } from "../skills/registry.js";
 import type { SkillDefinition, SkillDepartment } from "../skills/types.js";
+import {
+  buscarLogoParaFormato,
+  validarAtivoParaUso,
+  baixarBytesDoAtivo,
+  registrarUsoDeAtivo,
+  type AssetDisponivel,
+} from "../negocio/businessAssets.js";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -94,16 +101,51 @@ const GERAR_VIDEO_TOOL: Anthropic.Tool = {
 
 const GERAR_IMAGEM_TOOL: Anthropic.Tool = {
   name: "gerar_imagem",
-  description: "Gera a peça visual final a partir de uma descrição de texto (provider de imagem configurado no sistema).",
+  description:
+    "Gera a peça visual final a partir de uma descrição de texto (provider de imagem configurado no sistema). " +
+    "Quando o negócio tiver ativos reais cadastrados no Drive relevantes pra esta peça (produto, pessoa, ambiente " +
+    "mencionado, ou logo oficial), sempre passe os IDs deles em asset_ids — a peça é composta a partir do arquivo " +
+    "real (image-to-image), não desenhada de memória a partir de descrição.",
   input_schema: {
     type: "object",
     properties: {
       prompt: { type: "string", description: "Descrição visual completa: composição, cores, texto na peça, estilo." },
       aspect_ratio: { type: "string", description: "Ex: '1:1' (feed), '9:16' (story/reel), '4:5'. Default 1:1." },
+      formato: {
+        type: "string",
+        enum: ["feed", "story", "avatar", "generico"],
+        description: "Canal de destino — decide qual variante da logo oficial usar (ver Brand Kit no contexto).",
+      },
+      asset_ids: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "IDs (da lista 'Banco de ativos disponível' no contexto) de produto/pessoa/ambiente/referência real a " +
+          "incorporar na peça. Nunca invente um id — só use os que apareceram na lista.",
+      },
     },
     required: ["prompt"],
   },
 };
+
+export interface AssetSelectionItem {
+  assetId: string;
+  papel: "referencia" | "fonte" | "logo" | "template" | "fundo" | "produto" | "pessoa";
+  motivo: string;
+  obrigatorio: boolean;
+}
+
+export interface AssetSelection {
+  selectedAssets: AssetSelectionItem[];
+  missingAssets: string[];
+  logoAssetId?: string;
+  generationMode: "asset_based" | "generated" | "hybrid";
+}
+
+export interface BrandValidation {
+  passed: boolean;
+  issues: string[];
+}
 
 export interface AgentResult {
   status: "completed" | "failed" | "needs_clarification";
@@ -117,6 +159,12 @@ export interface AgentResult {
   artifacts: ArtefatoPersistido[];
   needsApproval: boolean;
   nextAction?: string;
+  // Preenchidos só pelo agente de Design (Drive de ativos) — opcionais pros
+  // demais agentes, nunca quebram o contrato compartilhado.
+  sourceAssetIds?: string[];
+  logoAssetId?: string;
+  assetSelection?: AssetSelection;
+  brandValidation?: BrandValidation;
 }
 
 export interface ContextoMissaoParaEspecialista {
@@ -128,8 +176,16 @@ export interface ContextoMissaoParaEspecialista {
     nomeEmpresa: string;
     nicho: string;
     perfil?: { descricao: string | null; tom: string | null; ofertas: unknown; publico: unknown } | null;
-    brandKit?: { cores: unknown; fontes: unknown; regras: unknown } | null;
-    assetsDisponiveis?: Array<{ nome: string; url: string; tags: string[] }>;
+    brandKit?: {
+      cores: unknown;
+      fontes: unknown;
+      regras: unknown;
+      logo_area_protecao?: string | null;
+      logo_tamanho_minimo?: string | null;
+      logo_fundos_proibidos?: unknown;
+      logo_usos_proibidos?: unknown;
+    } | null;
+    assetsDisponiveis?: AssetDisponivel[];
   };
 }
 
@@ -157,11 +213,21 @@ interface MidiaExecutada {
   url?: string;
   storagePath?: string;
   mimeType?: string;
+  sourceAssetIds?: string[];
+  logoAssetId?: string;
+  brandValidation?: BrandValidation;
 }
 
 interface ContextoExecucaoFerramenta {
   clienteId: string;
+  missionId?: string;
   missionStepId: string;
+}
+
+function inferirFormatoPeloAspectRatio(aspectRatio?: string): "feed" | "story" | "avatar" | "generico" {
+  if (aspectRatio === "9:16") return "story";
+  if (aspectRatio === "1:1") return "feed";
+  return "generico";
 }
 
 // Agentes com uma ferramenta de execução real (geram custo por chamada,
@@ -199,14 +265,83 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<
     mimeType: "image/png",
     executar: async (input, ctx) => {
       try {
-        const imagem = await gerarImagem(input.prompt as string, { aspectRatio: input.aspect_ratio as string | undefined });
+        const prompt = input.prompt as string;
+        const aspectRatio = input.aspect_ratio as string | undefined;
+        const formato = (input.formato as "feed" | "story" | "avatar" | "generico" | undefined) ?? inferirFormatoPeloAspectRatio(aspectRatio);
+        const assetIdsPedidos = Array.isArray(input.asset_ids) ? (input.asset_ids as string[]).filter((id) => typeof id === "string") : [];
+
+        const referencias: ReferenciaImagem[] = [];
+        const sourceAssetIds: string[] = [];
+        const issues: string[] = [];
+        let logoAssetId: string | undefined;
+
+        // Regra inegociável: se existe logo oficial cadastrada pro formato,
+        // ela É incorporada (image-to-image real) — nunca opcional quando
+        // disponível. Falha em baixar o arquivo é bloqueante (ver
+        // brandValidation abaixo), diferente de simplesmente não ter logo
+        // cadastrada (permitido, só fica marcado como pendente).
+        const logo = await buscarLogoParaFormato(ctx.clienteId, formato);
+        if (logo) {
+          const bytesLogo = await baixarBytesDoAtivo(logo.id);
+          if (bytesLogo) {
+            referencias.push({ bytes: bytesLogo, mimeType: "image/png", nome: "logo-oficial.png" });
+            sourceAssetIds.push(logo.id);
+            logoAssetId = logo.id;
+            await registrarUsoDeAtivo({
+              clienteId: ctx.clienteId,
+              assetId: logo.id,
+              missionId: ctx.missionId,
+              missionStepId: ctx.missionStepId,
+              agente: "design",
+              papel: "logo",
+              motivo: `Logo oficial aplicada (formato: ${formato}).`,
+            });
+          } else {
+            issues.push("Logo oficial está cadastrada, mas o arquivo não pôde ser baixado do storage — peça bloqueada até corrigir o ativo.");
+          }
+        }
+
+        // asset_ids pedidos pelo modelo (produto/pessoa/ambiente/referência)
+        // — nunca confia cegamente: revalida tenant + status aprovado antes
+        // de baixar qualquer coisa.
+        for (const assetId of assetIdsPedidos) {
+          const validacao = await validarAtivoParaUso(ctx.clienteId, assetId);
+          if (!validacao.valido) continue;
+          const bytes = await baixarBytesDoAtivo(assetId);
+          if (!bytes) continue;
+          referencias.push({ bytes, mimeType: "image/png", nome: `ref-${assetId}.png` });
+          sourceAssetIds.push(assetId);
+          await registrarUsoDeAtivo({
+            clienteId: ctx.clienteId,
+            assetId,
+            missionId: ctx.missionId,
+            missionStepId: ctx.missionStepId,
+            agente: "design",
+            papel: "referencia",
+            motivo: "Selecionado pelo agente como referência visual real pra esta peça.",
+          });
+        }
+
+        const imagem =
+          referencias.length > 0
+            ? await gerarImagemComReferencia(prompt, referencias, { aspectRatio })
+            : await gerarImagem(prompt, { aspectRatio });
+
         const requestId = randomUUID();
         const path = `${ctx.clienteId}/design/${ctx.missionStepId}/${requestId}.png`;
         const { error } = await supabase.storage
           .from("artifacts")
           .upload(path, imagem.bytes, { contentType: imagem.mimeType, upsert: false });
         if (error) throw new Error(`Falha ao salvar imagem gerada no storage: ${error.message}`);
-        return { requestId, storagePath: path, mimeType: imagem.mimeType };
+
+        return {
+          requestId,
+          storagePath: path,
+          mimeType: imagem.mimeType,
+          sourceAssetIds,
+          logoAssetId,
+          brandValidation: { passed: issues.length === 0, issues },
+        };
       } catch (err) {
         throw err instanceof ImagemIndisponivelError ? err : new ImagemIndisponivelError(err instanceof Error ? err.message : "erro desconhecido");
       }
@@ -273,9 +408,14 @@ function montarContexto(ctx: ContextoMissaoParaEspecialista): string {
     ctx.negocio.perfil?.tom ? `Tom de voz: ${ctx.negocio.perfil.tom}` : null,
     ctx.negocio.brandKit ? `Brand kit atual: ${JSON.stringify(ctx.negocio.brandKit)}` : null,
     ctx.negocio.assetsDisponiveis?.length
-      ? `Banco de imagens disponível (use como referência quando fizer sentido): ${ctx.negocio.assetsDisponiveis
-          .map((a) => `${a.nome} [${a.tags.join(", ")}] — ${a.url}`)
-          .join("; ")}`
+      ? `Banco de ativos disponível (Drive real do negócio — SEMPRE consulte antes de gerar; passe os ids relevantes ` +
+        `em asset_ids do gerar_imagem, nunca invente que usou um ativo que não está aqui):\n` +
+        ctx.negocio.assetsDisponiveis
+          .map(
+            (a) =>
+              `- [id: ${a.id}] ${a.nome}${a.isLogoPrincipal ? " (LOGO)" : ""} (categoria: ${a.categoria})${a.tags.length ? ` [${a.tags.join(", ")}]` : ""}${a.descricao ? ` — ${a.descricao}` : ""}`,
+          )
+          .join("\n")
       : null,
   ].filter(Boolean);
 
@@ -327,6 +467,10 @@ async function rodarComFerramentaDeExecucao(
         status: "completed",
         request_id: midia.requestId,
         ...(midia.url ? { url: midia.url } : { armazenado: true }),
+        ...(midia.sourceAssetIds?.length ? { ativos_reais_usados: midia.sourceAssetIds } : {}),
+        ...(midia.brandValidation && !midia.brandValidation.passed
+          ? { aviso_marca: midia.brandValidation.issues.join(" ") }
+          : {}),
       });
     } catch (err) {
       resultadoFerramenta = JSON.stringify({ status: "failed", error: err instanceof Error ? err.message : "erro desconhecido" });
@@ -385,6 +529,7 @@ export async function executarEspecialista(
   if (ferramentaGeracao) {
     const resultadoExecucao = await rodarComFerramentaDeExecucao(systemPrompt, contexto.etapaTarefa, ferramentaGeracao, {
       clienteId,
+      missionId,
       missionStepId,
     });
     response = resultadoExecucao.message;
@@ -478,6 +623,9 @@ export async function executarEspecialista(
     artifacts: artefatosPersistidos,
     needsApproval: !!bruto.needsApproval,
     nextAction: bruto.nextAction,
+    ...(midiaGerada?.sourceAssetIds ? { sourceAssetIds: midiaGerada.sourceAssetIds } : {}),
+    ...(midiaGerada?.logoAssetId ? { logoAssetId: midiaGerada.logoAssetId } : {}),
+    ...(midiaGerada?.brandValidation ? { brandValidation: midiaGerada.brandValidation } : {}),
   };
 
   await supabase.from("agent_runs").insert({

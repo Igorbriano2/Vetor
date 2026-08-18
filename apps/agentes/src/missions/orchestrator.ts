@@ -424,7 +424,7 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
 
   const { data: brandKit } = await supabase
     .from("brand_kits")
-    .select("cores, fontes, regras")
+    .select("cores, fontes, regras, logo_area_protecao, logo_tamanho_minimo, logo_fundos_proibidos, logo_usos_proibidos")
     .eq("cliente_id", etapa.cliente_id)
     .eq("is_atual", true)
     .maybeSingle();
@@ -473,6 +473,17 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
     if (resultado.status === "completed" && DEPARTAMENTOS_EXIGEM_ARTEFATO.has(etapa.agente) && resultado.artifactIds.length === 0) {
       resultado.status = "failed";
       resultado.summary = `Etapa marcada como falha: nenhum artefato verificável foi produzido, apesar do resumo original ("${resultado.summary}"). Nunca completar uma entrega de ${etapa.agente} sem artifact_id.`;
+    }
+
+    // Drive de ativos empresariais: quando existe logo oficial cadastrada
+    // mas ela não pôde ser aplicada de verdade na peça (brandValidation.passed
+    // false), a entrega não pode ficar "completed" — precisa de correção ou
+    // aprovação humana, nunca "pronta" com a marca ausente/errada. Não bloqueia
+    // quando simplesmente não existe logo cadastrada (isso é permitido e só
+    // fica disclosurado no summary, ver specialistRunner.ts).
+    if (resultado.status === "completed" && resultado.brandValidation && !resultado.brandValidation.passed) {
+      resultado.status = "failed";
+      resultado.summary = `Etapa marcada como falha: validação de marca não passou (${resultado.brandValidation.issues.join(" ")}). Resumo original: "${resultado.summary}".`;
     }
 
     await supabase.from("mission_steps").update({ resultado }).eq("id", etapa.id);
