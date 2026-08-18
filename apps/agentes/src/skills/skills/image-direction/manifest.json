@@ -10,7 +10,12 @@
     "gerar a peça",
     "fazer a imagem",
     "arte pro feed",
-    "arte pra story"
+    "arte pra story",
+    "gerar arte",
+    "arte visual",
+    "arte feed",
+    "gerar a arte",
+    "criar a imagem"
   ],
   "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
   "allowedTools": ["ler_brand_kit", "ler_historico", "gerar_imagem"],

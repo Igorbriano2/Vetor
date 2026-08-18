@@ -10,7 +10,10 @@
     "peça pro tráfego pago",
     "criativo pra campanha",
     "anúncio no instagram",
-    "anúncio no facebook"
+    "anúncio no facebook",
+    "arte do anúncio",
+    "criativo",
+    "gerar anúncio"
   ],
   "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
   "allowedTools": ["ler_brand_kit", "ler_historico", "gerar_imagem"],

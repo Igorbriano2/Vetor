@@ -9,7 +9,12 @@
     "caption",
     "escrever o texto do post",
     "texto pra esse post",
-    "gancho pro post"
+    "gancho pro post",
+    "copy",
+    "criar copy",
+    "copy persuasiva",
+    "copy do post",
+    "texto do post"
   ],
   "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
   "allowedTools": ["ler_brand_kit", "criar_copy", "gerar_copy"],
