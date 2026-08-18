@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "../db/supabase.js";
 import { getSystemPrompt } from "./prompts/index.js";
 import { processarComAgente, REGISTRAR_TICKET_TOOL, TRANSFERIR_HUMANO_TOOL, type ContextoCliente } from "./core.js";
-import { transcreverAudio, TranscricaoIndisponivelError } from "../integrations/transcricao.js";
+import { transcreverAudio } from "../integrations/transcricao.js";
 import { sintetizarFala, SinteseVozIndisponivelError } from "../integrations/tts.js";
 import { avaliarRisco, precisaAprovacao, type Risco } from "../missions/policyEngine.js";
 import { transicionarSolicitacao, type SolicitacaoStatus } from "../missions/stateMachine.js";
@@ -511,45 +511,51 @@ export async function processarAudioPlataforma(
     statusSolicitacao = "transcribing";
   }
 
+  let transcricao: string;
   try {
-    const transcricao = await transcreverAudio(bytes, mimeType);
-    // O provedor de STT atual (Whisper via texto puro) não devolve um score de
-    // confiança real — grava só a transcrição, sem inventar um nível de
-    // confiança (nunca fabricar dado que não temos). Gap conhecido, ver
-    // relatório final: exigiria trocar pra resposta verbose_json/logprobs.
-    await supabase
-      .from("solicitacoes")
-      .update({ transcricao, updated_at: new Date().toISOString() })
-      .eq("id", solicitacao.id);
-
-    return await processarMensagemPlataforma(clienteId, transcricao, {
-      responderEmVoz: true,
-      conversationId,
-      usuarioId: opcoes.usuarioId,
-      origem,
-    });
+    transcricao = await transcreverAudio(bytes, mimeType);
   } catch (err) {
-    if (err instanceof TranscricaoIndisponivelError) {
-      // "failed" só é alcançável de received/transcribing/understanding no
-      // grafo da state machine — se a solicitação já estava mais adiante
-      // (awaiting_context/planned, ex: áudio chegou numa conversa que já tinha
-      // um plano em aberto), não força uma transição inválida.
-      try {
-        await avancarSolicitacao(solicitacao.id, statusSolicitacao, "failed");
-      } catch (transicaoErr) {
-        console.warn(
-          `Não foi possível marcar solicitação ${solicitacao.id} como "failed" a partir de "${statusSolicitacao}":`,
-          transicaoErr,
-        );
-      }
-      return {
-        conversationId,
-        requestId: randomUUID(),
-        solicitacaoId: solicitacao.id,
-        respostaTexto:
-          "Recebi seu áudio, mas ainda não consigo ouvir por aqui — pode escrever a mesma coisa em texto? 🙏",
-      };
+    // Qualquer falha de transcrição (provider não configurado, formato de
+    // áudio rejeitado, OpenAI fora do ar) marca a solicitação como "failed"
+    // e devolve uma resposta honesta — nunca deixa a solicitação presa pra
+    // sempre em "transcribing" (bug real observado em produção: um erro que
+    // não fosse TranscricaoIndisponivelError pulava esse tratamento e virava
+    // um 500 cru, sem nunca fechar o ciclo da solicitação).
+    console.error(`Falha ao transcrever áudio da solicitação ${solicitacao.id}:`, err);
+    // "failed" só é alcançável de received/transcribing/understanding no
+    // grafo da state machine — se a solicitação já estava mais adiante
+    // (awaiting_context/planned, ex: áudio chegou numa conversa que já tinha
+    // um plano em aberto), não força uma transição inválida.
+    try {
+      await avancarSolicitacao(solicitacao.id, statusSolicitacao, "failed");
+    } catch (transicaoErr) {
+      console.warn(
+        `Não foi possível marcar solicitação ${solicitacao.id} como "failed" a partir de "${statusSolicitacao}":`,
+        transicaoErr,
+      );
     }
-    throw err;
+    return {
+      conversationId,
+      requestId: randomUUID(),
+      solicitacaoId: solicitacao.id,
+      respostaTexto:
+        "Recebi seu áudio, mas ainda não consigo ouvir por aqui — pode escrever a mesma coisa em texto? 🙏",
+    };
   }
+
+  // O provedor de STT atual (Whisper via texto puro) não devolve um score de
+  // confiança real — grava só a transcrição, sem inventar um nível de
+  // confiança (nunca fabricar dado que não temos). Gap conhecido, ver
+  // relatório final: exigiria trocar pra resposta verbose_json/logprobs.
+  await supabase
+    .from("solicitacoes")
+    .update({ transcricao, updated_at: new Date().toISOString() })
+    .eq("id", solicitacao.id);
+
+  return await processarMensagemPlataforma(clienteId, transcricao, {
+    responderEmVoz: true,
+    conversationId,
+    usuarioId: opcoes.usuarioId,
+    origem,
+  });
 }
