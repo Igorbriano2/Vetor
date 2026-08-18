@@ -51,6 +51,37 @@ perfilRouter.post("/saudacao", async (req, res) => {
   }
 });
 
+// Síntese de voz avulsa — usada pelo assistente de voz do painel pra ler em
+// voz alta um evento que aconteceu fora do ciclo pergunta/resposta normal
+// (ex: uma etapa de missão que passou a exigir aprovação enquanto o cliente
+// já tinha voltado ao "standby"). O texto já vem pronto do chamador (o
+// painel só fala o que a própria Realtime/RLS já deixou ele ver — mesmo
+// modelo de confiança de responderEmVoz em /plataforma/mensagem); aqui só
+// valida tamanho pra não estourar custo com um payload absurdo.
+const TAMANHO_MAXIMO_TEXTO_FALAR = 2000;
+
+perfilRouter.post("/falar", async (req, res) => {
+  const { texto } = req.body ?? {};
+  if (typeof texto !== "string" || !texto.trim()) {
+    res.status(400).json({ error: "texto é obrigatório" });
+    return;
+  }
+  if (texto.length > TAMANHO_MAXIMO_TEXTO_FALAR) {
+    res.status(400).json({ error: `texto excede o limite de ${TAMANHO_MAXIMO_TEXTO_FALAR} caracteres` });
+    return;
+  }
+
+  try {
+    const audio = await sintetizarFala(texto);
+    res.json({ audioBase64: Buffer.from(audio.bytes).toString("base64") });
+  } catch (err) {
+    if (!(err instanceof SinteseVozIndisponivelError)) {
+      console.error("Erro ao sintetizar fala avulsa:", err instanceof Error ? err.message : err);
+    }
+    res.json({ audioBase64: null });
+  }
+});
+
 perfilRouter.post("/preferencias", async (req, res) => {
   const { usuario_id, silenciar_audio } = req.body ?? {};
   if (typeof usuario_id !== "string") {

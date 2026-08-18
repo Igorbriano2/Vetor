@@ -6,6 +6,7 @@ import VetorCore, { type EstadoCore } from "./VetorCore";
 import VetorVoiceOverlay from "./VetorVoiceOverlay";
 import VetorIntentCard, { type MissaoProposta } from "./VetorIntentCard";
 import StatusBadge from "./StatusBadge";
+import VoiceIndicator from "./voice/VoiceIndicator";
 import { readApiResponse } from "@/lib/api/readApiResponse";
 
 // Painel principal (Fase "chat + núcleo") — única exceção ao layout
@@ -377,6 +378,15 @@ export default function VetorCockpit({ missaoAtual, contagemPendentes, contagemA
           >
             Enviar
           </button>
+        </div>
+
+        {/* Ativação por wake word "vetor" — movida da sidebar pra ficar junto
+            do chat (pedido explícito do dono do produto). Reusa o mesmo
+            contexto global (VetorVoiceProvider, montado no shell), então a
+            escuta continua funcionando em qualquer página — só o controle
+            visual mora aqui agora. */}
+        <div className="mt-4 border-t border-areia/10 pt-4">
+          <VoiceIndicator />
         </div>
       </div>
 

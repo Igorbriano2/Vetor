@@ -16,6 +16,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import type { MissaoProposta } from "../VetorIntentCard";
 import { readApiResponse } from "@/lib/api/readApiResponse";
 import { lerConversationId, salvarConversationId } from "@/lib/conversation";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { capturarSolicitacaoDeVoz, tocarBipDeConfirmacao } from "@/lib/voice/audioCapture";
 import { selecionarWakeWordEngine, NenhumProviderDisponivelError } from "@/lib/voice/selectProvider";
 import { podeTransicionar, transicionarVoz } from "@/lib/voice/stateMachine";
@@ -76,6 +77,10 @@ export default function VetorVoiceProvider({ children }: { children: React.React
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+  const mutedRef = useRef(false);
+  useEffect(() => {
+    mutedRef.current = muted;
+  }, [muted]);
 
   const irPara = useCallback((proximo: VoiceState) => {
     if (desmontadoRef.current) return;
@@ -271,6 +276,66 @@ export default function VetorVoiceProvider({ children }: { children: React.React
     document.addEventListener("visibilitychange", aoTrocarVisibilidade);
     return () => document.removeEventListener("visibilitychange", aoTrocarVisibilidade);
   }, [irPara]);
+
+  // --- fala uma aprovação de missão que nasceu de um pedido em áudio ------
+  // Pedido explícito do dono do produto: se a solicitação original foi feita
+  // em voz, a resposta (incluindo pedidos de aprovação que chegam DEPOIS,
+  // já com o assistente de volta a standby) também deve vir em voz, pra o
+  // diálogo fluir. Nunca interrompe um turno em andamento (só age em
+  // standby) nem fala aprovação de missão que não nasceu de áudio.
+  const falarAprovacaoDeMissaoPorVoz = useCallback(
+    async (aprovacao: { mission_id: string; acao: string }) => {
+      if (stateRef.current !== "standby") return;
+
+      const supabase = createSupabaseBrowserClient();
+      const { data: solicitacaoDeVoz } = await supabase
+        .from("solicitacoes")
+        .select("id")
+        .eq("mission_id", aprovacao.mission_id)
+        .in("origem", ["voice_wake_word", "painel_audio"])
+        .limit(1)
+        .maybeSingle();
+      if (!solicitacaoDeVoz) return; // missão não nasceu de um pedido em áudio
+
+      if (stateRef.current !== "standby") return; // reconfere — a busca acima é assíncrona
+
+      try {
+        const res = await fetch("/api/voz/falar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ texto: `O Vetor precisa da sua aprovação: ${aprovacao.acao}` }),
+        });
+        const data = await readApiResponse<{ audioBase64: string | null }>(res);
+        if (data.audioBase64 && !mutedRef.current) {
+          await reproduzirResposta(data.audioBase64, audioRef, engineRef, irPara);
+        }
+      } catch {
+        // Best-effort — a aprovação já está visível/clicável no painel de
+        // qualquer forma; falha em falar não pode travar nada.
+      }
+    },
+    [irPara],
+  );
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    const channel = supabase
+      .channel("vetor-voice-approvals")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "approvals" },
+        (payload) => {
+          const nova = payload.new as { mission_id?: string; acao?: string } | undefined;
+          if (nova?.mission_id && nova.acao) {
+            void falarAprovacaoDeMissaoPorVoz({ mission_id: nova.mission_id, acao: nova.acao });
+          }
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [falarAprovacaoDeMissaoPorVoz]);
 
   // --- retomada automática entre navegações (mesma sessão autenticada) ----
   // Só tenta religar sozinho se o usuário já tinha ligado antes E o navegador
