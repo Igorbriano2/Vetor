@@ -1,0 +1,20 @@
+{
+  "id": "marketing-loops",
+  "version": "1.0.0",
+  "name": "Rotina recorrente de marketing",
+  "description": "Desenha uma rotina que se repete numa cadência (revisão semanal, checagem de fadiga de campanha) — a skill produz a definição da rotina, não um agendador novo (reaproveita missões recorrentes do VETOR).",
+  "department": "strategy",
+  "triggers": [
+    "rotina",
+    "toda semana",
+    "revisão semanal",
+    "checagem recorrente",
+    "acompanhamento mensal",
+    "automatizar isso"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa"],
+  "allowedTools": ["ler_historico", "criar_briefing", "salvar_hipotese"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "schedule"
+}

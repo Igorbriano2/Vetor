@@ -1,0 +1,20 @@
+{
+  "id": "customer-research",
+  "version": "1.0.0",
+  "name": "Pesquisa de cliente",
+  "description": "Extrai sinal real de material que já existe (histórico de conversas, feedback) sobre o que o cliente do cliente pensa/sente/precisa — nunca inventa persona sem dado.",
+  "department": "strategy",
+  "triggers": [
+    "pesquisa de cliente",
+    "quem são meus clientes",
+    "persona",
+    "o que os clientes pensam",
+    "feedback dos clientes",
+    "por que estão comprando"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa"],
+  "allowedTools": ["ler_perfil_negocio", "ler_historico", "criar_relatorio", "salvar_hipotese"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "report"
+}

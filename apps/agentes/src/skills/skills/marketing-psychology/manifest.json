@@ -1,0 +1,20 @@
+{
+  "id": "marketing-psychology",
+  "version": "1.0.0",
+  "name": "Psicologia de marketing aplicada",
+  "description": "Aplica modelos mentais/princípios comportamentais a uma decisão de marketing específica — sempre citando o modelo, nunca como manipulação vazia.",
+  "department": "strategy",
+  "triggers": [
+    "por que não estão comprando",
+    "psicologia",
+    "gatilho mental",
+    "prova social",
+    "escassez",
+    "por que ninguém clica"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa"],
+  "allowedTools": ["ler_perfil_negocio", "criar_briefing"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "recommendation"
+}

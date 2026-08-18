@@ -1,0 +1,21 @@
+{
+  "id": "product-marketing-context",
+  "version": "1.0.0",
+  "name": "Contexto de posicionamento e ICP",
+  "description": "Monta/atualiza o resumo de posicionamento, ICP e proposta de valor do cliente, base pra qualquer outra skill de estratégia.",
+  "department": "strategy",
+  "triggers": [
+    "posicionamento",
+    "quem é meu cliente ideal",
+    "icp",
+    "público-alvo",
+    "proposta de valor",
+    "contexto do negócio",
+    "descreva meu negócio"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "negocio.nicho"],
+  "allowedTools": ["ler_perfil_negocio", "ler_brand_kit", "ler_historico", "criar_briefing", "salvar_hipotese"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "document"
+}

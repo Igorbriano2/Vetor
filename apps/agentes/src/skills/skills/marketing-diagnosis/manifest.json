@@ -1,0 +1,20 @@
+{
+  "id": "marketing-diagnosis",
+  "version": "1.0.0",
+  "name": "Diagnóstico inicial de marketing",
+  "description": "Avalia o estado atual do marketing do cliente (presença, oferta, conteúdo, tráfego, dados) numa rubrica curta, pra decidir por onde a agência começa.",
+  "department": "strategy",
+  "triggers": [
+    "diagnóstico",
+    "diagnostico inicial",
+    "como está meu marketing",
+    "por onde começar",
+    "avaliação inicial",
+    "onboarding"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa"],
+  "allowedTools": ["ler_perfil_negocio", "ler_brand_kit", "ler_historico", "criar_relatorio"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "report"
+}

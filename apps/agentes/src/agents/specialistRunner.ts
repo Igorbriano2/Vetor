@@ -5,6 +5,8 @@ import { getSystemPrompt, type AgenteId } from "./prompts/index.js";
 import { gerarVideoAPartirDeImagem, VideoIndisponivelError } from "../integrations/higgsfield.js";
 import { gerarImagem, ImagemIndisponivelError } from "../integrations/imageProvider.js";
 import { persistirArtefato, type ArtefatoPersistido, type ArtifactType } from "../artifacts/artifactsService.js";
+import { selecionarSkills, carregarSkillsSelecionadas } from "../skills/registry.js";
+import type { SkillDefinition, SkillDepartment } from "../skills/types.js";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -211,6 +213,29 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<
   },
 };
 
+// Departamento de skill por agente — só agentes já com skills reais
+// registradas entram aqui (rodada a rodada, por departamento; ver
+// apps/agentes/src/skills/README.md). Um agente sem entrada aqui roda
+// normalmente, sem nenhuma skill anexada.
+const DEPARTAMENTO_SKILL_POR_AGENTE: Partial<Record<AgenteId, SkillDepartment>> = {
+  estrategia: "strategy",
+};
+
+// Seleciona (por trigger) e carrega no máximo 1 skill pra etapa atual —
+// nunca o catálogo inteiro do departamento (carregamento progressivo,
+// princípio 8 do Skill Registry). Sem match, o especialista roda só com o
+// prompt base, sem skill anexada.
+function selecionarESkillDaEtapa(agenteId: AgenteId, etapaTarefa: string): SkillDefinition | null {
+  const department = DEPARTAMENTO_SKILL_POR_AGENTE[agenteId];
+  if (!department) return null;
+
+  const candidatas = selecionarSkills(department, etapaTarefa);
+  if (candidatas.length === 0) return null;
+
+  const [carregada] = carregarSkillsSelecionadas([candidatas[0].id]);
+  return carregada ?? null;
+}
+
 function montarContexto(ctx: ContextoMissaoParaEspecialista): string {
   const partes = [
     `MISSÃO — objetivo: ${ctx.missaoObjetivo}`,
@@ -310,7 +335,20 @@ export async function executarEspecialista(
   clienteId: string,
   missionId?: string,
 ): Promise<AgentResult> {
-  const systemPrompt = `${getSystemPrompt(agenteId)}\n\n${montarContexto(contexto)}`;
+  const skillSelecionada = selecionarESkillDaEtapa(agenteId, contexto.etapaTarefa);
+  const blocoSkill = skillSelecionada
+    ? `\n\nSKILL SELECIONADA: ${skillSelecionada.manifest.name} (${skillSelecionada.manifest.id} v${skillSelecionada.manifest.version})\n${skillSelecionada.instructions}`
+    : "";
+  // Log de auditoria mínimo — SkillRun (types.ts) ainda não tem tabela
+  // própria (gap conhecido, próxima rodada); por ora a seleção fica
+  // rastreável via log em vez de silenciosamente não registrada em lugar
+  // nenhum.
+  if (skillSelecionada) {
+    console.log(
+      `[skills] etapa ${missionStepId} (${agenteId}) usou a skill "${skillSelecionada.manifest.id}" v${skillSelecionada.manifest.version}`,
+    );
+  }
+  const systemPrompt = `${getSystemPrompt(agenteId)}\n\n${montarContexto(contexto)}${blocoSkill}`;
   const departamento = DEPARTAMENTO_POR_AGENTE[agenteId];
   const ferramentaGeracao = FERRAMENTA_GERACAO_POR_AGENTE[agenteId];
 

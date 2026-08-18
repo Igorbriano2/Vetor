@@ -1,0 +1,20 @@
+{
+  "id": "content-strategy",
+  "version": "1.0.0",
+  "name": "Estratégia de conteúdo",
+  "description": "Decide sobre o que criar conteúdo (não como escrever uma peça) — prioriza entre conteúdo pesquisável e compartilhável, cruzado com dúvidas reais de cliente.",
+  "department": "strategy",
+  "triggers": [
+    "estratégia de conteúdo",
+    "sobre o que postar",
+    "ideias de conteúdo",
+    "pauta de conteúdo",
+    "não sei o que postar",
+    "linha editorial"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa"],
+  "allowedTools": ["ler_perfil_negocio", "ler_brand_kit", "ler_historico", "criar_briefing"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "schedule"
+}

@@ -1,0 +1,21 @@
+{
+  "id": "offers",
+  "version": "1.0.0",
+  "name": "Desenho de oferta",
+  "description": "Melhora a oferta em si (não só a peça que anuncia) — value equation, empilhamento de bônus, garantia, urgência real.",
+  "department": "strategy",
+  "triggers": [
+    "oferta",
+    "promoção não converte",
+    "montar uma promoção",
+    "combo",
+    "desconto",
+    "garantia",
+    "urgência"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa"],
+  "allowedTools": ["ler_perfil_negocio", "ler_brand_kit", "criar_briefing"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "recommendation"
+}

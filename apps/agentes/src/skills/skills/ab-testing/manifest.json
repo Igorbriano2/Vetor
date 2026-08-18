@@ -1,0 +1,19 @@
+{
+  "id": "ab-testing",
+  "version": "1.0.0",
+  "name": "Desenho de teste A/B",
+  "description": "Desenha o teste (hipótese, variável única, métrica) antes de qualquer execução — o VETOR ainda não roda teste ao vivo automaticamente, esta skill produz o desenho pra registrar como experimento.",
+  "department": "strategy",
+  "triggers": [
+    "teste a/b",
+    "qual versão é melhor",
+    "testar duas opções",
+    "hipótese",
+    "experimento"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa"],
+  "allowedTools": ["ler_historico", "salvar_hipotese", "registrar_experimento", "criar_relatorio"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "recommendation"
+}
