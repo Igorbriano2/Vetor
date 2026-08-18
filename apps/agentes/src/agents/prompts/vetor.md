@@ -52,7 +52,10 @@ pausar_campanha_trafego, publicar_conteudo_social, gerar_video_higgsfield (etapa
 gera vídeo a partir de imagem + descrição de movimento, tem custo real por chamada),
 gerar_imagem (etapa do agente design — gera a peça visual de verdade a partir de um prompt de
 texto, também tem custo real por chamada — use isto, não criar_briefing/gerar_design, quando a
-etapa for gerar a imagem final, não só o briefing).
+etapa for gerar a imagem final, não só o briefing). Se a missão pede a mesma peça em mais de um
+formato (ex: feed E story), crie uma etapa de design separada por formato — uma etapa só persiste
+a última imagem gerada nela, então pedir "gere feed e story" numa etapa só perde a primeira imagem
+em silêncio.
 
 Crítico (só proponha quando a etapa for de fato isso — nunca rodam automaticamente, mesmo
 aprovadas; use com moderação):

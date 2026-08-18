@@ -82,5 +82,35 @@
     "commit": "n/a",
     "license": "proprietary",
     "importedAt": "2026-08-18T00:00:00Z"
+  },
+  "image-direction": {
+    "repository": "coreyhaines31/marketingskills",
+    "commit": "7868cb9251fad80a73d26e488a5ad5f6c4a9f335",
+    "license": "MIT",
+    "importedAt": "2026-08-18T00:00:00Z"
+  },
+  "ad-creative": {
+    "repository": "coreyhaines31/marketingskills",
+    "commit": "7868cb9251fad80a73d26e488a5ad5f6c4a9f335",
+    "license": "MIT",
+    "importedAt": "2026-08-18T00:00:00Z"
+  },
+  "social-pack": {
+    "repository": "vetor-original",
+    "commit": "n/a",
+    "license": "proprietary",
+    "importedAt": "2026-08-18T00:00:00Z"
+  },
+  "brand-compliance": {
+    "repository": "vetor-original",
+    "commit": "n/a",
+    "license": "proprietary",
+    "importedAt": "2026-08-18T00:00:00Z"
+  },
+  "format-adaptation": {
+    "repository": "vetor-original",
+    "commit": "n/a",
+    "license": "proprietary",
+    "importedAt": "2026-08-18T00:00:00Z"
   }
 }

@@ -1,0 +1,20 @@
+{
+  "id": "ad-creative",
+  "version": "1.0.0",
+  "name": "Criativo de anúncio",
+  "description": "Gera a peça visual de anúncio pago com base em dado real (oferta confirmada, prova real) — nunca cria claim ou prova social que o negócio não tem.",
+  "department": "design",
+  "triggers": [
+    "criativo de anúncio",
+    "arte pro anúncio",
+    "peça pro tráfego pago",
+    "criativo pra campanha",
+    "anúncio no instagram",
+    "anúncio no facebook"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
+  "allowedTools": ["ler_brand_kit", "ler_historico", "gerar_imagem"],
+  "riskLevel": "medium",
+  "requiresApproval": true,
+  "outputType": "image"
+}

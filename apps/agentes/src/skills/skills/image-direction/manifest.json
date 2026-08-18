@@ -1,0 +1,20 @@
+{
+  "id": "image-direction",
+  "version": "1.0.0",
+  "name": "Direção de prompt de imagem",
+  "description": "Monta o prompt visual completo (assunto + cenário + estilo + luz + composição + técnico) antes de chamar gerar_imagem — evita prompt vago que gera peça genérica.",
+  "department": "design",
+  "triggers": [
+    "gerar imagem",
+    "criar arte",
+    "gerar a peça",
+    "fazer a imagem",
+    "arte pro feed",
+    "arte pra story"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
+  "allowedTools": ["ler_brand_kit", "ler_historico", "gerar_imagem"],
+  "riskLevel": "medium",
+  "requiresApproval": true,
+  "outputType": "image"
+}

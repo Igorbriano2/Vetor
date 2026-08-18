@@ -1,0 +1,19 @@
+{
+  "id": "social-pack",
+  "version": "1.0.0",
+  "name": "Pacote de formatos por conceito",
+  "description": "Adapta um conceito visual já aprovado pra múltiplos formatos (feed + story) — cada formato é uma chamada real e separada de gerar_imagem, nunca um recorte fingido do mesmo arquivo.",
+  "department": "design",
+  "triggers": [
+    "adaptar pra story também",
+    "versão pro feed e pro story",
+    "todos os formatos",
+    "pacote de peças",
+    "mesma arte em outros tamanhos"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
+  "allowedTools": ["ler_brand_kit", "gerar_imagem"],
+  "riskLevel": "medium",
+  "requiresApproval": true,
+  "outputType": "image"
+}

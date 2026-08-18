@@ -221,6 +221,7 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<
 const DEPARTAMENTO_SKILL_POR_AGENTE: Partial<Record<AgenteId, SkillDepartment>> = {
   estrategia: "strategy",
   "social-media": "social",
+  design: "design",
 };
 
 // Seleciona (por trigger) e carrega no máximo 1 skill pra etapa atual —

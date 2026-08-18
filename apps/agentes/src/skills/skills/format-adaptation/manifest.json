@@ -1,0 +1,18 @@
+{
+  "id": "format-adaptation",
+  "version": "1.0.0",
+  "name": "Adaptação de formato",
+  "description": "Regenera um conceito visual já aprovado num formato/canal diferente do original — sempre uma chamada real nova, nunca reaproveita o arquivo anterior como se fosse redimensionado.",
+  "department": "design",
+  "triggers": [
+    "adapta essa arte pro story",
+    "versão vertical dessa peça",
+    "mesma peça em outro formato",
+    "redimensionar a arte"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
+  "allowedTools": ["ler_brand_kit", "ler_historico", "gerar_imagem"],
+  "riskLevel": "medium",
+  "requiresApproval": true,
+  "outputType": "image"
+}

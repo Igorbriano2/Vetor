@@ -91,3 +91,45 @@ describe("skills reais em disco — Social Media", () => {
     }
   });
 });
+
+describe("skills reais em disco — Design", () => {
+  beforeEach(() => invalidarCache());
+
+  it("descobre as 5 skills de Design sem nenhuma reprovada em permissions.ts", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const manifestos = manifestosPorDepartamento("design");
+    const idsEsperados = ["image-direction", "ad-creative", "social-pack", "brand-compliance", "format-adaptation"];
+
+    expect(manifestos.map((m) => m.id).sort()).toEqual([...idsEsperados].sort());
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("toda skill de design declara proveniência (repo interno ou externo com licença)", () => {
+    for (const m of manifestosPorDepartamento("design")) {
+      expect(m.source.license).toBeTruthy();
+      expect(m.source.repository).toBeTruthy();
+    }
+  });
+
+  it("skills que chamam gerar_imagem declaram risco medium + requiresApproval (nunca subdeclarado)", () => {
+    for (const m of manifestosPorDepartamento("design")) {
+      if (m.allowedTools.includes("gerar_imagem")) {
+        expect(m.riskLevel).toBe("medium");
+        expect(m.requiresApproval).toBe(true);
+      }
+    }
+  });
+
+  it("brand-compliance nunca gera imagem sozinha (é um gate, não uma etapa de geração)", () => {
+    const manifestos = manifestosPorDepartamento("design");
+    const brandCompliance = manifestos.find((m) => m.id === "brand-compliance");
+    expect(brandCompliance?.allowedTools).not.toContain("gerar_imagem");
+    expect(brandCompliance?.riskLevel).toBe("low");
+  });
+
+  it("seleciona image-direction pra um texto de etapa sobre gerar a arte final", () => {
+    const selecionadas = selecionarSkills("design", "preciso gerar imagem pro post de hoje, fazer a imagem final");
+    expect(selecionadas[0]?.id).toBe("image-direction");
+  });
+});

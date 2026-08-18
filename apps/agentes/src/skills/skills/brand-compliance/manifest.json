@@ -1,0 +1,18 @@
+{
+  "id": "brand-compliance",
+  "version": "1.0.0",
+  "name": "Checagem de identidade visual",
+  "description": "Confere um briefing/pedido de peça contra o brand kit cadastrado antes de gerar — nunca gera peça sem identidade visual cadastrada, sinaliza em vez de inventar.",
+  "department": "design",
+  "triggers": [
+    "está dentro da identidade visual",
+    "confere com a marca",
+    "checar brand kit",
+    "revisão de marca"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa"],
+  "allowedTools": ["ler_brand_kit", "criar_relatorio"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "report"
+}
