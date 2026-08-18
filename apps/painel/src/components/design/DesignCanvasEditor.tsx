@@ -28,6 +28,12 @@ export interface DesignCanvasEditorProps {
   // (spike). Nunca chamado com o canvas vazio no primeiro render.
   onAutosave?: (canvasJson: unknown) => void;
   className?: string;
+  // Teto de largura EXIBIDA em tela — a peça continua sendo width×height de
+  // verdade (é o que é exportado/salvo), só a apresentação encolhe via
+  // canvas.setZoom(), nunca via CSS transform (que quebraria o mapeamento
+  // de coordenadas do clique/arraste). Achado ao vivo: sem isso, uma peça
+  // 1080×1080 estoura a largura da tela.
+  maxDisplayWidth?: number;
 }
 
 function objetoEhLogoOficial(obj: fabric.FabricObject): boolean {
@@ -56,6 +62,7 @@ export default function DesignCanvasEditor({
   canvasJsonInicial,
   onAutosave,
   className = "",
+  maxDisplayWidth = 640,
 }: DesignCanvasEditorProps) {
   const canvasElRef = useRef<HTMLCanvasElement | null>(null);
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
@@ -105,6 +112,18 @@ export default function DesignCanvasEditor({
       preserveObjectStacking: true,
     });
     fabricCanvasRef.current = canvas;
+
+    const escala = Math.min(1, maxDisplayWidth / width);
+    if (escala < 1) {
+      canvas.setDimensions({ width: width * escala, height: height * escala });
+      canvas.setZoom(escala);
+    }
+
+    // O construtor não desenha nada sozinho quando não há objeto nenhum
+    // ainda (achado ao vivo: sem isto, um canvas novo em branco fica com o
+    // pixel realmente transparente, não branco — mesmo com backgroundColor
+    // setado) — sempre força o primeiro render explícito.
+    canvas.renderAll();
 
     if (canvasJsonInicial) {
       historicoRef.current.suprimirRegistro = true;
