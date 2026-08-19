@@ -386,6 +386,12 @@ export interface ContextoMissaoParaEspecialista {
     }>;
     ultimaAnalise: { data: string; diagnostico: string | null; metricasUsadas: unknown } | null;
   };
+  // Resultado real das etapas das quais esta depende (mission_steps.depende_de)
+  // — achado real na prova do Videomaker: uma etapa que precisa do
+  // video_project_id criado pela etapa anterior (ex: finalizar_video_com_legendas
+  // depois de editar_video_timeline) não tinha como saber esse id, porque cada
+  // etapa só recebia a própria tarefa, nunca o resultado de quem veio antes.
+  etapasAnteriores?: Array<{ tarefa: string; resultado: unknown }>;
 }
 
 // Departamento pro artefato (Design/Videomaker/Tráfego/Planejamento/
@@ -1343,6 +1349,10 @@ function montarContexto(ctx: ContextoMissaoParaEspecialista): string {
     `MISSÃO — objetivo: ${ctx.missaoObjetivo}`,
     ctx.missaoHipotese ? `Hipótese: ${ctx.missaoHipotese}` : null,
     `SUA ETAPA: ${ctx.etapaTarefa}`,
+    ctx.etapasAnteriores?.length
+      ? `RESULTADO DAS ETAPAS ANTERIORES DESTA MISSÃO (use os ids/dados reais aqui — ex: video_project_id — em vez de pedir de novo ou inventar um):\n` +
+        ctx.etapasAnteriores.map((e) => `- Etapa "${e.tarefa}": ${JSON.stringify(e.resultado)}`).join("\n")
+      : null,
     `NEGÓCIO: ${ctx.negocio.nomeEmpresa} (nicho: ${ctx.negocio.nicho})`,
     ctx.negocio.perfil?.descricao ? `Perfil de negócio: ${ctx.negocio.perfil.descricao}` : null,
     ctx.negocio.perfil?.tom ? `Tom de voz: ${ctx.negocio.perfil.tom}` : null,

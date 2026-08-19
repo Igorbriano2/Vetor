@@ -397,10 +397,21 @@ async function checarConclusaoMissao(missionId: string): Promise<void> {
 export async function processarRunAgentStep(missionStepId: string): Promise<void> {
   const { data: etapa, error } = await supabase
     .from("mission_steps")
-    .select("id, mission_id, cliente_id, agente, tarefa, status, ferramentas")
+    .select("id, mission_id, cliente_id, agente, tarefa, status, ferramentas, depende_de")
     .eq("id", missionStepId)
     .single();
   if (error || !etapa) throw new Error(`Etapa ${missionStepId} não encontrada: ${error?.message}`);
+
+  // Resultado real das etapas das quais esta depende — sem isso, uma etapa
+  // que precisa de um id criado por uma etapa anterior (ex: video_project_id
+  // de editar_video_timeline, usado depois por finalizar_video_com_legendas)
+  // não tinha como saber esse id (achado real na prova do Videomaker).
+  const dependeDe = (etapa.depende_de as string[] | null) ?? [];
+  let etapasAnteriores: Array<{ tarefa: string; resultado: unknown }> | undefined;
+  if (dependeDe.length > 0) {
+    const { data: anteriores } = await supabase.from("mission_steps").select("tarefa, resultado").in("id", dependeDe);
+    if (anteriores?.length) etapasAnteriores = anteriores.map((a) => ({ tarefa: a.tarefa as string, resultado: a.resultado }));
+  }
 
   const ferramentaBloqueada = (etapa.ferramentas as string[]).some(bloqueiaExecucaoAutomatica);
   if (ferramentaBloqueada) {
@@ -456,6 +467,7 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
       assetsDisponiveis,
     },
     trafego,
+    etapasAnteriores,
   };
 
   const opcoesEtapa = { missionId: etapa.mission_id as string, clienteId: etapa.cliente_id as string };
