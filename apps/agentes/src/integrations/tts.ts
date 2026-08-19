@@ -3,6 +3,17 @@
 // ambiente, mesmo padrão de src/integrations/transcricao.ts (STT). Sem
 // TTS_PROVIDER configurado, roda em modo sandbox e força o chamador a cair para
 // texto em vez de travar o atendimento.
+//
+// Roteado via ProviderRouter (Parte 6, ver providers/router.ts): quando o
+// provedor preferido é "fish" (voz clonada própria do cliente), a OpenAI
+// entra como FALLBACK real — se a Fish Audio estiver fora do ar ou a conta
+// mal configurada, a resposta em voz degrada pra uma voz genérica em vez de
+// quebrar o atendimento inteiro. Nunca o contrário (openai como preferido
+// não cai pra fish): usar a voz clonada de um cliente como fallback de
+// outro tenant seria um vazamento de identidade de marca, não uma
+// degradação aceitável.
+
+import { executarComFallback, TodosOsProvedoresFalharamError, type ProvedorRegistrado } from "../providers/router.js";
 
 function isSandbox() {
   return (process.env.TTS_PROVIDER ?? "sandbox") === "sandbox";
@@ -15,31 +26,10 @@ export interface AudioSintetizado {
   mimeType: string;
 }
 
-export async function sintetizarFala(texto: string): Promise<AudioSintetizado> {
-  if (isSandbox()) {
-    console.log(`[tts:sandbox] sintetizaria ${texto.length} caracteres de fala`);
-    throw new SinteseVozIndisponivelError(
-      "TTS_PROVIDER não configurado — resposta em voz ainda não está ativa neste ambiente.",
-    );
-  }
-
-  const provider = process.env.TTS_PROVIDER;
-
-  if (provider === "openai") {
-    return sintetizarComOpenAI(texto);
-  }
-
-  if (provider === "fish") {
-    return sintetizarComFishAudio(texto);
-  }
-
-  throw new SinteseVozIndisponivelError(`TTS_PROVIDER "${provider}" não suportado`);
-}
-
 async function sintetizarComOpenAI(texto: string): Promise<AudioSintetizado> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    throw new SinteseVozIndisponivelError("OPENAI_API_KEY é obrigatório quando TTS_PROVIDER=openai");
+    throw new Error("OPENAI_API_KEY é obrigatório pra usar a OpenAI como provedor de TTS");
   }
 
   const voz = process.env.TTS_VOICE ?? "onyx";
@@ -76,12 +66,12 @@ async function sintetizarComOpenAI(texto: string): Promise<AudioSintetizado> {
 async function sintetizarComFishAudio(texto: string): Promise<AudioSintetizado> {
   const apiKey = process.env.FISH_AUDIO_API_KEY;
   if (!apiKey) {
-    throw new SinteseVozIndisponivelError("FISH_AUDIO_API_KEY é obrigatório quando TTS_PROVIDER=fish");
+    throw new Error("FISH_AUDIO_API_KEY é obrigatório pra usar a Fish Audio como provedor de TTS");
   }
 
   const referenceId = process.env.FISH_AUDIO_VOICE_ID;
   if (!referenceId) {
-    throw new SinteseVozIndisponivelError("FISH_AUDIO_VOICE_ID é obrigatório quando TTS_PROVIDER=fish");
+    throw new Error("FISH_AUDIO_VOICE_ID é obrigatório pra usar a Fish Audio como provedor de TTS");
   }
 
   const modelo = process.env.FISH_AUDIO_MODEL ?? "s2.1-pro-free";
@@ -109,4 +99,54 @@ async function sintetizarComFishAudio(texto: string): Promise<AudioSintetizado> 
     bytes: await res.arrayBuffer(),
     mimeType: "audio/ogg",
   };
+}
+
+const PROVEDOR_OPENAI: ProvedorRegistrado<string, AudioSintetizado> = {
+  nome: "openai",
+  disponivel: () => !!process.env.OPENAI_API_KEY,
+  executar: sintetizarComOpenAI,
+};
+
+const PROVEDOR_FISH: ProvedorRegistrado<string, AudioSintetizado> = {
+  nome: "fish",
+  disponivel: () => !!process.env.FISH_AUDIO_API_KEY && !!process.env.FISH_AUDIO_VOICE_ID,
+  executar: sintetizarComFishAudio,
+};
+
+// Monta a cadeia de fallback a partir do TTS_PROVIDER preferido — pura
+// (nenhuma chamada de rede), só decide a ORDEM. Ver comentário no topo do
+// arquivo sobre por que o fallback é assimétrico (fish->openai, nunca o
+// contrário).
+export function montarCadeiaDeProvedores(providerPreferido: string | undefined): ProvedorRegistrado<string, AudioSintetizado>[] {
+  if (providerPreferido === "fish") return [PROVEDOR_FISH, PROVEDOR_OPENAI];
+  if (providerPreferido === "openai") return [PROVEDOR_OPENAI];
+  return [];
+}
+
+export async function sintetizarFala(texto: string): Promise<AudioSintetizado> {
+  if (isSandbox()) {
+    console.log(`[tts:sandbox] sintetizaria ${texto.length} caracteres de fala`);
+    throw new SinteseVozIndisponivelError(
+      "TTS_PROVIDER não configurado — resposta em voz ainda não está ativa neste ambiente.",
+    );
+  }
+
+  const provider = process.env.TTS_PROVIDER;
+  const cadeia = montarCadeiaDeProvedores(provider);
+  if (cadeia.length === 0) {
+    throw new SinteseVozIndisponivelError(`TTS_PROVIDER "${provider}" não suportado`);
+  }
+
+  try {
+    const { resultado, provedorUsado, tentativas } = await executarComFallback(cadeia, texto);
+    if (provedorUsado !== provider) {
+      console.warn(`[tts] fallback: provedor preferido "${provider}" indisponível/falhou, usado "${provedorUsado}" em vez dele. Tentativas: ${JSON.stringify(tentativas)}`);
+    }
+    return resultado;
+  } catch (err) {
+    if (err instanceof TodosOsProvedoresFalharamError) {
+      throw new SinteseVozIndisponivelError(err.message);
+    }
+    throw err;
+  }
 }
