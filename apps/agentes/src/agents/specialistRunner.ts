@@ -341,8 +341,13 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<
 
         // asset_ids pedidos pelo modelo (produto/pessoa/ambiente/referência)
         // — nunca confia cegamente: revalida tenant + status aprovado antes
-        // de baixar qualquer coisa.
+        // de baixar qualquer coisa. Ignora se o modelo pediu de novo o
+        // mesmo id da logo já aplicada acima (achado ao vivo: o prompt
+        // instrui "sempre passe os ids relevantes, incluindo a logo" e o
+        // contexto já lista a logo — sem isso duplicava a referência
+        // enviada ao provider e o source_asset_ids do design_project).
         for (const assetId of assetIdsPedidos) {
+          if (assetId === logoAssetId) continue;
           const validacao = await validarAtivoParaUso(ctx.clienteId, assetId);
           if (!validacao.valido) continue;
           const bytes = await baixarBytesDoAtivo(assetId);
