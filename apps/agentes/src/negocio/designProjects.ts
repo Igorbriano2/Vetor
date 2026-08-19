@@ -173,6 +173,7 @@ export interface CriarDesignProjectParams {
   referenceAssetIds?: string[];
   brandValidation?: { passed: boolean; issues: string[] };
   designBrief?: string;
+  designCritic?: unknown;
 }
 
 // Insert de verdade — apps/agentes usa a chave service_role (bypassa RLS),
@@ -197,6 +198,7 @@ export async function criarDesignProject(params: CriarDesignProjectParams): Prom
       reference_asset_ids: params.referenceAssetIds ?? [],
       brand_validation: params.brandValidation ?? null,
       design_brief: params.designBrief ?? null,
+      design_critic: params.designCritic ?? null,
     })
     .select("id, version")
     .single();

@@ -5,6 +5,7 @@ import { getSystemPrompt, type AgenteId } from "./prompts/index.js";
 import { gerarVideoAPartirDeImagem, VideoIndisponivelError } from "../integrations/higgsfield.js";
 import { gerarImagem, gerarImagemComReferencia, ImagemIndisponivelError, tamanhoOpenAI, type ReferenciaImagem } from "../integrations/imageProvider.js";
 import { dimensaoDoTamanhoOpenAI, lerDimensaoDeImagem, montarCanvasJsonInicial, criarDesignProject } from "../negocio/designProjects.js";
+import { avaliarPecaDeDesign, type DesignCriticResultado } from "../negocio/designCritic.js";
 import { persistirArtefato, type ArtefatoPersistido, type ArtifactType } from "../artifacts/artifactsService.js";
 import { selecionarSkills, carregarSkillsSelecionadas, listarTodosOsManifestos } from "../skills/registry.js";
 import type { SkillDefinition, SkillDepartment } from "../skills/types.js";
@@ -175,6 +176,12 @@ export interface AgentResult {
   canvasJson?: unknown;
   version?: number;
   designBrief?: string;
+  // Veredito do DesignCritic (ver designCritic.ts) — quando passed=false,
+  // `status` acima nunca fica "completed" mesmo que o próprio LLM tenha
+  // dito isso (ver executarEspecialista): a etapa vira needs_clarification
+  // com os issues do critic anexados, pra aprovação humana ver exatamente
+  // o que precisa de revisão em vez de um "concluído" que não é de verdade.
+  designCritic?: DesignCriticResultado;
 }
 
 export interface ContextoMissaoParaEspecialista {
@@ -254,12 +261,19 @@ interface MidiaExecutada {
   // design_project (nunca reconstruído a partir do summary do LLM, que pode
   // divergir do que foi realmente pedido ao provider).
   promptUsado?: string;
+  // Veredito do DesignCritic sobre a peça gerada — ver designCritic.ts.
+  // Preenchido só pra Design; usado tanto pra gravar no design_project
+  // quanto pra decidir se a etapa pode mesmo fechar como "completed".
+  designCritic?: DesignCriticResultado;
 }
 
 interface ContextoExecucaoFerramenta {
   clienteId: string;
   missionId?: string;
   missionStepId: string;
+  // Repassado só pro Design avaliar aderência ao BrandKit no DesignCritic —
+  // mesmo shape já usado em ContextoMissaoParaEspecialista.negocio.brandKit.
+  brandKit?: ContextoMissaoParaEspecialista["negocio"]["brandKit"];
 }
 
 function inferirFormatoPeloAspectRatio(aspectRatio?: string): "feed" | "story" | "avatar" | "generico" {
@@ -385,6 +399,18 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<
 
         const { width, height } = dimensaoDoTamanhoOpenAI(tamanhoOpenAI(aspectRatio));
 
+        // DesignCritic — verificação com visão real antes da etapa poder
+        // fechar como concluída (critério de aceite da spec). Roda sempre
+        // que a peça foi gerada, nunca é pulado por "confiança" do LLM.
+        const designCritic = await avaliarPecaDeDesign({
+          imagemBytes: imagem.bytes,
+          mimeType: imagem.mimeType,
+          briefOriginal: prompt,
+          formato,
+          brandKit: ctx.brandKit,
+          logoDeveriaEstarAplicada: !!logoAssetId,
+        });
+
         return {
           requestId,
           storagePath: path,
@@ -392,6 +418,7 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<
           sourceAssetIds,
           logoAssetId,
           brandValidation: { passed: issues.length === 0, issues },
+          designCritic,
           canvasInfo: {
             width,
             height,
@@ -625,6 +652,7 @@ export async function executarEspecialista(
       clienteId,
       missionId,
       missionStepId,
+      brandKit: contexto.negocio.brandKit,
     });
     response = resultadoExecucao.message;
     midiaGerada = resultadoExecucao.midiaGerada;
@@ -715,6 +743,7 @@ export async function executarEspecialista(
             logoAssetId: midiaGerada.logoAssetId,
             brandValidation: midiaGerada.brandValidation,
             designBrief: midiaGerada.promptUsado,
+            designCritic: midiaGerada.designCritic,
           });
 
           designProjectCriado = { id: criado.id, version: criado.version, canvasJson, designBrief: midiaGerada.promptUsado };
@@ -754,9 +783,21 @@ export async function executarEspecialista(
     }
   }
 
+  // DesignCritic reprovou: a etapa NUNCA fecha como "completed" por causa
+  // disso, mesmo que o próprio LLM tenha dito que sim — vira
+  // needs_clarification com os issues do critic anexados ao summary, pra
+  // quem for aprovar ver exatamente o que falta corrigir (nunca um
+  // "concluído" que na verdade não passou no checklist de qualidade).
+  const criticReprovou = midiaGerada?.designCritic && !midiaGerada.designCritic.passed;
+  const statusFinal = criticReprovou && bruto.status === "completed" ? "needs_clarification" : (bruto.status ?? "failed");
+  const summaryFinal =
+    criticReprovou && midiaGerada?.designCritic
+      ? `${bruto.summary ?? ""}\n\nDesignCritic reprovou esta peça: ${midiaGerada.designCritic.resumo}\nProblemas encontrados:\n${midiaGerada.designCritic.issues.map((i) => `- ${i}`).join("\n")}`
+      : (bruto.summary ?? "O especialista não retornou um resumo.");
+
   const resultado: AgentResult = {
-    status: bruto.status ?? "failed",
-    summary: bruto.summary ?? "O especialista não retornou um resumo.",
+    status: statusFinal,
+    summary: summaryFinal,
     confidence: typeof bruto.confidence === "number" ? bruto.confidence : 0,
     assumptions: bruto.assumptions ?? [],
     evidence: bruto.evidence ?? [],
@@ -769,6 +810,7 @@ export async function executarEspecialista(
     ...(midiaGerada?.sourceAssetIds ? { sourceAssetIds: midiaGerada.sourceAssetIds } : {}),
     ...(midiaGerada?.logoAssetId ? { logoAssetId: midiaGerada.logoAssetId } : {}),
     ...(midiaGerada?.brandValidation ? { brandValidation: midiaGerada.brandValidation } : {}),
+    ...(midiaGerada?.designCritic ? { designCritic: midiaGerada.designCritic } : {}),
     ...(designProjectCriado
       ? {
           designProjectId: designProjectCriado.id,
