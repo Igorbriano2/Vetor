@@ -1,15 +1,17 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import StatusBadge from "@/components/StatusBadge";
-import { buscarArtefatos } from "@/lib/artifacts/fetchArtifacts";
+import { buscarArtefatos, buscarVideosFinalizados } from "@/lib/artifacts/fetchArtifacts";
 import EntregasPainel from "./EntregasPainel";
 
 export default async function EntregasPage() {
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: entregas }, artefatos] = await Promise.all([
+  const [{ data: entregas }, artefatos, videosFinalizados] = await Promise.all([
     supabase.from("entregas").select("id, tipo, status, arquivo_url, created_at").order("created_at", { ascending: false }),
     buscarArtefatos(supabase),
+    buscarVideosFinalizados(supabase),
   ]);
+  const todosArtefatos = [...artefatos, ...videosFinalizados].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   return (
     <div className="px-6 py-10">
@@ -20,7 +22,7 @@ export default async function EntregasPage() {
           Espelho de tudo que já foi entregue — Design, Vídeo, Planejamento, Campanhas e Resultados num só lugar.
         </p>
 
-        <EntregasPainel artefatos={artefatos} />
+        <EntregasPainel artefatos={todosArtefatos} />
 
         {entregas && entregas.length > 0 && (
           <section className="mt-10">

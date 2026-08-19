@@ -60,3 +60,41 @@ export async function buscarArtefatos(
     }),
   );
 }
+
+// video_projects não grava linha em `artifacts` (o projeto em si É a
+// entrega — ver criaArtefatoGenerico em specialistRunner.ts), então sem
+// isso um vídeo finalizado (final_render real) nunca aparecia em Entregas
+// — achado real na prova do Videomaker Fase 2. Só entra aqui quando o
+// render final já rodou de verdade (output_storage_path real), nunca um
+// projeto ainda em edição.
+export async function buscarVideosFinalizados(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any, any, any>,
+): Promise<ArtefatoBiblioteca[]> {
+  const { data, error } = await supabase
+    .from("video_projects")
+    .select("id, title, status, mission_id, output_storage_path, created_at, missions(titulo)")
+    .eq("status", "completed")
+    .not("output_storage_path", "is", null)
+    .order("created_at", { ascending: false });
+  if (error || !data) return [];
+
+  return Promise.all(
+    data.map(async (v) => {
+      const { data: signed } = await supabase.storage.from("artifacts").createSignedUrl(v.output_storage_path as string, 60 * 60);
+      return {
+        id: v.id as string,
+        type: "video",
+        title: v.title as string,
+        description: null,
+        status: v.status as string,
+        department: "videomaker",
+        missionId: v.mission_id as string | null,
+        missionTitulo: (v.missions as unknown as { titulo?: string } | null)?.titulo ?? null,
+        url: signed?.signedUrl ?? null,
+        content: null,
+        createdAt: v.created_at as string,
+      };
+    }),
+  );
+}
