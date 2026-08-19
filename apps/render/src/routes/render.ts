@@ -10,6 +10,8 @@ import { montarArgsFfprobeInfo, parseInfoFfprobe } from "../ffmpeg/probeInfo.js"
 import { montarArgsFfmpegSceneDetect, parseTimestampsDeCorteMs } from "../ffmpeg/sceneDetect.js";
 import { montarArgsFfmpegVolumeDetect, parseMeanVolumeDb } from "../ffmpeg/audioVolume.js";
 import { montarArgsFfmpegExtrairFrame } from "../ffmpeg/frameExtract.js";
+import { montarArgsFfmpegRenderFinal } from "../ffmpeg/finalRender.js";
+import { montarSrtDeLegendas, type CaptionCueSimples } from "../ffmpeg/legendas.js";
 import {
   executarFfmpeg,
   executarFfmpegCapturandoStderr,
@@ -167,6 +169,107 @@ renderRouter.post("/analisar-referencia", async (req, res) => {
       meanVolumeDb,
       frames,
     });
+  } catch (err) {
+    const mensagem = err instanceof FfmpegError ? err.message : err instanceof Error ? err.message : "erro desconhecido";
+    res.status(500).json({ error: mensagem });
+  } finally {
+    await rm(pastaTemp, { recursive: true, force: true });
+  }
+});
+
+function cuesValidos(valor: unknown): valor is CaptionCueSimples[] {
+  if (!Array.isArray(valor)) return false;
+  return valor.every(
+    (c) =>
+      c &&
+      typeof c === "object" &&
+      typeof (c as Record<string, unknown>).startMs === "number" &&
+      typeof (c as Record<string, unknown>).endMs === "number" &&
+      typeof (c as Record<string, unknown>).text === "string",
+  );
+}
+
+// Terceira capacidade real do serviço de render (Parte 4/5 do pipeline:
+// FINAL_RENDER) — pega o vídeo ORIGINAL enviado pelo cliente (nunca o
+// proxy, ver comentário em finalRender.ts) + os cues de legenda já
+// editados na timeline (video_projects.timeline_json.captions) e produz o
+// MP4 entregável de verdade: trim (corte simples) + legendas queimadas
+// (se houver). A fonte de verdade EDITÁVEL continua sendo os cues — isso
+// aqui só renderiza uma vez que o cliente já decidiu o texto final.
+renderRouter.post("/final", async (req, res) => {
+  const { bucket, storagePath, clienteId, trimInMs, trimOutMs, captions } = req.body as {
+    bucket?: unknown;
+    storagePath?: unknown;
+    clienteId?: unknown;
+    trimInMs?: unknown;
+    trimOutMs?: unknown;
+    captions?: unknown;
+  };
+
+  if (!bucketValido(bucket)) {
+    res.status(400).json({ error: `bucket precisa ser um de: ${BUCKETS_PERMITIDOS.join(", ")}` });
+    return;
+  }
+  if (typeof storagePath !== "string" || !storagePath) {
+    res.status(400).json({ error: "storagePath é obrigatório" });
+    return;
+  }
+  if (typeof clienteId !== "string" || !clienteId) {
+    res.status(400).json({ error: "clienteId é obrigatório" });
+    return;
+  }
+  if (typeof trimInMs !== "number" || typeof trimOutMs !== "number" || trimOutMs <= trimInMs) {
+    res.status(400).json({ error: "trimInMs/trimOutMs precisam ser números, com trimOutMs > trimInMs" });
+    return;
+  }
+  if (captions !== undefined && !cuesValidos(captions)) {
+    res.status(400).json({ error: "captions, quando presente, precisa ser um array de {startMs, endMs, text}" });
+    return;
+  }
+
+  const pastaTemp = await mkdtemp(join(tmpdir(), "vetor-render-final-"));
+  const caminhoEntrada = join(pastaTemp, "entrada");
+  const caminhoSaida = join(pastaTemp, "final.mp4");
+  const caminhoSrt = join(pastaTemp, "legendas.srt");
+
+  try {
+    const { data: baixado, error: erroDownload } = await supabase.storage.from(bucket).download(storagePath);
+    if (erroDownload || !baixado) {
+      res.status(404).json({ error: `Falha ao baixar ${bucket}/${storagePath}: ${erroDownload?.message ?? "não encontrado"}` });
+      return;
+    }
+    await writeFile(caminhoEntrada, Buffer.from(await baixado.arrayBuffer()));
+
+    let legendasSrtPath: string | undefined;
+    if (captions && (captions as CaptionCueSimples[]).length > 0) {
+      const srt = montarSrtDeLegendas(captions as CaptionCueSimples[]);
+      await writeFile(caminhoSrt, srt, "utf-8");
+      legendasSrtPath = caminhoSrt;
+    }
+
+    await executarFfmpeg(
+      montarArgsFfmpegRenderFinal({
+        inputPath: caminhoEntrada,
+        outputPath: caminhoSaida,
+        trimInMs,
+        trimOutMs,
+        legendasSrtPath,
+      }),
+    );
+
+    const duracaoMs = await executarFfprobeDuracaoMs(montarArgsFfprobeDuracao(caminhoSaida));
+
+    const bytesSaida = await readFile(caminhoSaida);
+    const caminhoDestino = `${clienteId}/video/final/${randomUUID()}.mp4`;
+    const { error: erroUpload } = await supabase.storage
+      .from("artifacts")
+      .upload(caminhoDestino, bytesSaida, { contentType: "video/mp4", upsert: false });
+    if (erroUpload) {
+      res.status(502).json({ error: `Falha ao subir o render final: ${erroUpload.message}` });
+      return;
+    }
+
+    res.json({ bucket: "artifacts", storagePath: caminhoDestino, bytes: bytesSaida.length, durationMs: duracaoMs });
   } catch (err) {
     const mensagem = err instanceof FfmpegError ? err.message : err instanceof Error ? err.message : "erro desconhecido";
     res.status(500).json({ error: mensagem });

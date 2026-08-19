@@ -3,7 +3,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "../db/supabase.js";
 import { getSystemPrompt, type AgenteId } from "./prompts/index.js";
 import { gerarVideoAPartirDeImagem, VideoIndisponivelError } from "../integrations/higgsfield.js";
-import { gerarProxyDeVideo } from "../integrations/renderService.js";
+import { gerarProxyDeVideo, renderizarVideoFinal } from "../integrations/renderService.js";
+import { transcreverComTimestamps, isSandbox as transcricaoEmSandbox, TranscricaoIndisponivelError } from "../integrations/transcricao.js";
 import { gerarPerfilDeVideoDeReferencia } from "../negocio/referenceVideoAnalysis.js";
 import { gerarImagem, gerarImagemComReferencia, ImagemIndisponivelError, tamanhoOpenAI, type ReferenciaImagem } from "../integrations/imageProvider.js";
 import {
@@ -35,8 +36,16 @@ import {
   type FormatoPeca,
 } from "../negocio/designLayout.js";
 import { renderizarPecaComposta, amostrarLuminanciaMedia } from "../negocio/designComposer.js";
-import { buscarOuCriarVideoProjectRascunho, montarTimelineInicial, atualizarTimelineDoVideoProject } from "../negocio/videoProjects.js";
-import { executarEstagioIdempotente } from "../negocio/videoPipeline.js";
+import {
+  buscarOuCriarVideoProjectRascunho,
+  montarTimelineInicial,
+  atualizarTimelineDoVideoProject,
+  montarCaptionTrackDeSegmentos,
+  atualizarCaptionsDoVideoProject,
+  atualizarPreviewDoVideoProject,
+  atualizarRenderFinalDoVideoProject,
+} from "../negocio/videoProjects.js";
+import { executarEstagioIdempotente, pularEstagio } from "../negocio/videoPipeline.js";
 import { persistirArtefato, type ArtefatoPersistido, type ArtifactType } from "../artifacts/artifactsService.js";
 import { calcularCustoEstimadoCentavos } from "../billing/agentRunCost.js";
 import { selecionarSkills, carregarSkillsSelecionadas, listarTodosOsManifestos } from "../skills/registry.js";
@@ -151,6 +160,25 @@ const EDITAR_VIDEO_TIMELINE_TOOL: Anthropic.Tool = {
       },
     },
     required: ["asset_id"],
+  },
+};
+
+const FINALIZAR_VIDEO_TOOL: Anthropic.Tool = {
+  name: "finalizar_video_com_legendas",
+  description:
+    "Transcreve o áudio real do vídeo (com timestamps), gera a track de legendas editável, renderiza um preview e o " +
+    "MP4 FINAL de verdade — usando a timeline ATUAL do projeto (inclusive qualquer corte que o cliente já tenha " +
+    "feito no editor). Use só depois que editar_video_timeline já criou o projeto pra esse vídeo E o cliente já " +
+    "confirmou que a edição (corte, etc.) está pronta pra finalizar. Nunca use antes de editar_video_timeline.",
+  input_schema: {
+    type: "object",
+    properties: {
+      video_project_id: {
+        type: "string",
+        description: "Id do video_project já criado (devolvido por editar_video_timeline em videoProjectCriado.id).",
+      },
+    },
+    required: ["video_project_id"],
   },
 };
 
@@ -416,7 +444,20 @@ interface MidiaExecutada {
   // (ou reaproveitado, se a etapa está sendo repetida) com a timeline
   // real montada. Diferente de storagePath/url: não existe um arquivo
   // único gerado aqui, o resultado É o projeto editável.
-  videoProjectCriado?: { id: string; timelineVersion: number; timelineJson: unknown; durationMs: number };
+  videoProjectCriado?: {
+    id: string;
+    timelineVersion: number;
+    timelineJson: unknown;
+    durationMs: number;
+    // Preenchidos só quando os estágios de captions/preview/final_render
+    // realmente rodaram nesta chamada (podem faltar se essa etapa só
+    // fez o proxy/timeline_draft — ver comentário na prova real do
+    // Videomaker: captions/preview/final_render são estágios adicionais
+    // opcionais, não sempre disparados por editar_video_timeline).
+    captionsGeradas?: { cues: Array<{ id: string; startMs: number; endMs: number; text: string }>; language: "pt-BR" };
+    previewStoragePath?: string;
+    outputStoragePath?: string;
+  };
   // Preenchido só por analisar_video_de_referencia — o perfil já persistido
   // (não existe arquivo derivado aqui, o resultado É o perfil).
   referenceVideoProfileCriado?: { id: string; perfil: Record<string, unknown> };
@@ -541,6 +582,119 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
             timelineVersion,
             timelineJson: timelineResultado.timelineJson,
             durationMs: proxy.durationMs,
+          },
+        };
+      },
+    },
+    {
+      tool: FINALIZAR_VIDEO_TOOL,
+      tipo: "video",
+      titulo: "Vídeo finalizado (legendas + render final)",
+      mimeType: "video/mp4",
+      criaArtefatoGenerico: false,
+      executar: async (input, ctx) => {
+        const videoProjectId = input.video_project_id as string;
+
+        const { data: projeto, error: erroProjeto } = await supabase
+          .from("video_projects")
+          .select("timeline_json, proxy_storage_path, timeline_version")
+          .eq("id", videoProjectId)
+          .eq("cliente_id", ctx.clienteId)
+          .single();
+        if (erroProjeto || !projeto) throw new Error(`video_project não encontrado pra esse cliente: ${erroProjeto?.message ?? videoProjectId}`);
+        if (!projeto.proxy_storage_path) throw new Error("video_project ainda não tem proxy — rode editar_video_timeline primeiro.");
+
+        // Lê o clip real da timeline ATUAL (inclusive qualquer corte já
+        // feito pelo cliente no editor via autosave) — preview e final
+        // render precisam usar exatamente o mesmo trim, nunca dois valores
+        // diferentes (checkpoint da prova real do Videomaker).
+        const timelineAtual = projeto.timeline_json as {
+          tracks?: Array<{ kind?: string; clips?: Array<{ sourceAssetId?: string; trimInMs?: number; trimOutMs?: number }> }>;
+        };
+        const trackVideo = timelineAtual.tracks?.find((t) => t.kind === "video");
+        const clip = trackVideo?.clips?.[0];
+        if (!clip?.sourceAssetId) throw new Error("Timeline sem clip de vídeo — nada pra finalizar.");
+        const assetId = clip.sourceAssetId;
+        const trimInMs = clip.trimInMs ?? 0;
+        const trimOutMs = clip.trimOutMs;
+        if (typeof trimOutMs !== "number") throw new Error("Clip sem trimOutMs definido — timeline inválida pra finalizar.");
+
+        const asset = await buscarAtivoPorId(assetId);
+        if (!asset) throw new Error("Ativo de vídeo de origem não encontrado.");
+
+        // Estágio "captions" — em ambiente sandbox (sem STT_PROVIDER real),
+        // marca como pulado com o motivo real em vez de fingir uma
+        // transcrição; fora do sandbox, falha de verdade propaga (nunca
+        // esconde um erro real de provider).
+        const captionsResultado = transcricaoEmSandbox()
+          ? await (async () => {
+              await pularEstagio(videoProjectId, ctx.clienteId, "captions", "STT_PROVIDER não configurado neste ambiente.");
+              return { captionTrack: { cues: [] as Array<{ id: string; startMs: number; endMs: number; text: string }>, language: "pt-BR" as const } };
+            })()
+          : await executarEstagioIdempotente(videoProjectId, ctx.clienteId, "captions", async () => {
+              const bytes = await baixarBytesDoAtivo(assetId);
+              if (!bytes) throw new Error("Falha ao baixar o arquivo original pra transcrição.");
+              const segmentos = await transcreverComTimestamps(
+                bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+                asset.mimeType ?? "video/mp4",
+              );
+              const captionTrack = montarCaptionTrackDeSegmentos(segmentos);
+              await atualizarCaptionsDoVideoProject(videoProjectId, captionTrack);
+              return { captionTrack };
+            });
+
+        const cuesParaRender = captionsResultado.captionTrack.cues.map((c) => ({ startMs: c.startMs, endMs: c.endMs, text: c.text }));
+
+        // Estágio "preview" — mesma timeline (trim + legendas) do final,
+        // mas a partir do PROXY (leve, rápido) — nunca do original.
+        const preview = await executarEstagioIdempotente(videoProjectId, ctx.clienteId, "preview", () =>
+          renderizarVideoFinal({
+            bucket: "artifacts",
+            storagePath: projeto.proxy_storage_path as string,
+            clienteId: ctx.clienteId,
+            trimInMs,
+            trimOutMs,
+            captions: cuesParaRender,
+          }),
+        );
+        await atualizarPreviewDoVideoProject(videoProjectId, preview.storagePath);
+
+        // Estágio "final_render" — mesma timeline, mas a partir do
+        // ORIGINAL enviado pelo cliente (qualidade real de entrega, ver
+        // regra em apps/render/src/ffmpeg/finalRender.ts).
+        const renderFinal = await executarEstagioIdempotente(videoProjectId, ctx.clienteId, "final_render", () =>
+          renderizarVideoFinal({
+            bucket: "brand-assets",
+            storagePath: asset.storagePath,
+            clienteId: ctx.clienteId,
+            trimInMs,
+            trimOutMs,
+            captions: cuesParaRender,
+          }),
+        );
+        await atualizarRenderFinalDoVideoProject(videoProjectId, renderFinal.storagePath);
+
+        await registrarUsoDeAtivo({
+          clienteId: ctx.clienteId,
+          assetId,
+          missionId: ctx.missionId,
+          missionStepId: ctx.missionStepId,
+          agente: "video",
+          papel: "fonte",
+          motivo: "Arquivo de origem enviado pelo cliente pra transcrição e render final.",
+        });
+
+        return {
+          requestId: videoProjectId,
+          sourceAssetIds: [assetId],
+          videoProjectCriado: {
+            id: videoProjectId,
+            timelineVersion: projeto.timeline_version as number,
+            timelineJson: { ...timelineAtual, captions: captionsResultado.captionTrack },
+            durationMs: trimOutMs - trimInMs,
+            captionsGeradas: captionsResultado.captionTrack,
+            previewStoragePath: preview.storagePath,
+            outputStoragePath: renderFinal.storagePath,
           },
         };
       },

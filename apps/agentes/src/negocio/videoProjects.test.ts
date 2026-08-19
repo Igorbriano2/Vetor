@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { montarTimelineInicial } from "./videoProjects.js";
+import { montarTimelineInicial, montarCaptionTrackDeSegmentos } from "./videoProjects.js";
 
 describe("montarTimelineInicial", () => {
   it("monta uma timeline com uma faixa de vídeo e um clip cobrindo o arquivo inteiro", () => {
@@ -36,5 +36,29 @@ describe("montarTimelineInicial", () => {
     };
     expect(t1.tracks[0]!.id).not.toBe(t2.tracks[0]!.id);
     expect(t1.tracks[0]!.clips[0]!.id).not.toBe(t2.tracks[0]!.clips[0]!.id);
+  });
+});
+
+describe("montarCaptionTrackDeSegmentos", () => {
+  it("converte segmentos brutos em cues editáveis, cada um com id próprio", () => {
+    const track = montarCaptionTrackDeSegmentos([
+      { startMs: 0, endMs: 1500, text: "Olá mundo" },
+      { startMs: 1500, endMs: 3200, text: "segunda fala" },
+    ]);
+
+    expect(track.language).toBe("pt-BR");
+    expect(track.cues).toHaveLength(2);
+    expect(track.cues[0]!.startMs).toBe(0);
+    expect(track.cues[0]!.endMs).toBe(1500);
+    expect(track.cues[0]!.text).toBe("Olá mundo");
+    // cada cue precisa de um id próprio pra ser um layer editável
+    // independente na timeline, nunca texto achatado
+    expect(track.cues[0]!.id).not.toBe(track.cues[1]!.id);
+    expect(typeof track.cues[0]!.id).toBe("string");
+  });
+
+  it("sem segmentos (áudio sem fala), devolve cues vazio — nunca inventa legenda", () => {
+    const track = montarCaptionTrackDeSegmentos([]);
+    expect(track.cues).toEqual([]);
   });
 });

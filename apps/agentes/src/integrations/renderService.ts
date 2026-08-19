@@ -82,3 +82,41 @@ export async function analisarVideoDeReferencia(params: {
       : new RenderServiceIndisponivelError(err instanceof Error ? err.message : "erro desconhecido ao chamar o serviço de render");
   }
 }
+
+export interface RenderFinalGerado {
+  bucket: string;
+  storagePath: string;
+  bytes: number;
+  durationMs: number;
+}
+
+// Pede ao serviço de render o MP4 final de verdade (trim + legendas
+// queimadas, se houver) — sempre a partir do arquivo ORIGINAL enviado pelo
+// cliente, nunca do proxy (ver apps/render/src/ffmpeg/finalRender.ts).
+export async function renderizarVideoFinal(params: {
+  bucket: "artifacts" | "brand-assets" | "uploads";
+  storagePath: string;
+  clienteId: string;
+  trimInMs: number;
+  trimOutMs: number;
+  captions?: Array<{ startMs: number; endMs: number; text: string }>;
+}): Promise<RenderFinalGerado> {
+  const { baseUrl, token } = baseUrlEToken();
+
+  try {
+    const res = await fetch(`${baseUrl}/render/final`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal-token": token },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) {
+      const texto = await res.text();
+      throw new RenderServiceIndisponivelError(`Falha ao renderizar vídeo final (${res.status}): ${texto}`);
+    }
+    return (await res.json()) as RenderFinalGerado;
+  } catch (err) {
+    throw err instanceof RenderServiceIndisponivelError
+      ? err
+      : new RenderServiceIndisponivelError(err instanceof Error ? err.message : "erro desconhecido ao chamar o serviço de render");
+  }
+}

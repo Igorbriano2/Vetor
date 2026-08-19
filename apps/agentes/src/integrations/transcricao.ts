@@ -3,7 +3,7 @@
 // decisão técnica fechada, ver docs/07. Sem STT_PROVIDER configurado, roda em modo
 // sandbox e devolve um aviso em vez de travar o atendimento.
 
-function isSandbox() {
+export function isSandbox() {
   return (process.env.STT_PROVIDER ?? "sandbox") === "sandbox";
 }
 
@@ -72,4 +72,62 @@ async function transcreverComOpenAI(bytes: ArrayBuffer, mimeType: string): Promi
     throw new Error("Transcrição da OpenAI voltou sem texto");
   }
   return data.text;
+}
+
+export interface SegmentoTranscrito {
+  startMs: number;
+  endMs: number;
+  text: string;
+}
+
+// Transcrição com timestamps por segmento — usada só pelo Videomaker pra
+// montar CaptionCue[] reais (ver videoPipeline.ts/CaptionTrack). Função
+// ADITIVA e separada de transcreverAudio() (que o Secretário do WhatsApp já
+// usa e continua devolvendo só texto puro) — não reaproveita a mesma função
+// porque response_format="verbose_json" muda o shape da resposta da OpenAI.
+export async function transcreverComTimestamps(bytes: ArrayBuffer, mimeType: string): Promise<SegmentoTranscrito[]> {
+  if (isSandbox()) {
+    console.log(`[transcricao:sandbox] recebido áudio de ${bytes.byteLength} bytes (${mimeType}) para transcrição com timestamps`);
+    throw new TranscricaoIndisponivelError(
+      "STT_PROVIDER não configurado — transcrição de áudio ainda não está ativa neste ambiente.",
+    );
+  }
+
+  const provider = process.env.STT_PROVIDER;
+  if (provider !== "openai") {
+    throw new TranscricaoIndisponivelError(`STT_PROVIDER "${provider}" não suportado para transcrição com timestamps`);
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new TranscricaoIndisponivelError("OPENAI_API_KEY é obrigatório quando STT_PROVIDER=openai");
+  }
+
+  const extensao = extensaoParaTranscricao(mimeType);
+  const form = new FormData();
+  form.append("file", new Blob([bytes], { type: mimeType }), `audio.${extensao}`);
+  form.append("model", "whisper-1");
+  form.append("language", "pt");
+  form.append("response_format", "verbose_json");
+  form.append("timestamp_granularities[]", "segment");
+
+  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: form,
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Falha na transcrição com timestamps via OpenAI (${res.status}): ${body}`);
+  }
+
+  const data = (await res.json()) as { segments?: Array<{ start: number; end: number; text: string }> };
+  if (!data.segments) {
+    // Áudio sem fala detectável (ex: só música/ruído) devolve segments
+    // vazio/ausente — não é erro, é "nenhuma legenda real pra gerar".
+    return [];
+  }
+
+  return data.segments.map((s) => ({ startMs: Math.round(s.start * 1000), endMs: Math.round(s.end * 1000), text: s.text.trim() }));
 }

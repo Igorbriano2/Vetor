@@ -170,3 +170,68 @@ export async function atualizarTimelineDoVideoProject(
     .eq("id", videoProjectId);
   if (error) throw new Error(`Falha ao atualizar a timeline do video_project: ${error.message}`);
 }
+
+interface CaptionCueMinima {
+  id: string;
+  startMs: number;
+  endMs: number;
+  text: string;
+}
+
+interface CaptionTrackMinima {
+  cues: CaptionCueMinima[];
+  language: "pt-BR";
+}
+
+// Converte segmentos brutos da transcrição (transcricao.ts) em cues
+// EDITÁVEIS de verdade — cada cue ganha um id próprio pra virar um
+// layer/item independente na timeline, nunca texto achatado. Pura, sem I/O.
+export function montarCaptionTrackDeSegmentos(segmentos: Array<{ startMs: number; endMs: number; text: string }>): CaptionTrackMinima {
+  return {
+    cues: segmentos.map((s) => ({ id: randomUUID(), startMs: s.startMs, endMs: s.endMs, text: s.text })),
+    language: "pt-BR",
+  };
+}
+
+// Mescla o CaptionTrack real dentro do timeline_json existente — lê o
+// estado atual primeiro pra nunca sobrescrever tracks/markers já editados
+// pelo cliente no editor (achado do editor: captions e clipes de vídeo são
+// camadas independentes da MESMA timeline, não documentos separados).
+export async function atualizarCaptionsDoVideoProject(videoProjectId: string, captions: CaptionTrackMinima): Promise<void> {
+  const { data: atual, error: erroLeitura } = await supabase
+    .from("video_projects")
+    .select("timeline_json")
+    .eq("id", videoProjectId)
+    .single();
+  if (erroLeitura || !atual) throw new Error(`Falha ao ler o video_project para mesclar captions: ${erroLeitura?.message}`);
+
+  const timelineAtual = (atual.timeline_json ?? {}) as Record<string, unknown>;
+  const novaTimeline = { ...timelineAtual, captions };
+
+  const { error } = await supabase
+    .from("video_projects")
+    .update({ timeline_json: novaTimeline, updated_at: new Date().toISOString() })
+    .eq("id", videoProjectId);
+  if (error) throw new Error(`Falha ao gravar captions no video_project: ${error.message}`);
+}
+
+// Grava o preview (mesma timeline do editor, renderizado — nunca uma
+// versão paralela). Chamado pelo estágio "preview".
+export async function atualizarPreviewDoVideoProject(videoProjectId: string, previewStoragePath: string): Promise<void> {
+  const { error } = await supabase
+    .from("video_projects")
+    .update({ preview_storage_path: previewStoragePath, updated_at: new Date().toISOString() })
+    .eq("id", videoProjectId);
+  if (error) throw new Error(`Falha ao gravar o preview do video_project: ${error.message}`);
+}
+
+// Grava o resultado do render final + marca o projeto como concluído —
+// chamado pelo estágio "final_render", só depois que o MP4 real já subiu
+// pro storage (nunca marca completed antes do arquivo existir de verdade).
+export async function atualizarRenderFinalDoVideoProject(videoProjectId: string, outputStoragePath: string): Promise<void> {
+  const { error } = await supabase
+    .from("video_projects")
+    .update({ output_storage_path: outputStoragePath, status: "completed", updated_at: new Date().toISOString() })
+    .eq("id", videoProjectId);
+  if (error) throw new Error(`Falha ao gravar o render final do video_project: ${error.message}`);
+}

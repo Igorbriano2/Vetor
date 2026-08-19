@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { gerarProxyDeVideo, analisarVideoDeReferencia, RenderServiceIndisponivelError } from "./renderService.js";
+import { gerarProxyDeVideo, analisarVideoDeReferencia, renderizarVideoFinal, RenderServiceIndisponivelError } from "./renderService.js";
 
 describe("gerarProxyDeVideo (cliente do serviço de render)", () => {
   const originais: Record<string, string | undefined> = {};
@@ -107,5 +107,56 @@ describe("analisarVideoDeReferencia (cliente do serviço de render)", () => {
     await expect(analisarVideoDeReferencia({ bucket: "brand-assets", storagePath: "x" })).rejects.toBeInstanceOf(
       RenderServiceIndisponivelError,
     );
+  });
+});
+
+describe("renderizarVideoFinal (cliente do serviço de render)", () => {
+  const originais: Record<string, string | undefined> = {};
+  const chaves = ["RENDER_SERVICE_URL", "INTERNAL_API_TOKEN"];
+
+  beforeEach(() => {
+    for (const chave of chaves) originais[chave] = process.env[chave];
+    process.env.RENDER_SERVICE_URL = "https://vetor-render.example";
+    process.env.INTERNAL_API_TOKEN = "token-teste";
+  });
+
+  afterEach(() => {
+    for (const chave of chaves) {
+      if (originais[chave] === undefined) delete process.env[chave];
+      else process.env[chave] = originais[chave];
+    }
+    vi.unstubAllGlobals();
+  });
+
+  it("envia o x-internal-token pro endpoint /render/final e devolve o resultado real", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ bucket: "artifacts", storagePath: "cliente/video/final/x.mp4", bytes: 98765, durationMs: 35067 }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const resultado = await renderizarVideoFinal({
+      bucket: "uploads",
+      storagePath: "cliente/original.mp4",
+      clienteId: "cliente",
+      trimInMs: 0,
+      trimOutMs: 35067,
+      captions: [{ startMs: 0, endMs: 1000, text: "Olá" }],
+    });
+
+    expect(resultado.storagePath).toBe("cliente/video/final/x.mp4");
+    expect(resultado.durationMs).toBe(35067);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://vetor-render.example/render/final");
+    expect((init.headers as Record<string, string>)["x-internal-token"]).toBe("token-teste");
+  });
+
+  it("propaga erro do serviço como RenderServiceIndisponivelError, nunca finge um render que não rodou", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500, text: async () => "ffmpeg falhou" });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      renderizarVideoFinal({ bucket: "uploads", storagePath: "x", clienteId: "y", trimInMs: 0, trimOutMs: 1000 }),
+    ).rejects.toBeInstanceOf(RenderServiceIndisponivelError);
   });
 });

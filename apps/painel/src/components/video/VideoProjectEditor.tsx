@@ -33,6 +33,9 @@ export interface VideoProjectInicial {
   timelineVersion: number;
   status: VideoProjectStatus;
   clipUrls: Record<string, ClipMidiaResolvida>;
+  // URL assinada do MP4 final real (só presente depois que o estágio
+  // "final_render" do agente já rodou de verdade — nunca um placeholder).
+  outputUrl: string | null;
 }
 
 const FAIXAS_DISPONIVEIS: { kind: TrackKind; label: string }[] = [
@@ -182,14 +185,25 @@ export default function VideoProjectEditor({ projeto }: { projeto: VideoProjectI
           <button type="button" onClick={criarNovaVersao} disabled={criandoVersao} className="rounded-lg border border-ambar/30 px-3 py-1.5 text-xs text-ambar hover:bg-ambar/10 disabled:opacity-50">
             {criandoVersao ? "Criando..." : "Criar versão"}
           </button>
-          <button
-            type="button"
-            disabled
-            title="Exportação final depende do pipeline de render do agente (ainda não conectado) — nunca finge um render que não rodou."
-            className="rounded-lg border border-areia/10 px-3 py-1.5 text-xs text-areia/30"
-          >
-            Exportar (em breve)
-          </button>
+          {projeto.outputUrl ? (
+            <a
+              href={projeto.outputUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg border border-menta/30 px-3 py-1.5 text-xs text-menta hover:bg-menta/10"
+            >
+              Baixar vídeo final
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled
+              title="Vídeo final ainda não foi renderizado pelo agente (estágio final_render) — nunca finge um render que não rodou."
+              className="rounded-lg border border-areia/10 px-3 py-1.5 text-xs text-areia/30"
+            >
+              Vídeo final (ainda não renderizado)
+            </button>
+          )}
         </div>
       </div>
 
