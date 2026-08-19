@@ -37,6 +37,13 @@ export interface VetorObjectMeta {
   assetId?: string;
   isOfficialLogo?: boolean;
   role?: "logo" | "produto" | "pessoa" | "fundo" | "texto" | "elemento";
+  // Caminho real no storage (nunca a URL assinada — essa expira). Presente
+  // só em objetos de imagem que vieram de um asset/artifact nosso (fundo
+  // gerado pelo agente, logo aplicada). O servidor (ver
+  // design/editor/[projectId]/page.tsx) reassina isto pra um `src` fresco
+  // toda vez que o projeto é aberto.
+  storagePath?: string;
+  bucket?: "artifacts" | "brand-assets";
 }
 
 export const CAMPOS_EXTRAS_SERIALIZACAO = ["vetorMeta"] as const;

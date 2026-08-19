@@ -10,7 +10,10 @@ export interface ImagemGerada {
   mimeType: string;
 }
 
-function tamanhoOpenAI(aspectRatio?: string): string {
+// Exportada pra design_projects (Parte 1) usar a mesma dimensão real ao
+// montar o canvasJson — nunca duplica esse mapeamento em outro lugar, senão
+// o tamanho do canvas diverge do tamanho real do PNG gerado.
+export function tamanhoOpenAI(aspectRatio?: string): string {
   switch (aspectRatio) {
     case "9:16":
     case "4:5":

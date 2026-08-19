@@ -27,6 +27,12 @@ export interface AssetDisponivel {
   categoria: CategoriaAtivo;
   descricao: string | null;
   isLogoPrincipal: boolean;
+  storagePath: string;
+  // Nulo quando o upload é antigo e nunca teve dimensão gravada — quem
+  // consome (ex: design_projects.ts ao montar o canvasJson) precisa tratar
+  // esse caso, nunca assumir um valor.
+  width: number | null;
+  height: number | null;
 }
 
 interface FiltroBuscaAtivos {
@@ -53,7 +59,7 @@ async function assinarUrl(storagePath: string): Promise<string | null> {
 export async function buscarAtivos(clienteId: string, filtro: FiltroBuscaAtivos = {}): Promise<AssetDisponivel[]> {
   let query = supabase
     .from("business_assets")
-    .select("id, nome, storage_path, tags, categoria, descricao, status, is_logo_principal")
+    .select("id, nome, storage_path, tags, categoria, descricao, status, is_logo_principal, width, height")
     .eq("cliente_id", clienteId)
     .eq("status", filtro.status ?? STATUS_ELEGIVEL_PARA_AGENTE)
     .order("created_at", { ascending: false })
@@ -85,6 +91,9 @@ export async function buscarAtivos(clienteId: string, filtro: FiltroBuscaAtivos 
       categoria: a.categoria as CategoriaAtivo,
       descricao: a.descricao as string | null,
       isLogoPrincipal: a.is_logo_principal as boolean,
+      storagePath: a.storage_path as string,
+      width: (a.width as number | null) ?? null,
+      height: (a.height as number | null) ?? null,
     })),
   ).then((assets) => assets.filter((a) => a.url));
 }
@@ -153,7 +162,7 @@ export async function buscarLogoParaFormato(
 
   const { data: asset } = await supabase
     .from("business_assets")
-    .select("id, nome, storage_path, tags, categoria, descricao, status, is_logo_principal")
+    .select("id, nome, storage_path, tags, categoria, descricao, status, is_logo_principal, width, height")
     .eq("id", assetId as string)
     .eq("cliente_id", clienteId)
     .maybeSingle();
@@ -171,6 +180,9 @@ export async function buscarLogoParaFormato(
     categoria: asset.categoria as CategoriaAtivo,
     descricao: asset.descricao as string | null,
     isLogoPrincipal: asset.is_logo_principal as boolean,
+    storagePath: asset.storage_path as string,
+    width: (asset.width as number | null) ?? null,
+    height: (asset.height as number | null) ?? null,
   };
 }
 

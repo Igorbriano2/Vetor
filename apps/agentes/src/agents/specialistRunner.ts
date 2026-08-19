@@ -3,7 +3,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "../db/supabase.js";
 import { getSystemPrompt, type AgenteId } from "./prompts/index.js";
 import { gerarVideoAPartirDeImagem, VideoIndisponivelError } from "../integrations/higgsfield.js";
-import { gerarImagem, gerarImagemComReferencia, ImagemIndisponivelError, type ReferenciaImagem } from "../integrations/imageProvider.js";
+import { gerarImagem, gerarImagemComReferencia, ImagemIndisponivelError, tamanhoOpenAI, type ReferenciaImagem } from "../integrations/imageProvider.js";
+import { dimensaoDoTamanhoOpenAI, montarCanvasJsonInicial, criarDesignProject } from "../negocio/designProjects.js";
 import { persistirArtefato, type ArtefatoPersistido, type ArtifactType } from "../artifacts/artifactsService.js";
 import { selecionarSkills, carregarSkillsSelecionadas, listarTodosOsManifestos } from "../skills/registry.js";
 import type { SkillDefinition, SkillDepartment } from "../skills/types.js";
@@ -165,6 +166,15 @@ export interface AgentResult {
   logoAssetId?: string;
   assetSelection?: AssetSelection;
   brandValidation?: BrandValidation;
+  // Preenchidos só pelo agente de Design quando a geração vira uma camada
+  // editável (Parte 1 da evolução de Design/Vídeo) — o design_project
+  // criado a partir da imagem gerada. Ausentes quando a criação do
+  // design_project falha (nunca bloqueia a entrega do artifact PNG por
+  // causa disso, ver executarEspecialista).
+  designProjectId?: string;
+  canvasJson?: unknown;
+  version?: number;
+  designBrief?: string;
 }
 
 export interface ContextoMissaoParaEspecialista {
@@ -230,6 +240,20 @@ interface MidiaExecutada {
   sourceAssetIds?: string[];
   logoAssetId?: string;
   brandValidation?: BrandValidation;
+  // Preenchido só pelo agente de Design — dados reais pra montar o
+  // canvasJson do design_project (Parte 1). Nunca inferido: dimensão vem
+  // do mesmo mapeamento usado pra pedir a imagem ao provider
+  // (tamanhoOpenAI), logo vem do asset real já resolvido em
+  // buscarLogoParaFormato().
+  canvasInfo?: {
+    width: number;
+    height: number;
+    logo?: { assetId: string; storagePath: string; naturalWidth: number | null; naturalHeight: number | null };
+  };
+  // O prompt de verdade usado pra gerar a imagem — vira o designBrief do
+  // design_project (nunca reconstruído a partir do summary do LLM, que pode
+  // divergir do que foi realmente pedido ao provider).
+  promptUsado?: string;
 }
 
 interface ContextoExecucaoFerramenta {
@@ -348,6 +372,8 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<
           .upload(path, imagem.bytes, { contentType: imagem.mimeType, upsert: false });
         if (error) throw new Error(`Falha ao salvar imagem gerada no storage: ${error.message}`);
 
+        const { width, height } = dimensaoDoTamanhoOpenAI(tamanhoOpenAI(aspectRatio));
+
         return {
           requestId,
           storagePath: path,
@@ -355,6 +381,14 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<
           sourceAssetIds,
           logoAssetId,
           brandValidation: { passed: issues.length === 0, issues },
+          canvasInfo: {
+            width,
+            height,
+            ...(logo && logoAssetId
+              ? { logo: { assetId: logoAssetId, storagePath: logo.storagePath, naturalWidth: logo.width, naturalHeight: logo.height } }
+              : {}),
+          },
+          promptUsado: prompt,
         };
       } catch (err) {
         throw err instanceof ImagemIndisponivelError ? err : new ImagemIndisponivelError(err instanceof Error ? err.message : "erro desconhecido");
@@ -597,25 +631,74 @@ export async function executarEspecialista(
   const bruto = (toolUse?.input ?? {}) as Partial<AgentResult> & { artifacts?: ArtefatoBruto[] };
 
   const artefatosPersistidos: ArtefatoPersistido[] = [];
+  let designProjectCriado: { id: string; version: number; canvasJson: unknown; designBrief?: string } | undefined;
 
   // Mídia real gerada pela ferramenta de execução — sempre um artefato real,
   // independente do que o modelo tenha dito em `artifacts` (que só aceita
   // tipos de texto, ver TIPOS_ARTEFATO_TEXTO).
   if (midiaGerada && ferramentaGeracao) {
     try {
-      artefatosPersistidos.push(
-        await persistirArtefato({
-          clienteId,
-          missionId,
-          missionStepId,
-          type: ferramentaGeracao.tipo,
-          department: departamento,
-          title: ferramentaGeracao.titulo,
-          ...(midiaGerada.storagePath ? { storagePath: midiaGerada.storagePath } : { externalUrl: midiaGerada.url }),
-          mimeType: midiaGerada.mimeType ?? ferramentaGeracao.mimeType,
-          criadoPorAgente: agenteId,
-        }),
-      );
+      const artefato = await persistirArtefato({
+        clienteId,
+        missionId,
+        missionStepId,
+        type: ferramentaGeracao.tipo,
+        department: departamento,
+        title: ferramentaGeracao.titulo,
+        ...(midiaGerada.storagePath ? { storagePath: midiaGerada.storagePath } : { externalUrl: midiaGerada.url }),
+        mimeType: midiaGerada.mimeType ?? ferramentaGeracao.mimeType,
+        criadoPorAgente: agenteId,
+      });
+      artefatosPersistidos.push(artefato);
+
+      // Design (Parte 1): a entrega nunca é só o PNG — sempre que a geração
+      // tem storagePath real (nunca pra vídeo Higgsfield, que só devolve
+      // url externa) e dimensão conhecida, cria a camada editável em cima
+      // dele. Falha aqui NUNCA derruba a entrega do artifact — fica só sem
+      // design_project, e o painel continua mostrando a peça pronta.
+      if (agenteId === "design" && midiaGerada.storagePath && midiaGerada.canvasInfo) {
+        try {
+          const canvasJson = montarCanvasJsonInicial({
+            fundo: {
+              storagePath: midiaGerada.storagePath,
+              bucket: "artifacts",
+              naturalWidth: midiaGerada.canvasInfo.width,
+              naturalHeight: midiaGerada.canvasInfo.height,
+            },
+            canvasWidth: midiaGerada.canvasInfo.width,
+            canvasHeight: midiaGerada.canvasInfo.height,
+            ...(midiaGerada.canvasInfo.logo
+              ? {
+                  logo: {
+                    assetId: midiaGerada.canvasInfo.logo.assetId,
+                    storagePath: midiaGerada.canvasInfo.logo.storagePath,
+                    naturalWidth: midiaGerada.canvasInfo.logo.naturalWidth ?? undefined,
+                    naturalHeight: midiaGerada.canvasInfo.logo.naturalHeight ?? undefined,
+                  },
+                }
+              : {}),
+          });
+
+          const criado = await criarDesignProject({
+            clienteId,
+            missionId,
+            missionStepId,
+            artifactId: artefato.id,
+            title: ferramentaGeracao.titulo,
+            width: midiaGerada.canvasInfo.width,
+            height: midiaGerada.canvasInfo.height,
+            canvasJson,
+            sourceAssetIds: midiaGerada.sourceAssetIds ?? [],
+            logoAssetId: midiaGerada.logoAssetId,
+            brandValidation: midiaGerada.brandValidation,
+            designBrief: midiaGerada.promptUsado,
+          });
+
+          designProjectCriado = { id: criado.id, version: criado.version, canvasJson, designBrief: midiaGerada.promptUsado };
+        } catch (err) {
+          console.warn(`Falha ao criar design_project da etapa ${missionStepId}:`, err instanceof Error ? err.message : err);
+        }
+      }
     } catch (err) {
       console.warn(`Falha ao persistir artefato de mídia da etapa ${missionStepId}:`, err instanceof Error ? err.message : err);
     }
@@ -663,6 +746,14 @@ export async function executarEspecialista(
     ...(midiaGerada?.sourceAssetIds ? { sourceAssetIds: midiaGerada.sourceAssetIds } : {}),
     ...(midiaGerada?.logoAssetId ? { logoAssetId: midiaGerada.logoAssetId } : {}),
     ...(midiaGerada?.brandValidation ? { brandValidation: midiaGerada.brandValidation } : {}),
+    ...(designProjectCriado
+      ? {
+          designProjectId: designProjectCriado.id,
+          canvasJson: designProjectCriado.canvasJson,
+          version: designProjectCriado.version,
+          ...(designProjectCriado.designBrief ? { designBrief: designProjectCriado.designBrief } : {}),
+        }
+      : {}),
   };
 
   await supabase.from("agent_runs").insert({

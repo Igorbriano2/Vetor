@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolverUrlsDoCanvas } from "@/lib/design/resolveCanvasUrls";
 import DesignProjectEditor from "@/components/design/DesignProjectEditor";
 
 export default async function DesignProjectEditorPage({ params }: { params: Promise<{ projectId: string }> }) {
@@ -13,6 +14,11 @@ export default async function DesignProjectEditorPage({ params }: { params: Prom
     .maybeSingle();
 
   if (!projeto) notFound();
+
+  // URL assinada expira — nunca confia na que eventualmente esteja gravada
+  // no canvasJson (ex: projetos criados pelo agente, que só gravam
+  // storagePath). Reassina toda vez que o projeto é aberto.
+  const canvasJsonComUrlsFrescas = await resolverUrlsDoCanvas(supabase, projeto.canvas_json);
 
   return (
     <div className="px-6 py-10">
@@ -32,7 +38,7 @@ export default async function DesignProjectEditorPage({ params }: { params: Prom
               title: projeto.title as string,
               width: projeto.width as number,
               height: projeto.height as number,
-              canvasJson: projeto.canvas_json,
+              canvasJson: canvasJsonComUrlsFrescas,
               version: projeto.version as number,
               status: projeto.status as "draft" | "awaiting_approval" | "approved" | "archived",
             }}
