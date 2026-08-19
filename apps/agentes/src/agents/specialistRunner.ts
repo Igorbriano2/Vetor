@@ -1536,11 +1536,53 @@ export async function executarEspecialista(
     midiaGerada = resultadoExecucao.midiaGerada;
     ferramentaUsada = resultadoExecucao.ferramentaUsada;
   } else {
+    // Achado real (prova do Planejamento, Fase 3): forçar entregar_resultado
+    // já no primeiro turno fazia o modelo produzir um `summary` bem escrito
+    // mas pular o preenchimento de `artifacts` (array aninhado com
+    // calendario/indicadores) — sobretudo quando o conteúdo real só existia
+    // em prosa nas etapas anteriores e precisava ser re-estruturado, não só
+    // copiado. Um turno de rascunho livre antes (sem tool forçada) faz o
+    // modelo escrever o conteúdo estruturado em texto primeiro; o turno
+    // seguinte só copia esse rascunho pro formato final — mesmo princípio
+    // do loop de rodarComFerramentaDeExecucao (nunca força a saída final
+    // sem antes deixar o modelo "pensar" no conteúdo de verdade).
+    const mensagensRascunho: Anthropic.MessageParam[] = [
+      {
+        role: "user",
+        content:
+          `${contexto.etapaTarefa}\n\nAntes de entregar o resultado formal, escreva em texto livre TODO o conteúdo real que ` +
+          `você vai entregar. Se for um documento/plano/calendário, escreva cada item já no formato final (data, título, canal, ` +
+          `cada indicador com métrica e meta) — não só um resumo narrativo. No próximo passo você só vai copiar isso pro formato ` +
+          `estruturado, então escreva aqui o conteúdo completo, não uma versão resumida.`,
+      },
+    ];
+    const rascunho = await anthropic.messages.create({
+      model: "claude-sonnet-4-5",
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages: mensagensRascunho,
+    });
+    const textoRascunho = rascunho.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("\n");
+
     response = await anthropic.messages.create({
       model: "claude-sonnet-4-5",
       max_tokens: 2048,
       system: systemPrompt,
-      messages: [{ role: "user", content: contexto.etapaTarefa }],
+      messages: [
+        ...mensagensRascunho,
+        { role: "assistant", content: textoRascunho || "(sem conteúdo — nada a estruturar)" },
+        {
+          role: "user",
+          content:
+            "Agora entregue o resultado final com entregar_resultado. Se o texto acima é um documento/plano real (não só uma " +
+            "análise), ele precisa ir em `artifacts` de verdade (com `calendario`/`indicadores` reais, copiados do texto acima) " +
+            "— nunca só resumido em `summary`. Uma etapa que promete um documento e não preenche `artifacts` é marcada como " +
+            "falha automaticamente pelo sistema, mesmo com um resumo bem escrito.",
+        },
+      ],
       tools: [ENTREGAR_RESULTADO_TOOL],
       tool_choice: { type: "tool", name: "entregar_resultado" },
     });
