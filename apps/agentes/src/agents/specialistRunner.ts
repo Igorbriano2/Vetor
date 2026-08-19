@@ -130,6 +130,54 @@ export const ENTREGAR_RESULTADO_TOOL: Anthropic.Tool = {
   },
 };
 
+// Achado real (Fase 3, Planejamento): oferecer `artifacts` como campo
+// OPCIONAL dentro de entregar_resultado nunca foi suficiente — em 4
+// execuções reais em produção o modelo preferiu escrever um `summary`
+// convincente em prosa e pular o array aninhado, mesmo com instrução
+// explícita no prompt e um turno de rascunho antes. Esta ferramenta
+// separada existe só pra isso: quando oferecida, o ÚNICO jeito de
+// respondê-la é preencher o documento de verdade — não tem campo
+// "resumo" pra fugir. Usada num turno à parte (ver rodarComFerramentaDeExecucao-
+// like flow em executarEspecialista), nunca a única ferramenta disponível
+// (o modelo escolhe entre isso e entregar_resultado conforme a etapa
+// realmente promete um documento ou não).
+export const ENTREGAR_DOCUMENTO_TOOL: Anthropic.Tool = {
+  name: "entregar_documento",
+  description:
+    "Entrega um documento/plano/copy/relatório REAL como artefato salvo — use quando a etapa pede pra criar, consolidar ou " +
+    "gerar um documento/calendário/planejamento. O conteúdo aqui É o entregável, não um resumo dele. Depois de chamar isso, " +
+    "você ainda vai fechar a etapa com entregar_resultado normalmente.",
+  input_schema: {
+    type: "object",
+    properties: {
+      type: { type: "string", enum: [...TIPOS_ARTEFATO_TEXTO] },
+      title: { type: "string" },
+      content: { type: "string", description: "O conteúdo de verdade — o texto do briefing/copy/plano/relatório, não um resumo dele." },
+      periodo: { type: "string", description: "Só pra type=plan — período do planejamento, formato AAAA-MM (ex: '2026-08')." },
+      calendario: {
+        type: "array",
+        description: "Só pra type=plan — calendário editorial real, um item por peça/ação planejada, copiado do conteúdo real já elaborado.",
+        items: {
+          type: "object",
+          properties: {
+            data: { type: "string", description: "AAAA-MM-DD" },
+            titulo: { type: "string" },
+            canal: { type: "string" },
+            tipo: { type: "string" },
+          },
+          required: ["data", "titulo"],
+        },
+      },
+      indicadores: {
+        type: "array",
+        description: "Só pra type=plan — indicadores reais sugeridos pra acompanhar o período.",
+        items: { type: "string" },
+      },
+    },
+    required: ["type", "title", "content"],
+  },
+};
+
 const GERAR_VIDEO_TOOL: Anthropic.Tool = {
   name: "gerar_video_higgsfield",
   description: "Gera um vídeo a partir de uma imagem de referência e uma descrição de movimento (Higgsfield).",
@@ -1525,6 +1573,20 @@ export async function executarEspecialista(
   let midiaGerada: ResultadoTurnoExecucao["midiaGerada"];
   let ferramentaUsada: FerramentaDeExecucao | undefined;
 
+  interface ArtefatoBruto {
+    type: string;
+    title: string;
+    content: string;
+    periodo?: string;
+    calendario?: Array<{ data: string; titulo: string; canal?: string; tipo?: string }>;
+    indicadores?: string[];
+  }
+  // Preenchido só quando o modelo usa a ferramenta entregar_documento no
+  // turno intermediário (ver bloco abaixo) — mesclado em bruto.artifacts
+  // depois, independente do que o modelo tenha (ou não) repetido dentro
+  // de entregar_resultado.artifacts.
+  let documentoForcado: ArtefatoBruto | undefined;
+
   if (ferramentasGeracao.length > 0) {
     const resultadoExecucao = await rodarComFerramentaDeExecucao(systemPrompt, contexto.etapaTarefa, ferramentasGeracao, {
       clienteId,
@@ -1536,16 +1598,18 @@ export async function executarEspecialista(
     midiaGerada = resultadoExecucao.midiaGerada;
     ferramentaUsada = resultadoExecucao.ferramentaUsada;
   } else {
-    // Achado real (prova do Planejamento, Fase 3): forçar entregar_resultado
-    // já no primeiro turno fazia o modelo produzir um `summary` bem escrito
-    // mas pular o preenchimento de `artifacts` (array aninhado com
-    // calendario/indicadores) — sobretudo quando o conteúdo real só existia
-    // em prosa nas etapas anteriores e precisava ser re-estruturado, não só
-    // copiado. Um turno de rascunho livre antes (sem tool forçada) faz o
-    // modelo escrever o conteúdo estruturado em texto primeiro; o turno
-    // seguinte só copia esse rascunho pro formato final — mesmo princípio
-    // do loop de rodarComFerramentaDeExecucao (nunca força a saída final
-    // sem antes deixar o modelo "pensar" no conteúdo de verdade).
+    // Achado real (prova do Planejamento, Fase 3, 4 execuções reais em
+    // produção): oferecer `artifacts` como campo opcional dentro de
+    // entregar_resultado nunca foi suficiente — o modelo repetidamente
+    // preferiu escrever um `summary` convincente em prosa e pular o array
+    // aninhado, mesmo com prompt reforçado e um turno de rascunho antes.
+    // Fix mecânico: um turno intermediário oferece DUAS ferramentas
+    // (entregar_resultado OU entregar_documento) com tool_choice "any" —
+    // força ALGUMA chamada de ferramenta (nunca texto livre), e se o
+    // modelo escolher entregar_documento, o schema dessa ferramenta NÃO
+    // TEM campo de resumo — o único jeito de respondê-la é preencher o
+    // documento de verdade. O turno final sempre fecha com
+    // entregar_resultado normal.
     const mensagensRascunho: Anthropic.MessageParam[] = [
       {
         role: "user",
@@ -1567,40 +1631,85 @@ export async function executarEspecialista(
       .map((b) => b.text)
       .join("\n");
 
-    response = await anthropic.messages.create({
+    const mensagensEscolha: Anthropic.MessageParam[] = [
+      ...mensagensRascunho,
+      { role: "assistant", content: textoRascunho || "(sem conteúdo — nada a estruturar)" },
+      {
+        role: "user",
+        content:
+          "Se o texto acima é um documento/plano/calendário real que você deve ENTREGAR como artefato salvo (não só uma " +
+          "análise interna), use entregar_documento agora com o conteúdo completo (calendario/indicadores reais, copiados do " +
+          "texto acima). Se esta etapa é só uma análise/decisão sem documento pra salvar, use entregar_resultado diretamente.",
+      },
+    ];
+    const escolha = await anthropic.messages.create({
       model: "claude-sonnet-4-5",
       max_tokens: 2048,
       system: systemPrompt,
-      messages: [
-        ...mensagensRascunho,
-        { role: "assistant", content: textoRascunho || "(sem conteúdo — nada a estruturar)" },
-        {
-          role: "user",
-          content:
-            "Agora entregue o resultado final com entregar_resultado. Se o texto acima é um documento/plano real (não só uma " +
-            "análise), ele precisa ir em `artifacts` de verdade (com `calendario`/`indicadores` reais, copiados do texto acima) " +
-            "— nunca só resumido em `summary`. Uma etapa que promete um documento e não preenche `artifacts` é marcada como " +
-            "falha automaticamente pelo sistema, mesmo com um resumo bem escrito.",
-        },
-      ],
-      tools: [ENTREGAR_RESULTADO_TOOL],
-      tool_choice: { type: "tool", name: "entregar_resultado" },
+      messages: mensagensEscolha,
+      tools: [ENTREGAR_RESULTADO_TOOL, ENTREGAR_DOCUMENTO_TOOL],
+      tool_choice: { type: "any" },
     });
+
+    const chamadaDocumento = escolha.content.find(
+      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === "entregar_documento",
+    );
+    const chamadaResultadoDireta = escolha.content.find(
+      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === "entregar_resultado",
+    );
+
+    if (chamadaResultadoDireta && !chamadaDocumento) {
+      // Etapa sem documento a entregar — o modelo já fechou direto.
+      response = escolha;
+    } else if (chamadaDocumento) {
+      documentoForcado = chamadaDocumento.input as ArtefatoBruto;
+      // Cada tool_use do turno anterior precisa de um tool_result antes do
+      // próximo turno (exigência da API) — normalmente só entregar_documento
+      // aparece aqui, mas se o modelo chamou as duas na mesma resposta,
+      // resolve as duas pra nunca deixar um tool_use pendente (o que
+      // derrubaria a chamada inteira com erro 400).
+      const resultadosPendentes: Anthropic.ToolResultBlockParam[] = [
+        { type: "tool_result", tool_use_id: chamadaDocumento.id, content: `Documento "${documentoForcado.title}" recebido e será salvo como artefato real.` },
+      ];
+      if (chamadaResultadoDireta) {
+        resultadosPendentes.push({
+          type: "tool_result",
+          tool_use_id: chamadaResultadoDireta.id,
+          content: "Ignorado — o fechamento final desta etapa será pedido de novo no próximo turno, depois do documento.",
+        });
+      }
+      response = await anthropic.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 2048,
+        system: systemPrompt,
+        messages: [...mensagensEscolha, { role: "assistant", content: escolha.content }, { role: "user", content: resultadosPendentes }],
+        tools: [ENTREGAR_RESULTADO_TOOL],
+        tool_choice: { type: "tool", name: "entregar_resultado" },
+      });
+    } else {
+      // Nem entregar_documento nem entregar_resultado vieram (não deveria
+      // acontecer com tool_choice "any", mas nunca assume sucesso sem
+      // verificar) — força o fechamento normal.
+      response = await anthropic.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 2048,
+        system: systemPrompt,
+        messages: [...mensagensEscolha, { role: "assistant", content: escolha.content }],
+        tools: [ENTREGAR_RESULTADO_TOOL],
+        tool_choice: { type: "tool", name: "entregar_resultado" },
+      });
+    }
   }
 
   const toolUse = response.content.find(
     (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === "entregar_resultado",
   );
 
-  interface ArtefatoBruto {
-    type: string;
-    title: string;
-    content: string;
-    periodo?: string;
-    calendario?: Array<{ data: string; titulo: string; canal?: string; tipo?: string }>;
-    indicadores?: string[];
-  }
   const bruto = (toolUse?.input ?? {}) as Partial<AgentResult> & { artifacts?: ArtefatoBruto[] };
+  // Nunca reatribui bruto.artifacts (o tipo dele vem de AgentResult, que já
+  // usa ArtefatoPersistido — reatribuir um ArtefatoBruto ali quebraria o
+  // tipo); mescla numa variável própria em vez disso.
+  const artefatosBrutos: ArtefatoBruto[] = [...(bruto.artifacts ?? []), ...(documentoForcado ? [documentoForcado] : [])];
 
   const artefatosPersistidos: ArtefatoPersistido[] = [];
   let designProjectCriado: { id: string; version: number; canvasJson: unknown; designBrief?: string } | undefined;
@@ -1683,10 +1792,11 @@ export async function executarEspecialista(
     }
   }
 
-  // Artefatos de texto declarados pelo modelo — só os tipos permitidos no
-  // schema chegam aqui, mas revalida no código mesmo assim (nunca confiar só
-  // no schema da API de tool use).
-  for (const item of bruto.artifacts ?? []) {
+  // Artefatos de texto declarados pelo modelo (+ o documento forçado via
+  // entregar_documento, se houver) — só os tipos permitidos no schema
+  // chegam aqui, mas revalida no código mesmo assim (nunca confiar só no
+  // schema da API de tool use).
+  for (const item of artefatosBrutos) {
     if (!(TIPOS_ARTEFATO_TEXTO as readonly string[]).includes(item.type) || !item.content?.trim()) continue;
     try {
       artefatosPersistidos.push(
