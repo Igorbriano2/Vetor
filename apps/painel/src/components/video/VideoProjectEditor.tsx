@@ -17,6 +17,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { AudioMix, CaptionTrack, TimelineDocument, TrackKind, VideoProjectStatus } from "@/lib/video/timelineTypes";
+import type { ClipMidiaResolvida } from "@/lib/video/resolveClipUrls";
 import * as ops from "@/lib/video/timelineOps";
 import VideoTimeline from "./VideoTimeline";
 import ClipPropertiesPanel from "./ClipPropertiesPanel";
@@ -31,7 +32,7 @@ export interface VideoProjectInicial {
   timelineJson: TimelineDocument;
   timelineVersion: number;
   status: VideoProjectStatus;
-  clipUrls: Record<string, string>;
+  clipUrls: Record<string, ClipMidiaResolvida>;
 }
 
 const FAIXAS_DISPONIVEIS: { kind: TrackKind; label: string }[] = [
@@ -55,8 +56,7 @@ export default function VideoProjectEditor({ projeto }: { projeto: VideoProjectI
   // em vez de re-buscar). Sem isso, um clip recém-adicionado mostrava
   // "selecione um clip pra pré-visualizar" mesmo já selecionado — achado
   // ao vivo.
-  const [clipUrls, setClipUrls] = useState<Record<string, string>>(projeto.clipUrls);
-  const [clipMimeTypes, setClipMimeTypes] = useState<Record<string, string | null>>({});
+  const [clipMidia, setClipMidia] = useState<Record<string, ClipMidiaResolvida>>(projeto.clipUrls);
   const [status] = useState(projeto.status);
   const [salvando, setSalvando] = useState(false);
   const [criandoVersao, setCriandoVersao] = useState(false);
@@ -132,8 +132,7 @@ export default function VideoProjectEditor({ projeto }: { projeto: VideoProjectI
 
   function adicionarAtivoNaFaixa(ativo: AtivoDeMidia) {
     if (!selectedTrackId) return;
-    setClipUrls((atual) => ({ ...atual, [ativo.id]: ativo.url }));
-    setClipMimeTypes((atual) => ({ ...atual, [ativo.id]: ativo.mimeType }));
+    setClipMidia((atual) => ({ ...atual, [ativo.id]: { url: ativo.url, mimeType: ativo.mimeType } }));
     aplicar(ops.adicionarClipe(timeline, selectedTrackId, { sourceAssetId: ativo.id, durationMs: duracaoPadraoPorMime(ativo.mimeType) }));
   }
 
@@ -198,8 +197,8 @@ export default function VideoProjectEditor({ projeto }: { projeto: VideoProjectI
         <div className="col-span-2 space-y-3">
           <VideoPreviewPlayer
             clip={clipSelecionado}
-            url={clipSelecionado ? (clipUrls[clipSelecionado.sourceAssetId] ?? null) : null}
-            mimeType={clipSelecionado ? (clipMimeTypes[clipSelecionado.sourceAssetId] ?? null) : null}
+            url={clipSelecionado ? (clipMidia[clipSelecionado.sourceAssetId]?.url ?? null) : null}
+            mimeType={clipSelecionado ? (clipMidia[clipSelecionado.sourceAssetId]?.mimeType ?? null) : null}
           />
           <VideoTimeline
             timeline={timeline}
