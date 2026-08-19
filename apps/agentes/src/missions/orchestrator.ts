@@ -460,6 +460,24 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
   const trafego =
     etapa.agente === "trafego" || etapa.agente === "analitico" ? await buscarContextoTrafego(etapa.cliente_id) : undefined;
 
+  // Calculado ANTES de chamar o especialista (não só depois, como guard-rail
+  // pós-hoc) — achado real: oferecer a ferramenta entregar_documento como
+  // ESCOLHA (junto de entregar_resultado) não bastou, o modelo repetidamente
+  // escolheu entregar_resultado sozinho mesmo sabendo que a tarefa pedia um
+  // documento. Quando já sabemos estruturalmente que a etapa é terminal de
+  // estrategia (nada depende dela), o especialista nem oferece a escolha —
+  // força entregar_documento direto (ver ENTREGAR_DOCUMENTO_TOOL em
+  // specialistRunner.ts).
+  let exigeDocumento = DEPARTAMENTOS_EXIGEM_ARTEFATO.has(etapa.agente as AgenteId) && etapa.agente === "estrategia";
+  if (exigeDocumento) {
+    const { data: dependentes } = await supabase
+      .from("mission_steps")
+      .select("id")
+      .eq("mission_id", etapa.mission_id as string)
+      .contains("depende_de", [etapa.id]);
+    exigeDocumento = !dependentes || dependentes.length === 0;
+  }
+
   const contexto: ContextoMissaoParaEspecialista = {
     missaoTitulo: missao.titulo,
     missaoObjetivo: missao.objetivo,
@@ -474,6 +492,7 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
     },
     trafego,
     etapasAnteriores,
+    exigeDocumento,
   };
 
   const opcoesEtapa = { missionId: etapa.mission_id as string, clienteId: etapa.cliente_id as string };
@@ -509,21 +528,12 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
     // analisar_video_de_referencia produzem uma linha real no banco, não um
     // artifact solto, ver criaArtefatoGenerico em specialistRunner.ts).
     // "estrategia" só precisa de artifact_id na etapa TERMINAL (nenhuma
-    // outra etapa da mesma missão depende dela) — achado real: uma etapa
-    // de "analisar perfil do negócio..." (puramente investigativa, cujo
-    // resultado outras etapas consomem via etapasAnteriores) passou a
-    // falhar sem necessidade quando o guard-rail exigia artifact_id em
-    // TODA etapa de estrategia. design/video continuam exigindo sempre,
-    // porque lá cada etapa já É a entrega (nunca um passo intermediário).
-    let etapaExigeArtefato = DEPARTAMENTOS_EXIGEM_ARTEFATO.has(etapa.agente);
-    if (etapaExigeArtefato && etapa.agente === "estrategia") {
-      const { data: dependentes } = await supabase
-        .from("mission_steps")
-        .select("id")
-        .eq("mission_id", etapa.mission_id as string)
-        .contains("depende_de", [etapa.id]);
-      etapaExigeArtefato = !dependentes || dependentes.length === 0;
-    }
+    // outra etapa da mesma missão depende dela) — design/video continuam
+    // exigindo sempre, porque lá cada etapa já É a entrega (nunca um passo
+    // intermediário). `exigeDocumento` já foi calculado antes de chamar o
+    // especialista (mesmo valor usado lá pra forçar entregar_documento) —
+    // reusa aqui como rede de segurança, não recalcula.
+    const etapaExigeArtefato = etapa.agente === "estrategia" ? exigeDocumento : DEPARTAMENTOS_EXIGEM_ARTEFATO.has(etapa.agente);
 
     const temEntregaVerificavel = resultado.artifactIds.length > 0 || !!resultado.videoProjectId || !!resultado.referenceVideoProfileId;
     if (resultado.status === "completed" && etapaExigeArtefato && !temEntregaVerificavel) {

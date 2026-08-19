@@ -445,6 +445,14 @@ export interface ContextoMissaoParaEspecialista {
   // depois de editar_video_timeline) não tinha como saber esse id, porque cada
   // etapa só recebia a própria tarefa, nunca o resultado de quem veio antes.
   etapasAnteriores?: Array<{ tarefa: string; resultado: unknown }>;
+  // Calculado pelo orchestrator ANTES de chamar o especialista (sabe se
+  // esta é a etapa terminal de "estrategia", ver DEPARTAMENTOS_EXIGEM_ARTEFATO
+  // em orchestrator.ts) — quando true, o especialista nem oferece a escolha
+  // entre entregar_resultado/entregar_documento, força entregar_documento
+  // direto. Achado real: oferecer como escolha não bastou (o modelo
+  // repetidamente escolhia só entregar_resultado mesmo sabendo que a
+  // tarefa pedia um documento).
+  exigeDocumento?: boolean;
 }
 
 // Departamento pro artefato (Design/Videomaker/Tráfego/Planejamento/
@@ -1631,15 +1639,24 @@ export async function executarEspecialista(
       .map((b) => b.text)
       .join("\n");
 
+    // Achado real (5 execuções reais em produção): oferecer entregar_documento
+    // como ESCOLHA (junto de entregar_resultado, tool_choice "any") não
+    // bastou — o modelo repetidamente escolhia só entregar_resultado, com
+    // um summary bem escrito, mesmo sabendo que a tarefa pedia um documento.
+    // Quando o orchestrator já sabe estruturalmente que esta é a etapa
+    // terminal de estrategia (contexto.exigeDocumento), nem oferece a
+    // escolha — força entregar_documento direto, sem escape.
     const mensagensEscolha: Anthropic.MessageParam[] = [
       ...mensagensRascunho,
       { role: "assistant", content: textoRascunho || "(sem conteúdo — nada a estruturar)" },
       {
         role: "user",
-        content:
-          "Se o texto acima é um documento/plano/calendário real que você deve ENTREGAR como artefato salvo (não só uma " +
-          "análise interna), use entregar_documento agora com o conteúdo completo (calendario/indicadores reais, copiados do " +
-          "texto acima). Se esta etapa é só uma análise/decisão sem documento pra salvar, use entregar_resultado diretamente.",
+        content: contexto.exigeDocumento
+          ? "Esta etapa PRECISA entregar um documento real. Use entregar_documento agora com o conteúdo completo do texto " +
+            "acima (calendario/indicadores reais, copiados item por item, nunca resumidos)."
+          : "Se o texto acima é um documento/plano/calendário real que você deve ENTREGAR como artefato salvo (não só uma " +
+            "análise interna), use entregar_documento agora com o conteúdo completo (calendario/indicadores reais, copiados do " +
+            "texto acima). Se esta etapa é só uma análise/decisão sem documento pra salvar, use entregar_resultado diretamente.",
       },
     ];
     const escolha = await anthropic.messages.create({
@@ -1647,8 +1664,8 @@ export async function executarEspecialista(
       max_tokens: 2048,
       system: systemPrompt,
       messages: mensagensEscolha,
-      tools: [ENTREGAR_RESULTADO_TOOL, ENTREGAR_DOCUMENTO_TOOL],
-      tool_choice: { type: "any" },
+      tools: contexto.exigeDocumento ? [ENTREGAR_DOCUMENTO_TOOL] : [ENTREGAR_RESULTADO_TOOL, ENTREGAR_DOCUMENTO_TOOL],
+      tool_choice: contexto.exigeDocumento ? { type: "tool", name: "entregar_documento" } : { type: "any" },
     });
 
     const chamadaDocumento = escolha.content.find(
