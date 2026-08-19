@@ -632,12 +632,23 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
               return { captionTrack: { cues: [] as Array<{ id: string; startMs: number; endMs: number; text: string }>, language: "pt-BR" as const } };
             })()
           : await executarEstagioIdempotente(videoProjectId, ctx.clienteId, "captions", async () => {
-              const bytes = await baixarBytesDoAtivo(assetId);
-              if (!bytes) throw new Error("Falha ao baixar o arquivo original pra transcrição.");
-              const segmentos = await transcreverComTimestamps(
-                bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
-                asset.mimeType ?? "video/mp4",
-              );
+              // Transcreve só o trecho CORTADO (renderiza um recorte leve a
+              // partir do PROXY, sem legendas ainda) — nunca o arquivo
+              // original inteiro: além de mais rápido, evita estourar o
+              // limite de 25MB da OpenAI em originais grandes (achado real
+              // da prova do Videomaker: um original de ~95MB falhava direto
+              // na transcrição antes desta mudança).
+              const trecho = await renderizarVideoFinal({
+                bucket: "artifacts",
+                storagePath: projeto.proxy_storage_path as string,
+                clienteId: ctx.clienteId,
+                trimInMs,
+                trimOutMs,
+              });
+              const { data: baixado, error: erroDownload } = await supabase.storage.from("artifacts").download(trecho.storagePath);
+              if (erroDownload || !baixado) throw new Error(`Falha ao baixar o trecho cortado pra transcrição: ${erroDownload?.message ?? "não encontrado"}`);
+              const bytesTrecho = await baixado.arrayBuffer();
+              const segmentos = await transcreverComTimestamps(bytesTrecho, asset.mimeType ?? "video/mp4");
               const captionTrack = montarCaptionTrackDeSegmentos(segmentos);
               await atualizarCaptionsDoVideoProject(videoProjectId, captionTrack);
               return { captionTrack };
