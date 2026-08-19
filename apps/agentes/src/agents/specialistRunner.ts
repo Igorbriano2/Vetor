@@ -4,6 +4,7 @@ import { supabase } from "../db/supabase.js";
 import { getSystemPrompt, type AgenteId } from "./prompts/index.js";
 import { gerarVideoAPartirDeImagem, VideoIndisponivelError } from "../integrations/higgsfield.js";
 import { gerarProxyDeVideo } from "../integrations/renderService.js";
+import { gerarPerfilDeVideoDeReferencia } from "../negocio/referenceVideoAnalysis.js";
 import { gerarImagem, gerarImagemComReferencia, ImagemIndisponivelError, tamanhoOpenAI, type ReferenciaImagem } from "../integrations/imageProvider.js";
 import {
   dimensaoDoTamanhoOpenAI,
@@ -131,6 +132,25 @@ const EDITAR_VIDEO_TIMELINE_TOOL: Anthropic.Tool = {
   },
 };
 
+const ANALISAR_VIDEO_REFERENCIA_TOOL: Anthropic.Tool = {
+  name: "analisar_video_de_referencia",
+  description:
+    "Analisa um vídeo de referência REAL anexado pelo cliente (concorrente, vídeo viral, exemplo de estilo desejado) e " +
+    "extrai um perfil de estilo (ritmo de corte, energia musical, estrutura de abertura, estilo de legenda, paleta) pra " +
+    "orientar as próximas edições nesse mesmo estilo. Use isso quando o cliente pedir pra editar/gerar algo 'no estilo " +
+    "deste vídeo' ou 'parecido com este'. Nunca copia o conteúdo do vídeo de referência, só o PERFIL dele.",
+  input_schema: {
+    type: "object",
+    properties: {
+      asset_id: {
+        type: "string",
+        description: "Id do ativo de vídeo (Drive, lista 'Banco de ativos disponível' no contexto) a ser analisado como referência.",
+      },
+    },
+    required: ["asset_id"],
+  },
+};
+
 const GERAR_IMAGEM_TOOL: Anthropic.Tool = {
   name: "gerar_imagem",
   description:
@@ -226,6 +246,11 @@ export interface AgentResult {
   videoTimelineJson?: unknown;
   videoTimelineVersion?: number;
   videoDurationMs?: number;
+  // Preenchido só pelo agente de Vídeo quando analisar_video_de_referencia
+  // roda (Parte 3) — o perfil de estilo derivado do vídeo de referência
+  // real, já persistido em reference_video_profiles.
+  referenceVideoProfileId?: string;
+  referenceVideoProfile?: Record<string, unknown>;
 }
 
 export interface ContextoMissaoParaEspecialista {
@@ -314,6 +339,9 @@ interface MidiaExecutada {
   // real montada. Diferente de storagePath/url: não existe um arquivo
   // único gerado aqui, o resultado É o projeto editável.
   videoProjectCriado?: { id: string; timelineVersion: number; timelineJson: unknown; durationMs: number };
+  // Preenchido só por analisar_video_de_referencia — o perfil já persistido
+  // (não existe arquivo derivado aqui, o resultado É o perfil).
+  referenceVideoProfileCriado?: { id: string; perfil: Record<string, unknown> };
 }
 
 interface ContextoExecucaoFerramenta {
@@ -436,6 +464,33 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
             timelineJson: timelineResultado.timelineJson,
             durationMs: proxy.durationMs,
           },
+        };
+      },
+    },
+    {
+      tool: ANALISAR_VIDEO_REFERENCIA_TOOL,
+      tipo: "video",
+      titulo: "Perfil de vídeo de referência",
+      mimeType: "application/json",
+      criaArtefatoGenerico: false,
+      executar: async (input, ctx) => {
+        const assetId = input.asset_id as string;
+        const perfil = await gerarPerfilDeVideoDeReferencia({ clienteId: ctx.clienteId, assetId });
+
+        await registrarUsoDeAtivo({
+          clienteId: ctx.clienteId,
+          assetId,
+          missionId: ctx.missionId,
+          missionStepId: ctx.missionStepId,
+          agente: "video",
+          papel: "referencia",
+          motivo: "Vídeo de referência analisado pra derivar perfil de estilo.",
+        });
+
+        return {
+          requestId: perfil.id,
+          sourceAssetIds: [assetId],
+          referenceVideoProfileCriado: { id: perfil.id, perfil: perfil as unknown as Record<string, unknown> },
         };
       },
     },
@@ -732,7 +787,10 @@ async function rodarComFerramentaDeExecucao(
         request_id: midia.requestId,
         ...(midia.url ? { url: midia.url } : {}),
         ...(midia.videoProjectCriado ? { video_project_id: midia.videoProjectCriado.id, armazenado: true } : {}),
-        ...(midia.url || midia.videoProjectCriado ? {} : { armazenado: true }),
+        ...(midia.referenceVideoProfileCriado
+          ? { reference_video_profile_id: midia.referenceVideoProfileCriado.id, perfil: midia.referenceVideoProfileCriado.perfil }
+          : {}),
+        ...(midia.url || midia.videoProjectCriado || midia.referenceVideoProfileCriado ? {} : { armazenado: true }),
         ...(midia.sourceAssetIds?.length ? { ativos_reais_usados: midia.sourceAssetIds } : {}),
         ...(midia.brandValidation && !midia.brandValidation.passed
           ? { aviso_marca: midia.brandValidation.issues.join(" ") }
@@ -989,6 +1047,12 @@ export async function executarEspecialista(
           videoTimelineJson: midiaGerada.videoProjectCriado.timelineJson,
           videoTimelineVersion: midiaGerada.videoProjectCriado.timelineVersion,
           videoDurationMs: midiaGerada.videoProjectCriado.durationMs,
+        }
+      : {}),
+    ...(midiaGerada?.referenceVideoProfileCriado
+      ? {
+          referenceVideoProfileId: midiaGerada.referenceVideoProfileCriado.id,
+          referenceVideoProfile: midiaGerada.referenceVideoProfileCriado.perfil,
         }
       : {}),
   };

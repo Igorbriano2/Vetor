@@ -147,7 +147,10 @@ export interface ReferenceVideoProfile {
   averageShotDurationMs: number;
   hookStructure: string;
   pacing: "slow" | "medium" | "fast";
-  captionStyle: { position: "top" | "center" | "bottom"; typicalDurationMs: number };
+  // "detected" reflete só o que é observável nos frames de amostra (a
+  // técnica de análise não rastreia entrada/saída de legenda quadro a
+  // quadro) — nunca inclui uma duração típica inventada sem esse dado.
+  captionStyle: { position: "top" | "center" | "bottom" | "none"; detected: boolean };
   transitionsUsed: ClipTransition["type"][];
   musicEnergy: "low" | "medium" | "high";
   relativeVolumeDb: number;
