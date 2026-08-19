@@ -169,7 +169,12 @@ const FINALIZAR_VIDEO_TOOL: Anthropic.Tool = {
     "Transcreve o áudio real do vídeo (com timestamps), gera a track de legendas editável, renderiza um preview e o " +
     "MP4 FINAL de verdade — usando a timeline ATUAL do projeto (inclusive qualquer corte que o cliente já tenha " +
     "feito no editor). Use só depois que editar_video_timeline já criou o projeto pra esse vídeo E o cliente já " +
-    "confirmou que a edição (corte, etc.) está pronta pra finalizar. Nunca use antes de editar_video_timeline.",
+    "confirmou que a edição (corte, etc.) está pronta pra finalizar. Nunca use antes de editar_video_timeline. " +
+    "IMPORTANTE: se a etapa pede renderização/finalização e uma etapa anterior desta mesma missão já rodou isso " +
+    "(ver RESULTADO DAS ETAPAS ANTERIORES no contexto), CHAME ESTA FERRAMENTA MESMO ASSIM com o mesmo " +
+    "video_project_id — cada estágio (captions/preview/final_render) é idempotente e nunca reprocessa o que já " +
+    "está pronto, mas é a ÚNICA forma de esta etapa devolver um resultado verificável (video_project_id real). " +
+    "Nunca responda 'já está pronto' sem chamar a ferramenta de novo.",
   input_schema: {
     type: "object",
     properties: {
