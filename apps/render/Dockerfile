@@ -2,7 +2,14 @@
 # PATH, o que o buildpack node-js padrão da DigitalOcean não garante de
 # forma confiável (achado da spike: pacotes de codec ficam em caminhos não
 # padrão, inacessíveis em runtime). Dockerfile explícito resolve isso.
-FROM node:20-slim AS build
+#
+# Node 22 (não 20): achado ao vivo — @supabase/supabase-js exige
+# WebSocket nativo pro cliente Realtime, disponível só a partir do Node
+# 22. Node 20 falhava com "Node.js 20 detected without native WebSocket
+# support" na primeira chamada real ao Supabase, mesmo sem usar Realtime
+# de verdade (apps/agentes nunca bateu nisso porque o buildpack node-js
+# da DO resolve pra uma versão mais nova por padrão).
+FROM node:22-slim AS build
 
 # ffmpeg só é necessário em runtime, mas instalar aqui também não tem custo
 # — a imagem final (stage runtime) reinstala do zero, mantendo o build
@@ -14,7 +21,7 @@ COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
 
-FROM node:20-slim AS runtime
+FROM node:22-slim AS runtime
 # ffmpeg via apt (build oficial do Debian) — nunca baixa um binário solto
 # de fonte não verificada.
 RUN apt-get update \
