@@ -477,8 +477,13 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
     // nenhum artifact_id real, a etapa vira failed de verdade, com o motivo
     // explícito, em vez de deixar o cliente achar que recebeu algo que não
     // existe (o que gerava o "peça manualmente a arte que o Vetor alegou ter
-    // feito", visto no print da auditoria).
-    if (resultado.status === "completed" && DEPARTAMENTOS_EXIGEM_ARTEFATO.has(etapa.agente) && resultado.artifactIds.length === 0) {
+    // feito", visto no print da auditoria). "Verificável" também inclui um
+    // video_project ou reference_video_profile real persistido — nem toda
+    // entrega de Vídeo é um arquivo genérico (editar_video_timeline e
+    // analisar_video_de_referencia produzem uma linha real no banco, não um
+    // artifact solto, ver criaArtefatoGenerico em specialistRunner.ts).
+    const temEntregaVerificavel = resultado.artifactIds.length > 0 || !!resultado.videoProjectId || !!resultado.referenceVideoProfileId;
+    if (resultado.status === "completed" && DEPARTAMENTOS_EXIGEM_ARTEFATO.has(etapa.agente) && !temEntregaVerificavel) {
       resultado.status = "failed";
       resultado.summary = `Etapa marcada como falha: nenhum artefato verificável foi produzido, apesar do resumo original ("${resultado.summary}"). Nunca completar uma entrega de ${etapa.agente} sem artifact_id.`;
     }
