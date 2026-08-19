@@ -1,3 +1,10 @@
+> **⚠️ OBSOLETO — 2026-08-19.** Este documento parou de ser atualizado por volta de
+> 2026-08-17 e não reflete o estado atual (Mission Orchestrator, Design V1, Videomaker V1,
+> BrandKit, Onboarding, ProviderRouter e várias outras peças citadas abaixo como
+> "pendente"/"não conectado" já existem, foram testadas e estão em produção). Mantido
+> só como histórico do raciocínio da época — **não usar como fonte de verdade**. O
+> inventário reconciliado atual é `docs/STATUS-REAL-ATUAL.md`.
+
 # Status do projeto Vetor
 
 Este documento resume o que foi construído até agora, o que já é real e funcional, e o que ainda
