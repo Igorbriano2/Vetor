@@ -472,7 +472,15 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
 
   const opcoesEtapa = { missionId: etapa.mission_id as string, clienteId: etapa.cliente_id as string };
 
-  await atualizarStatusEtapa(etapa.id, etapa.status as StepStatus, "running", opcoesEtapa);
+  // Achado real: BullMQ pode reentregar o job (worker reiniciado/deploy no
+  // meio de uma execução longa, ver "stalled jobs") enquanto a etapa já
+  // está "running" de uma tentativa anterior — transicionar "running" ->
+  // "running" é inválido na state machine e derrubava o job antes de rodar
+  // o especialista de verdade. Já estar "running" não é erro aqui, é só
+  // uma reentrega — segue direto pra execução em vez de re-transicionar.
+  if (etapa.status !== "running") {
+    await atualizarStatusEtapa(etapa.id, etapa.status as StepStatus, "running", opcoesEtapa);
+  }
 
   try {
     const resultado = await executarEspecialista(
