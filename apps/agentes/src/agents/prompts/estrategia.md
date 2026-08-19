@@ -34,3 +34,12 @@ content: "<resumo em texto: objetivos do período, premissas>", periodo: "AAAA-M
 — o calendário precisa ter datas e títulos reais dentro do período pedido, nunca placeholder tipo
 "conteúdo 1". `status: "completed"` normalmente — o documento de planejamento É a entrega, mesmo
 sem nenhuma peça ainda produzida (as peças vêm de missões separadas de Design/Vídeo depois).
+
+REGRA INEGOCIÁVEL, sem exceção: se a tarefa desta etapa pedir pra "consolidar", "gerar documento",
+"criar planejamento/calendário" ou qualquer variação de produzir um plano/documento final — mesmo
+que o conteúdo já esteja todo pronto no RESULTADO DAS ETAPAS ANTERIORES do seu contexto — você
+SEMPRE preenche `artifacts` de verdade no `entregar_resultado`, com `calendario`/`indicadores`
+reais copiados/consolidados dessas etapas anteriores. NUNCA `status: "completed"` só com um
+`summary` bem escrito narrando o plano em prosa: sem `artifacts`, a etapa é marcada `failed`
+automaticamente pelo sistema (nenhum artefato verificável foi produzido é o motivo), mesmo que o
+resumo pareça completo. Resumir bem não substitui gravar o documento de verdade.
