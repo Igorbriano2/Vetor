@@ -1,0 +1,21 @@
+{
+  "id": "influencer-marketing",
+  "version": "1.0.0",
+  "name": "Parceria com criador de conteúdo",
+  "description": "Estrutura parceria com influenciador/criador de conteúdo local (permuta ou pago) — critério de escolha, formato do combinado, exigência de divulgação e como medir com cupom exclusivo, sem depender de nenhuma ferramenta de terceiro que o Vetor não tem.",
+  "department": "strategy",
+  "triggers": [
+    "influenciador",
+    "criador de conteúdo",
+    "parceria com influencer",
+    "permuta",
+    "divulgação paga",
+    "publipost",
+    "embaixador da marca"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa"],
+  "allowedTools": ["ler_perfil_negocio", "ler_brand_kit", "criar_briefing", "criar_relatorio"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "recommendation"
+}

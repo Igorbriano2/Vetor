@@ -1,0 +1,21 @@
+{
+  "id": "launch",
+  "version": "1.0.0",
+  "name": "Plano de lançamento",
+  "description": "Estrutura o lançamento de um produto/item/serviço novo pelos canais próprios/alugados/emprestados do negócio — produz o plano, nunca executa a postagem/anúncio sozinha (isso é etapa separada de Design/Social/Tráfego).",
+  "department": "strategy",
+  "triggers": [
+    "lançamento",
+    "lançar",
+    "novo produto",
+    "item novo no cardápio",
+    "novo serviço",
+    "estreia",
+    "vou lançar"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa"],
+  "allowedTools": ["ler_perfil_negocio", "ler_brand_kit", "criar_briefing", "criar_relatorio"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "campaign_proposal"
+}

@@ -7,7 +7,7 @@ import { listarTodosOsManifestos, manifestosPorDepartamento, selecionarSkills, i
 describe("skills reais em disco", () => {
   beforeEach(() => invalidarCache());
 
-  it("descobre as 9 skills de Estratégia sem nenhuma reprovada em permissions.ts", () => {
+  it("descobre as 11 skills de Estratégia sem nenhuma reprovada em permissions.ts", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const manifestos = manifestosPorDepartamento("strategy");
     const idsEsperados = [
@@ -20,6 +20,8 @@ describe("skills reais em disco", () => {
       "marketing-psychology",
       "ab-testing",
       "marketing-loops",
+      "launch",
+      "influencer-marketing",
     ];
 
     expect(manifestos.map((m) => m.id).sort()).toEqual([...idsEsperados].sort());
@@ -183,7 +185,7 @@ describe("skills reais em disco — Vídeo", () => {
 describe("skills reais em disco — Tráfego/Analytics", () => {
   beforeEach(() => invalidarCache());
 
-  it("descobre as 6 skills de Tráfego sem nenhuma reprovada em permissions.ts", () => {
+  it("descobre as 7 skills de Tráfego sem nenhuma reprovada em permissions.ts", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const manifestos = manifestosPorDepartamento("traffic");
     const idsEsperados = [
@@ -193,6 +195,7 @@ describe("skills reais em disco — Tráfego/Analytics", () => {
       "attribution-check",
       "budget-recommendation",
       "experiment-analysis",
+      "ads",
     ];
 
     expect(manifestos.map((m) => m.id).sort()).toEqual([...idsEsperados].sort());

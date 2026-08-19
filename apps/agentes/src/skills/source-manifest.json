@@ -1,4 +1,22 @@
 {
+  "launch": {
+    "repository": "coreyhaines31/marketingskills",
+    "commit": "7868cb9251fad80a73d26e488a5ad5f6c4a9f335",
+    "license": "MIT",
+    "importedAt": "2026-08-19T00:00:00Z"
+  },
+  "influencer-marketing": {
+    "repository": "coreyhaines31/marketingskills",
+    "commit": "7868cb9251fad80a73d26e488a5ad5f6c4a9f335",
+    "license": "MIT",
+    "importedAt": "2026-08-19T00:00:00Z"
+  },
+  "ads": {
+    "repository": "coreyhaines31/marketingskills",
+    "commit": "7868cb9251fad80a73d26e488a5ad5f6c4a9f335",
+    "license": "MIT",
+    "importedAt": "2026-08-19T00:00:00Z"
+  },
   "product-marketing-context": {
     "repository": "coreyhaines31/marketingskills",
     "commit": "7868cb9251fad80a73d26e488a5ad5f6c4a9f335",

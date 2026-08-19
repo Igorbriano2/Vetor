@@ -1,0 +1,21 @@
+{
+  "id": "ads",
+  "version": "1.0.0",
+  "name": "Estratégia de anúncios (Meta)",
+  "description": "Recomendações de estrutura de campanha, copy e teste criativo pro Meta Ads (Instagram/Facebook) — único provider de anúncios que o Vetor integra hoje. Nunca cria, pausa ou ajusta campanha sozinha; produz recomendação pro Agente de Tráfego levar pra aprovação humana.",
+  "department": "traffic",
+  "triggers": [
+    "estrutura de anúncio",
+    "copy de anúncio",
+    "criativo pro anúncio",
+    "teste de anúncio",
+    "anúncio não performa",
+    "campanha nova no meta",
+    "estrutura de campanha"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "etapaTarefa"],
+  "allowedTools": ["ler_historico", "criar_relatorio", "criar_briefing"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "recommendation"
+}
