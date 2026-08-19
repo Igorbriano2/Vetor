@@ -77,7 +77,12 @@ services:
       - key: INTERNAL_API_TOKEN
         scope: RUN_TIME
         type: SECRET
-        # Gere uma string aleatoria longa e use o MESMO valor no app "agentes" e no app "painel"
+        # Gere uma string aleatoria longa e use o MESMO valor nos apps "agentes", "painel" e "render"
+      - key: RENDER_SERVICE_URL
+        scope: RUN_TIME
+        value: "https://vetor-render-wanir.ondigitalocean.app"
+        # URL do app vetor-render (Parte 5/6, task #77/#79) — nunca chama ffmpeg direto
+        # daqui, sempre atravessa esse servico dedicado.
       - key: REDIS_URL
         scope: RUN_TIME
         type: SECRET

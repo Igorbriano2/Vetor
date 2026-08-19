@@ -243,3 +243,31 @@ export async function validarAtivoParaUso(
 
   return { valido: true };
 }
+
+export interface AtivoComMime {
+  id: string;
+  storagePath: string;
+  mimeType: string | null;
+  width: number | null;
+  height: number | null;
+}
+
+// Busca um único ativo pelo id — chame validarAtivoParaUso() antes pra
+// checar tenant/status; esta função só resolve os dados pra usar depois
+// da validação passar (mantém as duas responsabilidades separadas, igual
+// o resto do arquivo já faz).
+export async function buscarAtivoPorId(assetId: string): Promise<AtivoComMime | null> {
+  const { data } = await supabase
+    .from("business_assets")
+    .select("id, storage_path, mime_type, width, height")
+    .eq("id", assetId)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    id: data.id as string,
+    storagePath: data.storage_path as string,
+    mimeType: data.mime_type as string | null,
+    width: (data.width as number | null) ?? null,
+    height: (data.height as number | null) ?? null,
+  };
+}

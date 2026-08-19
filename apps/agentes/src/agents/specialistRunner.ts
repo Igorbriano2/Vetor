@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "../db/supabase.js";
 import { getSystemPrompt, type AgenteId } from "./prompts/index.js";
 import { gerarVideoAPartirDeImagem, VideoIndisponivelError } from "../integrations/higgsfield.js";
+import { gerarProxyDeVideo } from "../integrations/renderService.js";
 import { gerarImagem, gerarImagemComReferencia, ImagemIndisponivelError, tamanhoOpenAI, type ReferenciaImagem } from "../integrations/imageProvider.js";
 import {
   dimensaoDoTamanhoOpenAI,
@@ -12,6 +13,8 @@ import {
   buscarReferenciasAprovadas,
 } from "../negocio/designProjects.js";
 import { avaliarPecaDeDesign, type DesignCriticResultado } from "../negocio/designCritic.js";
+import { buscarOuCriarVideoProjectRascunho, montarTimelineInicial, atualizarTimelineDoVideoProject } from "../negocio/videoProjects.js";
+import { executarEstagioIdempotente } from "../negocio/videoPipeline.js";
 import { persistirArtefato, type ArtefatoPersistido, type ArtifactType } from "../artifacts/artifactsService.js";
 import { selecionarSkills, carregarSkillsSelecionadas, listarTodosOsManifestos } from "../skills/registry.js";
 import type { SkillDefinition, SkillDepartment } from "../skills/types.js";
@@ -19,6 +22,7 @@ import {
   buscarLogoParaFormato,
   validarAtivoParaUso,
   baixarBytesDoAtivo,
+  buscarAtivoPorId,
   registrarUsoDeAtivo,
   type AssetDisponivel,
 } from "../negocio/businessAssets.js";
@@ -104,6 +108,26 @@ const GERAR_VIDEO_TOOL: Anthropic.Tool = {
       prompt: { type: "string", description: "Descrição do movimento/câmera desejado." },
     },
     required: ["imagem_url", "prompt"],
+  },
+};
+
+const EDITAR_VIDEO_TIMELINE_TOOL: Anthropic.Tool = {
+  name: "editar_video_timeline",
+  description:
+    "Inicia (ou retoma) o projeto de edição não destrutiva pra um vídeo REAL já enviado pelo cliente (asset_id do " +
+    "Drive) — gera um proxy leve de edição e monta a timeline editável inicial com o arquivo real. Use isso, NUNCA " +
+    "gerar_video_higgsfield, quando o cliente anexou um arquivo de vídeo pra EDITAR (cortar, legendar, tirar " +
+    "silêncio, etc.). gerar_video_higgsfield é só pra gerar um vídeo NOVO a partir de uma imagem parada — nunca use " +
+    "as duas ferramentas na mesma etapa.",
+  input_schema: {
+    type: "object",
+    properties: {
+      asset_id: {
+        type: "string",
+        description: "Id do ativo de vídeo (Drive, lista 'Banco de ativos disponível' no contexto) enviado pelo cliente pra editar.",
+      },
+    },
+    required: ["asset_id"],
   },
 };
 
@@ -194,6 +218,14 @@ export interface AgentResult {
   // quando é a primeira peça do cliente ou nenhuma outra está aprovada
   // ainda.
   approvedReferenceIds?: string[];
+  // Preenchidos só pelo agente de Vídeo quando editar_video_timeline roda
+  // (Parte 2/4) — o video_project criado a partir do arquivo real enviado
+  // pelo cliente. Nunca um MP4 opaco só: a timeline editável É a entrega,
+  // o render final (quando existir) é sempre derivado dela.
+  videoProjectId?: string;
+  videoTimelineJson?: unknown;
+  videoTimelineVersion?: number;
+  videoDurationMs?: number;
 }
 
 export interface ContextoMissaoParaEspecialista {
@@ -277,6 +309,11 @@ interface MidiaExecutada {
   // Preenchido só pra Design; usado tanto pra gravar no design_project
   // quanto pra decidir se a etapa pode mesmo fechar como "completed".
   designCritic?: DesignCriticResultado;
+  // Preenchido só por editar_video_timeline — o video_project já criado
+  // (ou reaproveitado, se a etapa está sendo repetida) com a timeline
+  // real montada. Diferente de storagePath/url: não existe um arquivo
+  // único gerado aqui, o resultado É o projeto editável.
+  videoProjectCriado?: { id: string; timelineVersion: number; timelineJson: unknown; durationMs: number };
 }
 
 interface ContextoExecucaoFerramenta {
@@ -296,38 +333,121 @@ function inferirFormatoPeloAspectRatio(aspectRatio?: string): "feed" | "story" |
 
 // Agentes com uma ferramenta de execução real (geram custo por chamada,
 // nunca chamadas em loop irrestrito) além de entregar_resultado.
-const FERRAMENTA_GERACAO_POR_AGENTE: Partial<
-  Record<
-    AgenteId,
+interface FerramentaDeExecucao {
+  tool: Anthropic.Tool;
+  tipo: Extract<ArtifactType, "image" | "video">;
+  titulo: string;
+  mimeType: string;
+  // false pra ferramentas cujo resultado não é um arquivo único genérico
+  // pra persistir como artifact — ex: editar_video_timeline, cujo
+  // resultado É o video_project (a timeline editável), não um arquivo
+  // solto (ver bloco de persistência em executarEspecialista).
+  criaArtefatoGenerico: boolean;
+  executar: (input: Record<string, unknown>, ctx: ContextoExecucaoFerramenta) => Promise<MidiaExecutada>;
+}
+
+// Cada agente pode ter MAIS DE UMA ferramenta de execução real (ex: Vídeo
+// tem gerar_video_higgsfield E editar_video_timeline — são dois caminhos
+// bem diferentes, geração vs. edição não destrutiva de um arquivo real —
+// o LLM escolhe qual usar por etapa, nunca as duas juntas).
+const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecucao[]>> = {
+  video: [
     {
-      tool: Anthropic.Tool;
-      tipo: Extract<ArtifactType, "image" | "video">;
-      titulo: string;
-      mimeType: string;
-      executar: (input: Record<string, unknown>, ctx: ContextoExecucaoFerramenta) => Promise<MidiaExecutada>;
-    }
-  >
-> = {
-  video: {
-    tool: GERAR_VIDEO_TOOL,
-    tipo: "video",
-    titulo: "Vídeo gerado (Higgsfield)",
-    mimeType: "video/mp4",
-    executar: async (input) => {
-      try {
-        const midia = await gerarVideoAPartirDeImagem(input.imagem_url as string, input.prompt as string);
-        return { requestId: midia.requestId, url: midia.url };
-      } catch (err) {
-        throw err instanceof VideoIndisponivelError ? err : new VideoIndisponivelError(err instanceof Error ? err.message : "erro desconhecido");
-      }
+      tool: GERAR_VIDEO_TOOL,
+      tipo: "video",
+      titulo: "Vídeo gerado (Higgsfield)",
+      mimeType: "video/mp4",
+      criaArtefatoGenerico: true,
+      executar: async (input) => {
+        try {
+          const midia = await gerarVideoAPartirDeImagem(input.imagem_url as string, input.prompt as string);
+          return { requestId: midia.requestId, url: midia.url };
+        } catch (err) {
+          throw err instanceof VideoIndisponivelError ? err : new VideoIndisponivelError(err instanceof Error ? err.message : "erro desconhecido");
+        }
+      },
     },
-  },
-  design: {
-    tool: GERAR_IMAGEM_TOOL,
-    tipo: "image",
-    titulo: "Imagem gerada",
-    mimeType: "image/png",
-    executar: async (input, ctx) => {
+    {
+      tool: EDITAR_VIDEO_TIMELINE_TOOL,
+      tipo: "video",
+      titulo: "Projeto de vídeo em edição",
+      mimeType: "video/mp4",
+      criaArtefatoGenerico: false,
+      executar: async (input, ctx) => {
+        const assetId = input.asset_id as string;
+        const validacao = await validarAtivoParaUso(ctx.clienteId, assetId);
+        if (!validacao.valido) throw new Error(`Ativo inválido pra edição: ${validacao.motivo}`);
+
+        const asset = await buscarAtivoPorId(assetId);
+        if (!asset) throw new Error("Ativo de vídeo não encontrado.");
+
+        // Palpite honesto de formato (retrato) quando o ativo ainda não
+        // tem width/height gravado (uploads antigos) — nunca bloqueia a
+        // edição por falta dessa metadata, só usa um padrão razoável.
+        const largura = asset.width ?? 1080;
+        const altura = asset.height ?? 1920;
+
+        const { id: videoProjectId, timelineVersion } = await buscarOuCriarVideoProjectRascunho({
+          clienteId: ctx.clienteId,
+          missionId: ctx.missionId,
+          missionStepId: ctx.missionStepId,
+          title: "Vídeo em edição",
+          width: largura,
+          height: altura,
+          fps: 30,
+        });
+
+        // Estágio "proxy" — idempotente: se a etapa já rodou isso antes
+        // (retry), reaproveita o resultado salvo em vez de gerar de novo.
+        const proxy = await executarEstagioIdempotente(videoProjectId, ctx.clienteId, "proxy", () =>
+          gerarProxyDeVideo({ bucket: "brand-assets", storagePath: asset.storagePath, clienteId: ctx.clienteId }),
+        );
+
+        // Estágio "timeline_draft" — idempotente também, e só roda depois
+        // do proxy real (precisa da duração real do arquivo).
+        const timelineResultado = await executarEstagioIdempotente(videoProjectId, ctx.clienteId, "timeline_draft", async () => {
+          const timelineJson = montarTimelineInicial({
+            sourceAssetId: assetId,
+            durationMs: proxy.durationMs,
+            width: largura,
+            height: altura,
+            fps: 30,
+          });
+          await atualizarTimelineDoVideoProject(videoProjectId, timelineJson, proxy.durationMs, proxy.storagePath);
+          return { timelineJson };
+        });
+
+        await registrarUsoDeAtivo({
+          clienteId: ctx.clienteId,
+          assetId,
+          missionId: ctx.missionId,
+          missionStepId: ctx.missionStepId,
+          agente: "video",
+          papel: "fonte",
+          motivo: "Arquivo de origem enviado pelo cliente pra edição não destrutiva.",
+        });
+
+        return {
+          requestId: videoProjectId,
+          sourceAssetIds: [assetId],
+          videoProjectCriado: {
+            id: videoProjectId,
+            timelineVersion,
+            timelineJson: timelineResultado.timelineJson,
+            durationMs: proxy.durationMs,
+          },
+        };
+      },
+    },
+  ],
+  design: [
+    {
+      tool: GERAR_IMAGEM_TOOL,
+      tipo: "image",
+      titulo: "Imagem gerada",
+      mimeType: "image/png",
+      criaArtefatoGenerico: true,
+      executar: async (input, ctx) => {
       try {
         const prompt = input.prompt as string;
         const aspectRatio = input.aspect_ratio as string | undefined;
@@ -456,7 +576,8 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<
         throw err instanceof ImagemIndisponivelError ? err : new ImagemIndisponivelError(err instanceof Error ? err.message : "erro desconhecido");
       }
     },
-  },
+    },
+  ],
 };
 
 // Departamento de skill por agente — só agentes já com skills reais
@@ -558,21 +679,29 @@ function montarContexto(ctx: ContextoMissaoParaEspecialista): string {
 interface ResultadoTurnoExecucao {
   message: Anthropic.Message;
   midiaGerada?: MidiaExecutada;
+  // Qual das ferramentas do agente foi de fato chamada — precisa disso
+  // pra saber tipo/titulo/mimeType/criaArtefatoGenerico certos depois
+  // (Vídeo agora tem duas ferramentas bem diferentes, ver
+  // FERRAMENTA_GERACAO_POR_AGENTE).
+  ferramentaUsada?: FerramentaDeExecucao;
 }
 
-// Loop curto e limitado (máx. 3 idas e voltas) pro único tipo de agente que
-// tem uma ferramenta de execução real além de entregar_resultado: deixa o
-// modelo pedir a geração, executa de verdade, devolve o resultado real como
-// tool_result, e força entregar_resultado se ele não fechar sozinho depois
-// de ter a mídia em mãos (nunca deixa rodar indefinidamente).
+// Loop curto e limitado (máx. 3 idas e voltas) pros agentes que têm uma ou
+// mais ferramentas de execução real além de entregar_resultado: deixa o
+// modelo escolher e pedir UMA delas, executa de verdade, devolve o
+// resultado real como tool_result, e força entregar_resultado se ele não
+// fechar sozinho depois de ter o resultado em mãos (nunca deixa rodar
+// indefinidamente).
 async function rodarComFerramentaDeExecucao(
   systemPrompt: string,
   tarefa: string,
-  ferramenta: NonNullable<(typeof FERRAMENTA_GERACAO_POR_AGENTE)[AgenteId]>,
+  ferramentas: FerramentaDeExecucao[],
   ctx: ContextoExecucaoFerramenta,
 ): Promise<ResultadoTurnoExecucao> {
   const mensagens: Anthropic.MessageParam[] = [{ role: "user", content: tarefa }];
   let midiaGerada: ResultadoTurnoExecucao["midiaGerada"];
+  let ferramentaUsada: FerramentaDeExecucao | undefined;
+  const nomesFerramentas = new Set(ferramentas.map((f) => f.tool.name));
 
   for (let turno = 0; turno < 3; turno++) {
     const ultimoTurno = turno === 2;
@@ -581,15 +710,17 @@ async function rodarComFerramentaDeExecucao(
       max_tokens: 2048,
       system: systemPrompt,
       messages: mensagens,
-      tools: [ENTREGAR_RESULTADO_TOOL, ferramenta.tool],
+      tools: [ENTREGAR_RESULTADO_TOOL, ...ferramentas.map((f) => f.tool)],
       tool_choice: ultimoTurno ? { type: "tool", name: "entregar_resultado" } : { type: "auto" },
     });
 
     const chamada = response.content.find(
-      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === ferramenta.tool.name,
+      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && nomesFerramentas.has(b.name),
     );
-    if (!chamada) return { message: response, midiaGerada };
+    if (!chamada) return { message: response, midiaGerada, ferramentaUsada };
 
+    const ferramenta = ferramentas.find((f) => f.tool.name === chamada.name)!;
+    ferramentaUsada = ferramenta;
     mensagens.push({ role: "assistant", content: response.content });
 
     let resultadoFerramenta: string;
@@ -599,7 +730,9 @@ async function rodarComFerramentaDeExecucao(
       resultadoFerramenta = JSON.stringify({
         status: "completed",
         request_id: midia.requestId,
-        ...(midia.url ? { url: midia.url } : { armazenado: true }),
+        ...(midia.url ? { url: midia.url } : {}),
+        ...(midia.videoProjectCriado ? { video_project_id: midia.videoProjectCriado.id, armazenado: true } : {}),
+        ...(midia.url || midia.videoProjectCriado ? {} : { armazenado: true }),
         ...(midia.sourceAssetIds?.length ? { ativos_reais_usados: midia.sourceAssetIds } : {}),
         ...(midia.brandValidation && !midia.brandValidation.passed
           ? { aviso_marca: midia.brandValidation.issues.join(" ") }
@@ -625,7 +758,7 @@ async function rodarComFerramentaDeExecucao(
     tools: [ENTREGAR_RESULTADO_TOOL],
     tool_choice: { type: "tool", name: "entregar_resultado" },
   });
-  return { message: response, midiaGerada };
+  return { message: response, midiaGerada, ferramentaUsada };
 }
 
 // Executa um especialista (design, trafego, estrategia...) para uma etapa de
@@ -666,13 +799,14 @@ export async function executarEspecialista(
 
   const systemPrompt = `${getSystemPrompt(agenteId)}\n\n${montarContexto(contexto)}${blocoSkill}${blocoReferencias}`;
   const departamento = DEPARTAMENTO_POR_AGENTE[agenteId];
-  const ferramentaGeracao = FERRAMENTA_GERACAO_POR_AGENTE[agenteId];
+  const ferramentasGeracao = FERRAMENTA_GERACAO_POR_AGENTE[agenteId] ?? [];
 
   let response: Anthropic.Message;
   let midiaGerada: ResultadoTurnoExecucao["midiaGerada"];
+  let ferramentaUsada: FerramentaDeExecucao | undefined;
 
-  if (ferramentaGeracao) {
-    const resultadoExecucao = await rodarComFerramentaDeExecucao(systemPrompt, contexto.etapaTarefa, ferramentaGeracao, {
+  if (ferramentasGeracao.length > 0) {
+    const resultadoExecucao = await rodarComFerramentaDeExecucao(systemPrompt, contexto.etapaTarefa, ferramentasGeracao, {
       clienteId,
       missionId,
       missionStepId,
@@ -680,6 +814,7 @@ export async function executarEspecialista(
     });
     response = resultadoExecucao.message;
     midiaGerada = resultadoExecucao.midiaGerada;
+    ferramentaUsada = resultadoExecucao.ferramentaUsada;
   } else {
     response = await anthropic.messages.create({
       model: "claude-sonnet-4-5",
@@ -710,18 +845,21 @@ export async function executarEspecialista(
 
   // Mídia real gerada pela ferramenta de execução — sempre um artefato real,
   // independente do que o modelo tenha dito em `artifacts` (que só aceita
-  // tipos de texto, ver TIPOS_ARTEFATO_TEXTO).
-  if (midiaGerada && ferramentaGeracao) {
+  // tipos de texto, ver TIPOS_ARTEFATO_TEXTO). Só entra aqui se a
+  // ferramenta usada produz um arquivo único genérico — editar_video_
+  // timeline não entra (o resultado dela É o video_project, não um
+  // arquivo solto, ver criaArtefatoGenerico).
+  if (midiaGerada && ferramentaUsada && ferramentaUsada.criaArtefatoGenerico) {
     try {
       const artefato = await persistirArtefato({
         clienteId,
         missionId,
         missionStepId,
-        type: ferramentaGeracao.tipo,
+        type: ferramentaUsada.tipo,
         department: departamento,
-        title: ferramentaGeracao.titulo,
+        title: ferramentaUsada.titulo,
         ...(midiaGerada.storagePath ? { storagePath: midiaGerada.storagePath } : { externalUrl: midiaGerada.url }),
-        mimeType: midiaGerada.mimeType ?? ferramentaGeracao.mimeType,
+        mimeType: midiaGerada.mimeType ?? ferramentaUsada.mimeType,
         criadoPorAgente: agenteId,
       });
       artefatosPersistidos.push(artefato);
@@ -759,7 +897,7 @@ export async function executarEspecialista(
             missionId,
             missionStepId,
             artifactId: artefato.id,
-            title: ferramentaGeracao.titulo,
+            title: ferramentaUsada.titulo,
             width: midiaGerada.canvasInfo.width,
             height: midiaGerada.canvasInfo.height,
             canvasJson,
@@ -843,6 +981,14 @@ export async function executarEspecialista(
           canvasJson: designProjectCriado.canvasJson,
           version: designProjectCriado.version,
           ...(designProjectCriado.designBrief ? { designBrief: designProjectCriado.designBrief } : {}),
+        }
+      : {}),
+    ...(midiaGerada?.videoProjectCriado
+      ? {
+          videoProjectId: midiaGerada.videoProjectCriado.id,
+          videoTimelineJson: midiaGerada.videoProjectCriado.timelineJson,
+          videoTimelineVersion: midiaGerada.videoProjectCriado.timelineVersion,
+          videoDurationMs: midiaGerada.videoProjectCriado.durationMs,
         }
       : {}),
   };

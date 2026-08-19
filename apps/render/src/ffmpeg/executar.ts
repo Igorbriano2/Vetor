@@ -24,3 +24,37 @@ export function executarFfmpeg(args: string[]): Promise<void> {
     });
   });
 }
+
+// Lê a duração real do arquivo em ms via ffprobe — nunca inventa duração
+// pra um clip novo (ver probe.ts).
+export function executarFfprobeDuracaoMs(args: string[]): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const processo = spawn("ffprobe", args);
+    let stdout = "";
+    let stderr = "";
+
+    processo.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    processo.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+
+    processo.on("error", (err) => {
+      reject(new FfmpegError(`Falha ao iniciar o ffprobe: ${err.message}`));
+    });
+
+    processo.on("close", (code) => {
+      if (code !== 0) {
+        reject(new FfmpegError(`ffprobe saiu com código ${code}: ${stderr.slice(-2000)}`));
+        return;
+      }
+      const segundos = Number.parseFloat(stdout.trim());
+      if (Number.isNaN(segundos)) {
+        reject(new FfmpegError(`ffprobe não devolveu uma duração numérica: "${stdout.trim()}"`));
+        return;
+      }
+      resolve(Math.round(segundos * 1000));
+    });
+  });
+}

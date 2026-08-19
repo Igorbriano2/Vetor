@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { Router } from "express";
 import { supabase } from "../db/supabase.js";
 import { montarArgsFfmpegProxy } from "../ffmpeg/proxy.js";
-import { executarFfmpeg, FfmpegError } from "../ffmpeg/executar.js";
+import { montarArgsFfprobeDuracao } from "../ffmpeg/probe.js";
+import { executarFfmpeg, executarFfprobeDuracaoMs, FfmpegError } from "../ffmpeg/executar.js";
 
 export const renderRouter = Router();
 
@@ -53,6 +54,12 @@ renderRouter.post("/proxy", async (req, res) => {
     }
     await writeFile(caminhoEntrada, Buffer.from(await baixado.arrayBuffer()));
 
+    // Duração real do ARQUIVO ORIGINAL (não do proxy) — é o que vai virar
+    // o durationMs do clip na timeline; nunca inventa um valor padrão
+    // (achado do editor no painel, task #78: sem isso um clip novo nascia
+    // com uma duração chutada).
+    const duracaoMs = await executarFfprobeDuracaoMs(montarArgsFfprobeDuracao(caminhoEntrada));
+
     await executarFfmpeg(montarArgsFfmpegProxy({ inputPath: caminhoEntrada, outputPath: caminhoSaida }));
 
     const bytesSaida = await readFile(caminhoSaida);
@@ -65,7 +72,7 @@ renderRouter.post("/proxy", async (req, res) => {
       return;
     }
 
-    res.json({ bucket: "artifacts", storagePath: caminhoDestino, bytes: bytesSaida.length });
+    res.json({ bucket: "artifacts", storagePath: caminhoDestino, bytes: bytesSaida.length, durationMs: duracaoMs });
   } catch (err) {
     const mensagem = err instanceof FfmpegError ? err.message : err instanceof Error ? err.message : "erro desconhecido";
     res.status(500).json({ error: mensagem });

@@ -6,9 +6,14 @@ import { readApiResponse } from "@/lib/api/readApiResponse";
 
 // Upload de origem + pedido pro Vetor — reaproveita 100% o pipeline de
 // missão já existente (chat -> propor_missao -> confirmar -> fila -> agente
-// de vídeo -> gerar_video_higgsfield -> artifact real). Não é um sistema de
-// job paralelo: é o mesmo comando de texto que o chat principal usa, só que
-// com a URL do arquivo já anexada no pedido.
+// de vídeo). Não é um sistema de job paralelo: é o mesmo comando de texto
+// que o chat principal usa.
+//
+// Sobe pro bucket "brand-assets" (não mais um bucket "uploads" solto) e
+// cria um business_assets de verdade — vira um ativo do Drive, com id
+// estável (o agente referencia esse id, nunca uma URL assinada que
+// expira em 1h antes do worker processar a missão) e reaproveitável em
+// futuras edições, igual qualquer outro ativo do banco.
 export default function VideomakerUpload({ clienteId }: { clienteId: string }) {
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [instrucao, setInstrucao] = useState("");
@@ -25,14 +30,26 @@ export default function VideomakerUpload({ clienteId }: { clienteId: string }) {
     setMensagem(null);
 
     try {
-      const path = `${clienteId}/${crypto.randomUUID()}-${arquivo.name}`;
-      const { error: erroUpload } = await supabase.storage.from("uploads").upload(path, arquivo, { upsert: false });
+      const path = `${clienteId}/videomaker/${crypto.randomUUID()}-${arquivo.name}`;
+      const { error: erroUpload } = await supabase.storage.from("brand-assets").upload(path, arquivo, { upsert: false });
       if (erroUpload) throw new Error(erroUpload.message);
 
-      const { data: signed, error: erroSigned } = await supabase.storage.from("uploads").createSignedUrl(path, 60 * 60);
-      if (erroSigned || !signed) throw new Error(erroSigned?.message ?? "Falha ao gerar link do arquivo");
+      const { data: asset, error: erroInsert } = await supabase
+        .from("business_assets")
+        .insert({
+          cliente_id: clienteId,
+          storage_path: path,
+          nome: arquivo.name,
+          pasta: "videomaker",
+          categoria: "campanhas_referencias",
+          mime_type: arquivo.type,
+          size_bytes: arquivo.size,
+        })
+        .select("id")
+        .single();
+      if (erroInsert || !asset) throw new Error(erroInsert?.message ?? "Falha ao registrar o arquivo enviado");
 
-      const texto = `${instrucao.trim()}\n\nArquivo de origem enviado: ${signed.signedUrl}`;
+      const texto = `${instrucao.trim()}\n\nArquivo de origem enviado, id do ativo: ${asset.id as string}`;
       const res = await fetch("/api/comando", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
