@@ -16,11 +16,17 @@ import { buscarAssetsRelevantes } from "../negocio/businessAssets.js";
 import { buscarContextoTrafego } from "../connections/metaAdsSync.js";
 import type { AgenteId } from "../agents/prompts/index.js";
 
-// Agentes cuja etapa promete uma entrega verificável (arte, vídeo) — nunca
-// "completed" sem artifact_id real. Os demais (estrategia/growth/trafego/
-// social-media/analitico) ainda podem fechar com só um resumo textual,
-// porque nem toda etapa é uma entrega de arquivo (ex: uma análise).
-const DEPARTAMENTOS_EXIGEM_ARTEFATO = new Set<AgenteId>(["design", "video"]);
+// Agentes cuja etapa promete uma entrega verificável (arte, vídeo,
+// planejamento) — nunca "completed" sem artifact_id real. Achado real: uma
+// etapa de "estrategia" com a tarefa "consolidar... em documento único de
+// planejamento mensal" fechou "completed" com um resumo convincente mas
+// SEM chamar entregar_resultado.artifacts — zero linhas em `artifacts`,
+// zero prova real, nada além de texto bonito (ver item 11 de
+// docs/STATUS-REAL-ATUAL.md). "estrategia" entra aqui porque seu mandato
+// (Planejamento) é literalmente produzir o documento — growth/trafego/
+// social-media/analitico continuam de fora porque neles uma etapa
+// legítima pode ser só análise, sem deliverable próprio.
+const DEPARTAMENTOS_EXIGEM_ARTEFATO = new Set<AgenteId>(["design", "video", "estrategia"]);
 
 // Plano confirmado pelo humano no painel (vem do tool propor_missao do Vetor,
 // já revisado via IntentCard) — ver docs/manus-jarvis-spec/docs/04-agentes-e-prompts.md
