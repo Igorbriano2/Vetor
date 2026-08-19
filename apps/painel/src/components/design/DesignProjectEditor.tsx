@@ -29,7 +29,22 @@ export default function DesignProjectEditor({ projeto }: { projeto: DesignProjec
   const [salvando, setSalvando] = useState(false);
   const [ultimoSalvamento, setUltimoSalvamento] = useState<string | null>(null);
   const [criandoVersao, setCriandoVersao] = useState(false);
+  const [status, setStatus] = useState<DesignProjectStatus>(projeto.status);
+  const [aprovando, setAprovando] = useState(false);
   const canvasJsonAtualRef = useRef<unknown>(projeto.canvasJson);
+
+  // Aprovar marca esta peça como referência de estilo real pro Design
+  // aprender em próximas gerações do mesmo cliente (ver
+  // buscarReferenciasAprovadas em apps/agentes — nunca cópia literal, só
+  // inspiração de composição/ritmo/hierarquia). Sem essa ação nenhuma peça
+  // nunca vira "approved" e o mecanismo de referência fica sempre vazio.
+  async function aprovar() {
+    setAprovando(true);
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase.from("design_projects").update({ status: "approved" }).eq("id", projeto.id);
+    setAprovando(false);
+    if (!error) setStatus("approved");
+  }
 
   const salvar = useCallback(
     async (canvasJson: unknown) => {
@@ -94,10 +109,23 @@ export default function DesignProjectEditor({ projeto }: { projeto: DesignProjec
           <p className="text-sm text-areia">
             {projeto.title} <span className="text-areia/40">— versão {projeto.version}</span>
           </p>
+          <p className="text-xs text-areia/40">
+            Status: {status === "approved" ? "aprovado (referência de estilo pro Design)" : status}
+          </p>
           {ultimoSalvamento && <p className="text-xs text-areia/40">Salvo automaticamente às {ultimoSalvamento}</p>}
           {salvando && <p className="text-xs text-menta">Salvando...</p>}
         </div>
         <div className="flex gap-2">
+          {status !== "approved" && (
+            <button
+              type="button"
+              onClick={aprovar}
+              disabled={aprovando}
+              className="rounded-lg border border-menta/30 px-3 py-1.5 text-xs text-menta hover:bg-menta/10 disabled:opacity-50"
+            >
+              {aprovando ? "Aprovando..." : "Aprovar"}
+            </button>
+          )}
           <button
             type="button"
             onClick={exportarEsalvarThumbnail}

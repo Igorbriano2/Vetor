@@ -206,3 +206,35 @@ export async function criarDesignProject(params: CriarDesignProjectParams): Prom
   if (error || !data) throw new Error(`Falha ao criar design_project: ${error?.message}`);
   return { id: data.id as string, version: data.version as number };
 }
+
+export interface ReferenciaAprovada {
+  id: string;
+  title: string;
+  designBrief: string | null;
+  width: number;
+  height: number;
+}
+
+// Peças já aprovadas do MESMO tenant — usadas só como inspiração de
+// composição/ritmo/hierarquia/tratamento/formato (nunca cópia literal, ver
+// prompt em specialistRunner.ts que injeta isso pro Claude escrever o
+// prompt da nova peça). Nunca cruza tenant: cliente_id é sempre exato, não
+// aceita um id "parecido" de fora.
+export async function buscarReferenciasAprovadas(clienteId: string, limite = 3): Promise<ReferenciaAprovada[]> {
+  const { data } = await supabase
+    .from("design_projects")
+    .select("id, title, design_brief, width, height")
+    .eq("cliente_id", clienteId)
+    .eq("status", "approved")
+    .order("updated_at", { ascending: false })
+    .limit(limite);
+
+  if (!data) return [];
+  return data.map((d) => ({
+    id: d.id as string,
+    title: d.title as string,
+    designBrief: d.design_brief as string | null,
+    width: d.width as number,
+    height: d.height as number,
+  }));
+}

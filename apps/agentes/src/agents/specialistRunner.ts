@@ -4,7 +4,13 @@ import { supabase } from "../db/supabase.js";
 import { getSystemPrompt, type AgenteId } from "./prompts/index.js";
 import { gerarVideoAPartirDeImagem, VideoIndisponivelError } from "../integrations/higgsfield.js";
 import { gerarImagem, gerarImagemComReferencia, ImagemIndisponivelError, tamanhoOpenAI, type ReferenciaImagem } from "../integrations/imageProvider.js";
-import { dimensaoDoTamanhoOpenAI, lerDimensaoDeImagem, montarCanvasJsonInicial, criarDesignProject } from "../negocio/designProjects.js";
+import {
+  dimensaoDoTamanhoOpenAI,
+  lerDimensaoDeImagem,
+  montarCanvasJsonInicial,
+  criarDesignProject,
+  buscarReferenciasAprovadas,
+} from "../negocio/designProjects.js";
 import { avaliarPecaDeDesign, type DesignCriticResultado } from "../negocio/designCritic.js";
 import { persistirArtefato, type ArtefatoPersistido, type ArtifactType } from "../artifacts/artifactsService.js";
 import { selecionarSkills, carregarSkillsSelecionadas, listarTodosOsManifestos } from "../skills/registry.js";
@@ -182,6 +188,12 @@ export interface AgentResult {
   // com os issues do critic anexados, pra aprovação humana ver exatamente
   // o que precisa de revisão em vez de um "concluído" que não é de verdade.
   designCritic?: DesignCriticResultado;
+  // Peças já aprovadas do MESMO tenant mostradas ao Design como inspiração
+  // de composição/ritmo/hierarquia/tratamento/formato — nunca cópia
+  // literal (ver buscarReferenciasAprovadas em designProjects.ts). Vazio
+  // quando é a primeira peça do cliente ou nenhuma outra está aprovada
+  // ainda.
+  approvedReferenceIds?: string[];
 }
 
 export interface ContextoMissaoParaEspecialista {
@@ -640,7 +652,19 @@ export async function executarEspecialista(
       `[skills] etapa ${missionStepId} (${agenteId}) usou a skill "${skillSelecionada.manifest.id}" v${skillSelecionada.manifest.version}`,
     );
   }
-  const systemPrompt = `${getSystemPrompt(agenteId)}\n\n${montarContexto(contexto)}${blocoSkill}`;
+  // Referências aprovadas do mesmo tenant (Parte 1) — só inspiram
+  // composição/ritmo/hierarquia/tratamento/formato, nunca viram
+  // image-to-image (arriscaria cópia literal de pixels): entram só como
+  // descrição textual no prompt, igual uma referência que um diretor de
+  // arte humano olharia antes de desenhar algo novo, não decalcaria.
+  const referenciasAprovadas = agenteId === "design" ? await buscarReferenciasAprovadas(clienteId) : [];
+  const blocoReferencias = referenciasAprovadas.length
+    ? `\n\nPEÇAS JÁ APROVADAS DESTE CLIENTE (inspiração de composição/ritmo/hierarquia/tratamento — NUNCA copie literalmente, é referência de estilo, não um template pra reproduzir):\n${referenciasAprovadas
+        .map((r) => `- "${r.title}" (${r.width}x${r.height})${r.designBrief ? `: ${r.designBrief.slice(0, 300)}` : ""}`)
+        .join("\n")}`
+    : "";
+
+  const systemPrompt = `${getSystemPrompt(agenteId)}\n\n${montarContexto(contexto)}${blocoSkill}${blocoReferencias}`;
   const departamento = DEPARTAMENTO_POR_AGENTE[agenteId];
   const ferramentaGeracao = FERRAMENTA_GERACAO_POR_AGENTE[agenteId];
 
@@ -744,6 +768,7 @@ export async function executarEspecialista(
             brandValidation: midiaGerada.brandValidation,
             designBrief: midiaGerada.promptUsado,
             designCritic: midiaGerada.designCritic,
+            referenceAssetIds: referenciasAprovadas.map((r) => r.id),
           });
 
           designProjectCriado = { id: criado.id, version: criado.version, canvasJson, designBrief: midiaGerada.promptUsado };
@@ -811,6 +836,7 @@ export async function executarEspecialista(
     ...(midiaGerada?.logoAssetId ? { logoAssetId: midiaGerada.logoAssetId } : {}),
     ...(midiaGerada?.brandValidation ? { brandValidation: midiaGerada.brandValidation } : {}),
     ...(midiaGerada?.designCritic ? { designCritic: midiaGerada.designCritic } : {}),
+    ...(referenciasAprovadas.length ? { approvedReferenceIds: referenciasAprovadas.map((r) => r.id) } : {}),
     ...(designProjectCriado
       ? {
           designProjectId: designProjectCriado.id,
