@@ -47,6 +47,21 @@ describe("calcularCustoEstimadoCentavos", () => {
     expect(semModelo.motivoAusencia).toMatch(/modelo/i);
   });
 
+  it("reconhece o snapshot datado real que a Anthropic devolve (response.model), não só o alias", () => {
+    // Achado no smoke test real desta fase: response.model vem como
+    // "claude-sonnet-4-5-20250929", nunca o alias "claude-sonnet-4-5" usado
+    // na chamada — sem esse match por prefixo, TODO custo real de produção
+    // cairia sempre no fallback "modelo desconhecido".
+    const resultado = calcularCustoEstimadoCentavos({
+      modelo: "claude-sonnet-4-5-20250929",
+      tokensEntrada: 1_000_000,
+      tokensSaida: 1_000_000,
+      cambioUsdBrlCentavos: 540,
+    });
+    expect(resultado.motivoAusencia).toBeNull();
+    expect(resultado.custoEstimadoCentavos).toBe(9720);
+  });
+
   it("nunca inventa custo pra modelo fora da tabela de preços conhecida", () => {
     const resultado = calcularCustoEstimadoCentavos({
       modelo: "modelo-desconhecido-do-futuro",

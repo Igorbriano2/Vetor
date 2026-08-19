@@ -28,11 +28,24 @@ export interface PrecoPorModelo {
 // em tempo real; se a Anthropic mudar o preço, atualizar aqui. Hoje só
 // "claude-sonnet-4-5" é usado de verdade no código (grep confirmado na FASE 0),
 // os outros ficam na tabela por segurança pra runs futuras/históricas.
+//
+// Achado no smoke test real desta fase: response.model devolve o snapshot
+// DATADO ("claude-sonnet-4-5-20250929"), nunca o alias usado em `model:` na
+// chamada — a chave aqui é o alias, e a busca abaixo compara por prefixo
+// (startsWith), porque a Anthropic não muda preço entre snapshots datados do
+// mesmo modelo nomeado, só entre gerações de modelo.
 export const PRECOS_POR_MODELO: Record<string, PrecoPorModelo> = {
   "claude-sonnet-4-5": { usdPorMilhaoEntrada: 3, usdPorMilhaoSaida: 15 },
   "claude-opus-4-1": { usdPorMilhaoEntrada: 15, usdPorMilhaoSaida: 75 },
   "claude-haiku-4-5": { usdPorMilhaoEntrada: 1, usdPorMilhaoSaida: 5 },
 };
+
+function resolverPrecoPorModelo(modelo: string): PrecoPorModelo | undefined {
+  const chaveExata = PRECOS_POR_MODELO[modelo];
+  if (chaveExata) return chaveExata;
+  const alias = Object.keys(PRECOS_POR_MODELO).find((a) => modelo.startsWith(a));
+  return alias ? PRECOS_POR_MODELO[alias] : undefined;
+}
 
 // Câmbio USD->BRL usado só pra ESTIMATIVA interna de custo (nunca cobrança
 // real do cliente — o cliente paga plano fixo, ver billing/planos.ts).
@@ -72,7 +85,7 @@ export function calcularCustoEstimadoCentavos(params: {
     };
   }
 
-  const preco = PRECOS_POR_MODELO[modelo];
+  const preco = resolverPrecoPorModelo(modelo);
   if (!preco) {
     return { custoEstimadoCentavos: null, motivoAusencia: `modelo "${modelo}" não está na tabela de preços conhecida` };
   }
