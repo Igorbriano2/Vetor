@@ -15,11 +15,14 @@
 // npm ignora config de install-strategy em .npmrc de membro de workspace
 // (warning: "ignoring workspace config"), só funciona na raiz do monorepo,
 // e mudar a raiz afetaria o layout de node_modules de todo o monorepo. Por
-// isso a correção é local a este app: copiar o pacote já resolvido pelo
-// npm (onde quer que ele esteja — local ou hoisted) pra dentro de
+// isso a correção é local a este app: copiar sharp e TODA a árvore de
+// dependências dele (percorrida de verdade a partir do package.json de
+// cada pacote, não uma lista fixa — a 1ª tentativa só copiou os
+// optionalDependencies de plataforma e quebrou de novo em produção
+// faltando a dependência regular @img/colour) pra dentro de
 // apps/agentes/node_modules antes do buildpack capturar a camada da app.
 
-import { cpSync, existsSync, mkdirSync, readdirSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,11 +35,11 @@ const erros = [];
 // Não usamos require.resolve('sharp') aqui de propósito: depois da
 // primeira cópia, apps/agentes/node_modules/sharp já existe e passaria a
 // ser resolvido primeiro (Node prioriza o node_modules mais próximo),
-// mascarando de onde o @img/sharp-* de verdade deveria vir. Em vez disso
-// subimos manualmente a partir do diretório PAI de apps/agentes — nunca
-// aceitamos o próprio destino como origem — até achar um node_modules que
-// realmente tenha sharp instalado (local a outro workspace ou hoisted na
-// raiz do monorepo).
+// mascarando de onde a árvore de verdade deveria vir. Em vez disso subimos
+// manualmente a partir do diretório PAI de apps/agentes — nunca aceitamos
+// o próprio destino como origem — até achar um node_modules que realmente
+// tenha sharp instalado (local a outro workspace ou hoisted na raiz do
+// monorepo).
 function encontrarNodeModulesComSharp(dirInicial) {
   let dir = dirInicial;
   while (true) {
@@ -48,47 +51,63 @@ function encontrarNodeModulesComSharp(dirInicial) {
   }
 }
 
-const origemNodeModules = encontrarNodeModulesComSharp(dirname(appDir));
-const sharpDir = origemNodeModules ? join(origemNodeModules, "sharp") : null;
+function caminhoDoPacote(nodeModulesDir, nomePacote) {
+  return join(nodeModulesDir, ...nomePacote.split("/"));
+}
 
-if (!sharpDir) {
+const origemNodeModules = encontrarNodeModulesComSharp(dirname(appDir));
+if (!origemNodeModules) {
   erros.push("não achei nenhum node_modules/sharp em nenhum ancestral de apps/agentes — rode `npm install` antes do build.");
 }
 
-if (sharpDir) {
-  const sharpDestino = join(destNodeModules, "sharp");
-  if (!existsSync(sharpDestino)) {
-    mkdirSync(destNodeModules, { recursive: true });
-    cpSync(sharpDir, sharpDestino, { recursive: true });
-    console.log(`vendor-sharp-runtime: copiado ${sharpDir} -> ${sharpDestino}`);
-  } else {
-    console.log("vendor-sharp-runtime: sharp já está local em apps/agentes/node_modules, nada a copiar.");
+if (origemNodeModules) {
+  // BFS pela árvore real de dependências do sharp (lida do package.json de
+  // cada pacote, não hardcoded), copiando cada um pra apps/agentes/node_modules.
+  // optionalDependencies de plataforma (@img/sharp-<so>-<arch>) que não
+  // batem com a máquina atual simplesmente não existem na origem — isso é
+  // esperado e não é erro; só dependencies regulares ausentes são erro.
+  const obrigatorio = new Map(); // nome -> true (obrigatório em algum caminho) | false (só visto como opcional até agora)
+  const fila = [{ nome: "sharp", obrigatorio: true }];
+  const copiados = [];
+
+  while (fila.length > 0) {
+    const { nome, obrigatorio: viaObrigatoria } = fila.shift();
+    const jaVisto = obrigatorio.has(nome);
+    if (jaVisto && (obrigatorio.get(nome) || !viaObrigatoria)) continue;
+    obrigatorio.set(nome, viaObrigatoria || (obrigatorio.get(nome) ?? false));
+
+    const origemPkg = caminhoDoPacote(origemNodeModules, nome);
+    const pkgJsonOrigem = join(origemPkg, "package.json");
+    if (!existsSync(pkgJsonOrigem)) {
+      if (viaObrigatoria) erros.push(`dependência obrigatória '${nome}' não existe em ${origemNodeModules} — instalação incompleta.`);
+      continue; // opcional ausente (ex: binário de outra plataforma) — esperado, não é erro.
+    }
+
+    const destinoPkg = caminhoDoPacote(destNodeModules, nome);
+    if (!existsSync(destinoPkg)) {
+      mkdirSync(dirname(destinoPkg), { recursive: true });
+      cpSync(origemPkg, destinoPkg, { recursive: true });
+      copiados.push(nome);
+    }
+
+    const pkg = JSON.parse(readFileSync(pkgJsonOrigem, "utf8"));
+    for (const dep of Object.keys(pkg.dependencies ?? {})) fila.push({ nome: dep, obrigatorio: true });
+    for (const dep of Object.keys(pkg.optionalDependencies ?? {})) fila.push({ nome: dep, obrigatorio: false });
   }
 
-  // sharp usa optionalDependencies por plataforma (@img/sharp-<plataforma>,
-  // @img/sharp-libvips-<plataforma>) — o npm só instala as que batem com o
-  // SO/arquitetura de quem rodou o install, então o node_modules/@img de
-  // origem só tem o que realmente é relevante pra essa máquina.
-  const imgOrigemDir = join(dirname(sharpDir), "@img");
-  const imgDestinoDir = join(destNodeModules, "@img");
-  if (existsSync(imgOrigemDir)) {
-    mkdirSync(imgDestinoDir, { recursive: true });
-    const pacotesSharp = readdirSync(imgOrigemDir).filter((nome) => nome.startsWith("sharp-"));
-    for (const pacote of pacotesSharp) {
-      const origem = join(imgOrigemDir, pacote);
-      const destino = join(imgDestinoDir, pacote);
-      if (!existsSync(destino)) {
-        cpSync(origem, destino, { recursive: true });
-        console.log(`vendor-sharp-runtime: copiado @img/${pacote}`);
-      }
-    }
-    if (pacotesSharp.length === 0) {
-      erros.push(
-        `@img/sharp-* não encontrado em ${imgOrigemDir} — o binário nativo da plataforma não foi instalado, sharp não vai funcionar em runtime mesmo com o pacote JS presente.`,
-      );
-    }
+  if (copiados.length > 0) {
+    console.log(`vendor-sharp-runtime: copiado(s) pra apps/agentes/node_modules: ${copiados.join(", ")}`);
   } else {
-    erros.push(`diretório @img esperado ao lado de node_modules/sharp não existe (${imgOrigemDir}).`);
+    console.log("vendor-sharp-runtime: árvore do sharp já está local em apps/agentes/node_modules, nada a copiar.");
+  }
+
+  const temBinarioDePlataforma = [...obrigatorio.keys()].some(
+    (nome) => nome.startsWith("@img/sharp-") && existsSync(caminhoDoPacote(destNodeModules, nome)),
+  );
+  if (!temBinarioDePlataforma) {
+    erros.push(
+      "nenhum pacote @img/sharp-<plataforma> foi vendorizado — o binário nativo do sharp pra esta plataforma não foi instalado (verifique optionalDependencies/arquitetura), sharp não vai funcionar em runtime mesmo com o pacote JS presente.",
+    );
   }
 }
 
@@ -98,4 +117,4 @@ if (erros.length > 0) {
   process.exit(1);
 }
 
-console.log("vendor-sharp-runtime: ok — sharp e seu binário de plataforma estão em apps/agentes/node_modules.");
+console.log("vendor-sharp-runtime: ok — sharp e toda a árvore de dependências dele estão em apps/agentes/node_modules.");
