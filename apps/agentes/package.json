@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "dev:worker": "tsx watch src/workers/missionWorker.ts",
-    "build": "tsc -p tsconfig.json --noEmit && esbuild src/server.ts --bundle --platform=node --format=esm --target=node20 --external:sharp --banner:js=\"import { createRequire as __cr } from 'module'; const require = __cr(import.meta.url);\" --outfile=dist/server.js && esbuild src/workers/missionWorker.ts --bundle --platform=node --format=esm --target=node20 --external:sharp --banner:js=\"import { createRequire as __cr } from 'module'; const require = __cr(import.meta.url);\" --outfile=dist/worker.js && mkdir -p dist && cp src/agents/prompts/*.md dist/ && mkdir -p dist/skills && cp -r src/skills/skills/. dist/skills/ && cp src/skills/source-manifest.json dist/source-manifest.json && node scripts/verify-skills-dist.mjs",
+    "build": "tsc -p tsconfig.json --noEmit && esbuild src/server.ts --bundle --platform=node --format=esm --target=node20 --external:sharp --banner:js=\"import { createRequire as __cr } from 'module'; const require = __cr(import.meta.url);\" --outfile=dist/server.js && esbuild src/workers/missionWorker.ts --bundle --platform=node --format=esm --target=node20 --external:sharp --banner:js=\"import { createRequire as __cr } from 'module'; const require = __cr(import.meta.url);\" --outfile=dist/worker.js && node scripts/vendor-sharp-runtime.mjs && mkdir -p dist && cp src/agents/prompts/*.md dist/ && mkdir -p dist/skills && cp -r src/skills/skills/. dist/skills/ && cp src/skills/source-manifest.json dist/source-manifest.json && node scripts/verify-skills-dist.mjs",
     "start": "node dist/server.js",
     "start:worker": "node dist/worker.js",
     "test": "vitest run",
