@@ -119,6 +119,25 @@ workers:
         scope: RUN_TIME
         type: SECRET
         # MESMO valor usado no service "agentes" acima.
+      - key: OPENAI_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        # Ja estava aplicado direto na producao (drift, mesmo padrao ja
+        # documentado no TTS_PROVIDER acima) — registrado aqui so agora,
+        # nao mudou de valor.
+      - key: STT_PROVIDER
+        scope: RUN_TIME
+        value: "openai"
+        # Sem isso o worker (que executa finalizar_video_com_legendas do
+        # agente de Vídeo) roda transcreverComTimestamps em modo sandbox e
+        # pula o estágio "captions" honestamente (skipped, motivo real) em
+        # vez de transcrever de verdade — achado real na prova do
+        # Videomaker Fase 2, aplicado via API em 2026-08-19.
+      - key: RENDER_SERVICE_URL
+        scope: RUN_TIME
+        value: "https://vetor-render-wanir.ondigitalocean.app"
+        # MESMO valor usado no service "agentes" acima — finalizar_video_com_legendas
+        # roda no worker e chama o serviço de render (preview + final_render).
       # Processo consumidor da fila de missoes (BullMQ) — nao expoe HTTP, so
       # roda src/workers/missionWorker.ts. Sem REDIS_URL ele falha ja na
       # inicializacao (por design, ver src/queue/connection.ts).
