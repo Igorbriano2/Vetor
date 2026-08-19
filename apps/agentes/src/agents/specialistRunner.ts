@@ -622,14 +622,20 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
         const asset = await buscarAtivoPorId(assetId);
         if (!asset) throw new Error("Ativo de vídeo de origem não encontrado.");
 
+        const captionTrackVazia = { cues: [] as Array<{ id: string; startMs: number; endMs: number; text: string }>, language: "pt-BR" as const };
+
         // Estágio "captions" — em ambiente sandbox (sem STT_PROVIDER real),
         // marca como pulado com o motivo real em vez de fingir uma
-        // transcrição; fora do sandbox, falha de verdade propaga (nunca
-        // esconde um erro real de provider).
+        // transcrição. Fora do sandbox, uma falha real do provider fica
+        // PERSISTIDA como "failed" no estágio (nunca escondida) — mas não
+        // trava corte/preview/final_render, que não dependem de legenda
+        // (achado real: vídeo de teste sem faixa de áudio decodificável
+        // fazia a missão inteira travar antes desta mudança, mesmo o corte
+        // e o render não tendo nada a ver com áudio).
         const captionsResultado = transcricaoEmSandbox()
           ? await (async () => {
               await pularEstagio(videoProjectId, ctx.clienteId, "captions", "STT_PROVIDER não configurado neste ambiente.");
-              return { captionTrack: { cues: [] as Array<{ id: string; startMs: number; endMs: number; text: string }>, language: "pt-BR" as const } };
+              return { captionTrack: captionTrackVazia };
             })()
           : await executarEstagioIdempotente(videoProjectId, ctx.clienteId, "captions", async () => {
               // Transcreve só o trecho CORTADO (renderiza um recorte leve a
@@ -652,6 +658,12 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
               const captionTrack = montarCaptionTrackDeSegmentos(segmentos);
               await atualizarCaptionsDoVideoProject(videoProjectId, captionTrack);
               return { captionTrack };
+            }).catch(() => {
+              // executarEstagioIdempotente já persistiu status "failed" +
+              // o erro real no estágio "captions" (visível no painel e em
+              // video_pipeline_stages) — aqui só evita que essa falha
+              // aborte preview/final_render, que seguem sem legenda.
+              return { captionTrack: captionTrackVazia };
             });
 
         const cuesParaRender = captionsResultado.captionTrack.cues.map((c) => ({ startMs: c.startMs, endMs: c.endMs, text: c.text }));
