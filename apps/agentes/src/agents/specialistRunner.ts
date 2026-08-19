@@ -38,6 +38,7 @@ import { renderizarPecaComposta, amostrarLuminanciaMedia } from "../negocio/desi
 import { buscarOuCriarVideoProjectRascunho, montarTimelineInicial, atualizarTimelineDoVideoProject } from "../negocio/videoProjects.js";
 import { executarEstagioIdempotente } from "../negocio/videoPipeline.js";
 import { persistirArtefato, type ArtefatoPersistido, type ArtifactType } from "../artifacts/artifactsService.js";
+import { calcularCustoEstimadoCentavos } from "../billing/agentRunCost.js";
 import { selecionarSkills, carregarSkillsSelecionadas, listarTodosOsManifestos } from "../skills/registry.js";
 import type { SkillDefinition, SkillDepartment } from "../skills/types.js";
 import {
@@ -1528,6 +1529,12 @@ export async function executarEspecialista(
       : {}),
   };
 
+  const { custoEstimadoCentavos, motivoAusencia } = calcularCustoEstimadoCentavos({
+    modelo: response.model,
+    tokensEntrada: response.usage.input_tokens,
+    tokensSaida: response.usage.output_tokens,
+  });
+
   await supabase.from("agent_runs").insert({
     mission_step_id: missionStepId,
     cliente_id: clienteId,
@@ -1535,6 +1542,8 @@ export async function executarEspecialista(
     modelo: response.model,
     tokens_entrada: response.usage.input_tokens,
     tokens_saida: response.usage.output_tokens,
+    custo_estimado_centavos: custoEstimadoCentavos,
+    custo_motivo_ausencia: motivoAusencia,
     resultado,
     erro: resultado.status === "failed" ? resultado.summary : null,
   });
