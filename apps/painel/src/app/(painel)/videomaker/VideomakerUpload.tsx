@@ -3,6 +3,13 @@
 import { useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { readApiResponse } from "@/lib/api/readApiResponse";
+import VetorIntentCard, { type MissaoProposta } from "@/components/VetorIntentCard";
+
+interface RespostaComando {
+  solicitacaoId: string;
+  respostaTexto: string;
+  intent?: MissaoProposta;
+}
 
 // Upload de origem + pedido pro Vetor — reaproveita 100% o pipeline de
 // missão já existente (chat -> propor_missao -> confirmar -> fila -> agente
@@ -20,6 +27,7 @@ export default function VideomakerUpload({ clienteId }: { clienteId: string }) {
   const [enviando, setEnviando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [proposta, setProposta] = useState<{ intent: MissaoProposta; solicitacaoId: string } | null>(null);
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -28,6 +36,7 @@ export default function VideomakerUpload({ clienteId }: { clienteId: string }) {
     setEnviando(true);
     setErro(null);
     setMensagem(null);
+    setProposta(null);
 
     try {
       const path = `${clienteId}/videomaker/${crypto.randomUUID()}-${arquivo.name}`;
@@ -55,9 +64,16 @@ export default function VideomakerUpload({ clienteId }: { clienteId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ texto, responder_em_voz: false }),
       });
-      await readApiResponse(res);
+      const data = await readApiResponse<RespostaComando>(res);
 
-      setMensagem("Enviado pro Vetor — acompanhe em Missões ou aqui quando o vídeo estiver pronto.");
+      if (data.intent) {
+        // O Vetor propõe uma missão antes de executar — mesma exigência de
+        // confirmação humana do chat principal (VetorCommandBar). Sem isso o
+        // pedido ficava "planned" pra sempre, nunca virava missão de verdade.
+        setProposta({ intent: data.intent, solicitacaoId: data.solicitacaoId });
+      } else {
+        setMensagem(data.respostaTexto || "Enviado pro Vetor — acompanhe em Missões ou aqui quando o vídeo estiver pronto.");
+      }
       setArquivo(null);
       setInstrucao("");
     } catch (err) {
@@ -99,6 +115,7 @@ export default function VideomakerUpload({ clienteId }: { clienteId: string }) {
       </div>
       {mensagem && <p className="mt-2 text-xs text-menta">{mensagem}</p>}
       {erro && <p className="mt-2 text-xs text-coral">{erro}</p>}
+      {proposta && <VetorIntentCard intent={proposta.intent} solicitacaoId={proposta.solicitacaoId} />}
     </div>
   );
 }
