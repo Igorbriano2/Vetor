@@ -36,6 +36,36 @@ export interface DesignCanvasEditorProps {
   maxDisplayWidth?: number;
 }
 
+// Achado ao vivo: o canvas do Fabric usa a Canvas 2D API do navegador pra
+// desenhar texto — se a @font-face declarada em globals.css ainda não
+// carregou de verdade quando o objeto é desenhado, o navegador silenciosamente
+// desenha com a fonte de fallback (nunca lança erro), e o canvas NÃO se
+// redesenha sozinho quando a fonte termina de carregar depois (diferente de
+// texto em HTML normal). Por isso: força document.fonts.load() de cada
+// família+peso realmente usado nos objetos carregados, espera terminar, e
+// só então manda um renderAll() extra — garante a mesma fonte que o
+// servidor usou pra gerar o preview (ver apps/agentes/.../designFonts.ts).
+async function garantirFontesCarregadas(canvas: fabric.Canvas): Promise<void> {
+  if (typeof document === "undefined" || !("fonts" in document)) return;
+  const combinacoes = new Set<string>();
+  for (const obj of canvas.getObjects()) {
+    const textObj = obj as unknown as { fontFamily?: string; fontWeight?: string | number; fontSize?: number };
+    if (!textObj.fontFamily) continue;
+    const peso = textObj.fontWeight === "bold" || textObj.fontWeight === 700 ? "700" : "400";
+    combinacoes.add(`${peso} ${Math.round(textObj.fontSize ?? 40)}px "${textObj.fontFamily}"`);
+  }
+  if (combinacoes.size === 0) return;
+  try {
+    await Promise.all([...combinacoes].map((fonte) => document.fonts.load(fonte)));
+    await document.fonts.ready;
+  } catch {
+    // Fonte não encontrada entre as @font-face declaradas (ex: fallback
+    // "sans") — o navegador já cai pro sans-serif padrão sozinho, nada a
+    // fazer aqui.
+  }
+  canvas.renderAll();
+}
+
 function objetoEhLogoOficial(obj: fabric.FabricObject): boolean {
   const meta = (obj.get("vetorMeta") as VetorObjectMeta | undefined) ?? undefined;
   return !!meta?.isOfficialLogo;
@@ -144,6 +174,7 @@ export default function DesignCanvasEditor({
           if (objetoEhLogoOficial(obj)) aplicarBloqueioDeLogo(obj);
         }
         canvas.renderAll();
+        void garantirFontesCarregadas(canvas);
         historicoRef.current.suprimirRegistro = false;
         registrarHistorico();
         setPronto(true);
@@ -281,6 +312,7 @@ export default function DesignCanvasEditor({
         if (objetoEhLogoOficial(obj)) aplicarBloqueioDeLogo(obj);
       }
       canvas.renderAll();
+      void garantirFontesCarregadas(canvas);
       historicoRef.current.suprimirRegistro = false;
       agendarAutosave();
     });

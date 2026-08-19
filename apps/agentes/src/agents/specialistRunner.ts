@@ -739,14 +739,25 @@ function mapearFormatoParaLogo(formato: FormatoPeca): string {
 }
 
 // Lê fonte/cor do BrandKit de forma defensiva — o schema de `fontes`/`cores`
-// é jsonb livre (ainda sem shape fixo em produção, nenhum cliente real
-// cadastrou isso até hoje) — nunca assume uma chave que pode não existir,
-// sempre cai num fallback seguro e nunca lança erro por causa disso.
-function resolverFonteDoBrandKit(brandKit: ContextoExecucaoFerramenta["brandKit"]): { fontFamily: string; fallbackUsado: boolean } {
-  const fontes = brandKit?.fontes as { principal?: unknown; titulo?: unknown } | null | undefined;
-  const candidata = fontes?.principal ?? fontes?.titulo;
-  if (typeof candidata === "string" && candidata.trim()) return { fontFamily: candidata.trim(), fallbackUsado: false };
-  return { fontFamily: "sans", fallbackUsado: true };
+// é jsonb livre, sem shape fixo — nunca assume uma chave que pode não
+// existir, sempre cai num fallback seguro e nunca lança erro por causa
+// disso. Duas famílias, não uma: brandbooks reais (ex: Dog King) separam
+// fonte de título/destaque (headline, CTA — o que precisa "gritar") de
+// fonte de apoio (subheadline, caption — texto corrido, mais legível em
+// tamanho menor). Sem "apoio" cadastrado, cai pra mesma fonte do título
+// (nunca duas fontes por acidente quando só uma foi informada).
+function resolverFonteDoBrandKit(
+  brandKit: ContextoExecucaoFerramenta["brandKit"],
+): { fontFamilyTitulo: string; fontFamilyApoio: string; fallbackUsado: boolean } {
+  const fontes = brandKit?.fontes as { principal?: unknown; titulo?: unknown; apoio?: unknown } | null | undefined;
+  const candidataTitulo = fontes?.principal ?? fontes?.titulo;
+  if (typeof candidataTitulo === "string" && candidataTitulo.trim()) {
+    const titulo = candidataTitulo.trim();
+    const candidataApoio = fontes?.apoio;
+    const apoio = typeof candidataApoio === "string" && candidataApoio.trim() ? candidataApoio.trim() : titulo;
+    return { fontFamilyTitulo: titulo, fontFamilyApoio: apoio, fallbackUsado: false };
+  }
+  return { fontFamilyTitulo: "sans", fontFamilyApoio: "sans", fallbackUsado: true };
 }
 
 function resolverCorPrimariaDoBrandKit(brandKit: ContextoExecucaoFerramenta["brandKit"]): string | null {
@@ -847,6 +858,16 @@ async function executarCriarPecaDeDesign(input: Record<string, unknown>, ctx: Co
   const ativosDrive: AtivoDriveResolvido[] = [];
   let algumAtivoPedidoInvalido = false;
   for (const assetId of assetIdsPedidos.slice(0, 2)) {
+    // Achado em teste real de produção: a busca de assets do Drive pode
+    // devolver o MESMO arquivo que já foi resolvido como logo oficial
+    // acima (ex: a logo também está catalogada em "identidade visual" no
+    // banco de ativos) — sem esse filtro, a logo aparece duas vezes na
+    // peça: uma vez certa (camada "logo", travada, vinculada ao BrandKit)
+    // e outra errada (camada "produto" solta, gigante, editável).
+    if (logo && assetId === logo.id) {
+      issuesBrand.push(`Ativo "${assetId}" pedido como referência de produto/campanha é o mesmo arquivo da logo oficial — ignorado aqui pra não duplicar a logo na peça.`);
+      continue;
+    }
     const validacao = await validarAtivoParaUso(ctx.clienteId, assetId);
     if (!validacao.valido) {
       algumAtivoPedidoInvalido = true;
@@ -882,7 +903,7 @@ async function executarCriarPecaDeDesign(input: Record<string, unknown>, ctx: Co
   // headline no topo, ativo de Drive centralizado, CTA embaixo à esquerda
   // com uma forma de contraste atrás, logo no canto inferior direito
   // (mesma posição do fluxo antigo, nunca colide com o CTA).
-  const { fontFamily, fallbackUsado: fonteFallbackUsada } = resolverFonteDoBrandKit(ctx.brandKit);
+  const { fontFamilyTitulo, fontFamilyApoio, fallbackUsado: fonteFallbackUsada } = resolverFonteDoBrandKit(ctx.brandKit);
   const corPrimaria = resolverCorPrimariaDoBrandKit(ctx.brandKit);
   const corTextoPadrao = corDeTextoPadrao(luminanciaGeralDoFundo);
   const margem = Math.round(Math.min(width, height) * 0.07);
@@ -893,25 +914,43 @@ async function executarCriarPecaDeDesign(input: Record<string, unknown>, ctx: Co
 
   let cursorY = margem;
 
+  // Escolhe a cor de cada bloco de texto pela luminância REAL da região do
+  // fundo onde ele vai cair (não a média do canvas inteiro) — achado em
+  // teste real de produção: um fundo gradiente pode ter uma região clara
+  // no topo (onde o headline cai) mesmo com média geral escura, e a cor
+  // "certa pra média" reprova no contraste real contra aquele trecho
+  // específico. amostrarLuminanciaMedia já existe e é barata (reduz a
+  // 8x8 antes de calcular).
+  async function corDeTextoParaRegiao(x: number, y: number, larguraRegiao: number, alturaRegiao: number): Promise<string> {
+    const luminanciaLocal = await amostrarLuminanciaMedia(imagemFundo.bytes, { x, y, width: larguraRegiao, height: alturaRegiao });
+    return corDeTextoPadrao(luminanciaLocal);
+  }
+
   if (camposValidos.includes("caption")) {
     const fontSize = Math.round(width * 0.028);
     const texto = valoresBrutos.caption!.trim();
-    camadas.push({ tipo: "texto", field: "caption", texto, x: margem, y: cursorY, width: width - margem * 2, fontSize, fontFamily, fontWeight: "bold", fill: corPrimaria ?? corTextoPadrao, textAlign: "left", required: true });
-    cursorY += estimarAlturaDeTexto(texto, width - margem * 2, fontSize) + Math.round(height * 0.015);
+    const alturaEstimada = estimarAlturaDeTexto(texto, width - margem * 2, fontSize);
+    const corLocal = await corDeTextoParaRegiao(margem, cursorY, width - margem * 2, alturaEstimada);
+    camadas.push({ tipo: "texto", field: "caption", texto, x: margem, y: cursorY, width: width - margem * 2, fontSize, fontFamily: fontFamilyApoio, fontWeight: "bold", fill: corPrimaria ?? corLocal, textAlign: "left", required: true });
+    cursorY += alturaEstimada + Math.round(height * 0.015);
   }
 
   if (camposValidos.includes("headline")) {
     const fontSize = Math.round(width * 0.07);
     const texto = valoresBrutos.headline!.trim();
-    camadas.push({ tipo: "texto", field: "headline", texto, x: margem, y: cursorY, width: width - margem * 2, fontSize, fontFamily, fontWeight: "bold", fill: corTextoPadrao, textAlign: "left", required: true });
-    cursorY += estimarAlturaDeTexto(texto, width - margem * 2, fontSize) + Math.round(height * 0.015);
+    const alturaEstimada = estimarAlturaDeTexto(texto, width - margem * 2, fontSize);
+    const corLocal = await corDeTextoParaRegiao(margem, cursorY, width - margem * 2, alturaEstimada);
+    camadas.push({ tipo: "texto", field: "headline", texto, x: margem, y: cursorY, width: width - margem * 2, fontSize, fontFamily: fontFamilyTitulo, fontWeight: "bold", fill: corLocal, textAlign: "left", required: true });
+    cursorY += alturaEstimada + Math.round(height * 0.015);
   }
 
   if (camposValidos.includes("subheadline")) {
     const fontSize = Math.round(width * 0.038);
     const texto = valoresBrutos.subheadline!.trim();
-    camadas.push({ tipo: "texto", field: "subheadline", texto, x: margem, y: cursorY, width: width - margem * 2, fontSize, fontFamily, fontWeight: "normal", fill: corTextoPadrao, textAlign: "left", required: true });
-    cursorY += estimarAlturaDeTexto(texto, width - margem * 2, fontSize) + Math.round(height * 0.02);
+    const alturaEstimada = estimarAlturaDeTexto(texto, width - margem * 2, fontSize);
+    const corLocal = await corDeTextoParaRegiao(margem, cursorY, width - margem * 2, alturaEstimada);
+    camadas.push({ tipo: "texto", field: "subheadline", texto, x: margem, y: cursorY, width: width - margem * 2, fontSize, fontFamily: fontFamilyApoio, fontWeight: "normal", fill: corLocal, textAlign: "left", required: true });
+    cursorY += alturaEstimada + Math.round(height * 0.02);
   }
 
   if (ativosDrive.length > 0) {
@@ -941,7 +980,7 @@ async function executarCriarPecaDeDesign(input: Record<string, unknown>, ctx: Co
       y: ctaCaixa.y + padding,
       width: larguraTexto,
       fontSize,
-      fontFamily,
+      fontFamily: fontFamilyTitulo,
       fontWeight: "bold",
       fill: corPrimaria ? corDeTextoPadrao(luminanciaRelativaHex(corPrimaria)) : corDeTextoPadrao(1 - luminanciaGeralDoFundo),
       textAlign: "left",

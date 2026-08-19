@@ -197,12 +197,21 @@ export interface EspecificacaoLogo {
 export type EspecificacaoDeCamada = EspecificacaoImagem | EspecificacaoTexto | EspecificacaoForma | EspecificacaoLogo;
 
 // Estimativa de altura de um bloco de texto — heurística (largura média de
-// caractere ~0.55×fontSize pra uma fonte sans genérica), nunca pixel-
+// caractere ~0.62×fontSize pra uma fonte sans genérica em negrito/caixa
+// alta, o caso mais comum em headline/CTA de marketing), nunca pixel-
 // perfeito. Usada só pra POSICIONAR camadas sem sobrepor umas às outras
 // (layout determinístico), não pra decidir aprovação — o contraste/área
 // segura reais são checados sobre a posição final já decidida.
+//
+// Achado em teste real de produção: com 0.55 a estimativa previu 1 linha
+// pra um headline bold que na verdade quebrou em 2 no Fabric/browser
+// (larguras de caractere reais em negrito/maiúsculas são mais largas que a
+// média de uma fonte regular) — o subheadline seguinte ficou colado/
+// sobreposto na 2ª linha real. Bug de contraste é sempre pior que um
+// respiro extra: o multiplicador subiu pra superestimar de propósito
+// (melhor um espaço a mais do que texto ilegível).
 export function estimarAlturaDeTexto(texto: string, larguraDisponivel: number, fontSize: number): number {
-  const larguraMediaCaractere = fontSize * 0.55;
+  const larguraMediaCaractere = fontSize * 0.62;
   const caracteresPorLinha = Math.max(1, Math.floor(larguraDisponivel / larguraMediaCaractere));
   const linhas = Math.max(1, Math.ceil(texto.length / caracteresPorLinha));
   const alturaDeLinha = fontSize * 1.3;

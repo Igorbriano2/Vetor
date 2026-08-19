@@ -1,5 +1,43 @@
 @import "tailwindcss";
 
+/* Fontes de marca do Design V1 (BrandKit por cliente) — self-hosted em
+   public/fonts/ (licença OFL, Google Fonts), nunca via CDN externo: o
+   editor de design (Fabric.js/canvas) precisa que a fonte já esteja
+   carregada no navegador ANTES de desenhar o texto, e depender de uma CDN
+   de terceiro adicionaria uma falha de rede possível bem no meio da
+   edição. Nomes de família batem 1:1 com os usados pelo servidor
+   (apps/agentes/src/negocio/designFonts.ts) e com o que o BrandKit grava
+   em cores/fontes — precisa continuar assim pros dois lados renderizarem
+   a mesma fonte. */
+@font-face {
+  font-family: "Passion One";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/PassionOne-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Passion One";
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/PassionOne-Bold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Rubik";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/Rubik-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Rubik";
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/Rubik-Bold.ttf") format("truetype");
+}
+
 :root {
   /* Direção JARVIS (ADR-001 em docs/manus-jarvis-spec) — o painel é o cockpit
      de verdade. Valores alinhados 1:1 com apps/landing/src/app/globals.css

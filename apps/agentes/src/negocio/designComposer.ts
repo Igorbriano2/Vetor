@@ -10,6 +10,7 @@
 
 import sharp, { type OverlayOptions } from "sharp";
 import { luminanciaRelativaRGB, type EspecificacaoDeCamada } from "./designLayout.js";
+import { resolverArquivoDeFonte } from "./designFonts.js";
 
 function escaparPango(texto: string): string {
   return texto.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -18,10 +19,21 @@ function escaparPango(texto: string): string {
 async function renderizarCamadaDeTexto(camada: Extract<EspecificacaoDeCamada, { tipo: "texto" }>): Promise<Buffer> {
   const peso = camada.fontWeight === "bold" ? "Bold" : "";
   const marcado = `<span foreground="${camada.fill}">${escaparPango(camada.texto)}</span>`;
+  // camada.fontFamily é o nome real (ex: "Passion One", vindo do BrandKit)
+  // — antes este render ignorava esse campo e sempre desenhava com o alias
+  // genérico "sans" do Pango, então o preview do servidor divergia
+  // silenciosamente da fonte que o editor (Fabric, no navegador) tentava
+  // usar. `fontfile` aponta pro .ttf empacotado direto (apps/agentes/fonts/,
+  // ver designFonts.ts) — nunca depende de a fonte estar "instalada" no
+  // container/fontconfig do sistema, mesma lição do bug do sharp. Família
+  // sem arquivo empacotado (ex: fallback "sans") cai pro alias genérico do
+  // Pango, exatamente o comportamento de antes.
+  const arquivoDeFonte = resolverArquivoDeFonte(camada.fontFamily, camada.fontWeight);
   return sharp({
     text: {
       text: marcado,
-      font: `sans ${peso}`.trim() + ` ${camada.fontSize}`,
+      font: `${camada.fontFamily} ${peso}`.trim() + ` ${camada.fontSize}`,
+      ...(arquivoDeFonte ? { fontfile: arquivoDeFonte } : {}),
       width: Math.max(1, Math.round(camada.width)),
       rgba: true,
       align: camada.textAlign,
