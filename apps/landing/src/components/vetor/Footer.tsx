@@ -43,12 +43,12 @@ export function Footer() {
           <p className="text-sm font-semibold">Legal e redes</p>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
             <li>
-              <a href="/privacidade" className="hover:text-foreground">
+              <a href="/policy" className="hover:text-foreground">
                 Política de privacidade
               </a>
             </li>
             <li>
-              <a href="/termos" className="hover:text-foreground">
+              <a href="/terms" className="hover:text-foreground">
                 Termos de uso
               </a>
             </li>

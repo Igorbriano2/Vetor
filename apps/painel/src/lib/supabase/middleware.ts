@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { caminhoInternoSeguro } from "@/lib/safeRedirect";
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -41,14 +42,19 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (!user && !isLoginRoute && !isPublicAsset) {
+    const destinoOriginal = request.nextUrl.pathname + request.nextUrl.search;
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    url.search = "";
+    if (destinoOriginal !== "/") url.searchParams.set("next", destinoOriginal);
     return NextResponse.redirect(url);
   }
 
   if (user && isLoginRoute) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    const next = request.nextUrl.searchParams.get("next");
+    const url = caminhoInternoSeguro(next)
+      ? new URL(next, request.url)
+      : new URL("/dashboard", request.url);
     return NextResponse.redirect(url);
   }
 

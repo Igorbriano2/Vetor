@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { StatusDot, VetorMark } from "./system";
+import { PAINEL_LOGIN_URL } from "@/lib/urls";
 
 const LINKS = [
   { href: "#arquitetura", label: "CAPABILITIES" },
@@ -50,7 +51,7 @@ export function SystemNav() {
             </a>
           ))}
           <a
-            href="#ativar"
+            href={PAINEL_LOGIN_URL}
             className="hover-pop inline-flex h-9 items-center rounded-lg bg-primary px-4 text-xs font-semibold tracking-wide text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             ENTRAR NO SISTEMA
@@ -59,7 +60,7 @@ export function SystemNav() {
 
         <div className="flex items-center gap-2 md:hidden">
           <a
-            href="#ativar"
+            href={PAINEL_LOGIN_URL}
             className="inline-flex h-9 items-center rounded-lg bg-primary px-3 text-[0.7rem] font-semibold tracking-wide text-primary-foreground"
           >
             ENTRAR
