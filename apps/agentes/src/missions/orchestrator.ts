@@ -508,8 +508,25 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
     // entrega de Vídeo é um arquivo genérico (editar_video_timeline e
     // analisar_video_de_referencia produzem uma linha real no banco, não um
     // artifact solto, ver criaArtefatoGenerico em specialistRunner.ts).
+    // "estrategia" só precisa de artifact_id na etapa TERMINAL (nenhuma
+    // outra etapa da mesma missão depende dela) — achado real: uma etapa
+    // de "analisar perfil do negócio..." (puramente investigativa, cujo
+    // resultado outras etapas consomem via etapasAnteriores) passou a
+    // falhar sem necessidade quando o guard-rail exigia artifact_id em
+    // TODA etapa de estrategia. design/video continuam exigindo sempre,
+    // porque lá cada etapa já É a entrega (nunca um passo intermediário).
+    let etapaExigeArtefato = DEPARTAMENTOS_EXIGEM_ARTEFATO.has(etapa.agente);
+    if (etapaExigeArtefato && etapa.agente === "estrategia") {
+      const { data: dependentes } = await supabase
+        .from("mission_steps")
+        .select("id")
+        .eq("mission_id", etapa.mission_id as string)
+        .contains("depende_de", [etapa.id]);
+      etapaExigeArtefato = !dependentes || dependentes.length === 0;
+    }
+
     const temEntregaVerificavel = resultado.artifactIds.length > 0 || !!resultado.videoProjectId || !!resultado.referenceVideoProfileId;
-    if (resultado.status === "completed" && DEPARTAMENTOS_EXIGEM_ARTEFATO.has(etapa.agente) && !temEntregaVerificavel) {
+    if (resultado.status === "completed" && etapaExigeArtefato && !temEntregaVerificavel) {
       resultado.status = "failed";
       resultado.summary = `Etapa marcada como falha: nenhum artefato verificável foi produzido, apesar do resumo original ("${resultado.summary}"). Nunca completar uma entrega de ${etapa.agente} sem artifact_id.`;
     }
