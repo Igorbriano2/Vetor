@@ -10,10 +10,31 @@ import {
   dimensaoDoTamanhoOpenAI,
   lerDimensaoDeImagem,
   montarCanvasJsonInicial,
+  montarCanvasJsonEmCamadas,
   criarDesignProject,
   buscarReferenciasAprovadas,
 } from "../negocio/designProjects.js";
-import { avaliarPecaDeDesign, type DesignCriticResultado } from "../negocio/designCritic.js";
+import {
+  avaliarPecaDeDesign,
+  avaliarRiscoDeTextoNoFundo,
+  calcularCriteriosEstruturais,
+  combinarComCriteriosEstruturais,
+  type DesignCriticResultado,
+} from "../negocio/designCritic.js";
+import {
+  mapearFormatoParaAspectRatio,
+  montarPromptDeFundo,
+  detectarPlaceholder,
+  validarAreaSegura,
+  luminanciaRelativaHex,
+  calcularContraste,
+  corDeTextoPadrao,
+  estimarAlturaDeTexto,
+  CONTRASTE_MINIMO_LEGIVEL,
+  type EspecificacaoDeCamada,
+  type FormatoPeca,
+} from "../negocio/designLayout.js";
+import { renderizarPecaComposta, amostrarLuminanciaMedia } from "../negocio/designComposer.js";
 import { buscarOuCriarVideoProjectRascunho, montarTimelineInicial, atualizarTimelineDoVideoProject } from "../negocio/videoProjects.js";
 import { executarEstagioIdempotente } from "../negocio/videoPipeline.js";
 import { persistirArtefato, type ArtefatoPersistido, type ArtifactType } from "../artifacts/artifactsService.js";
@@ -180,6 +201,55 @@ const GERAR_IMAGEM_TOOL: Anthropic.Tool = {
   },
 };
 
+// Design profissional V1 (camadas reais) — SUBSTITUI gerar_imagem como
+// caminho padrão pra peça nova (gerar_imagem fica só pra compatibilidade
+// com missões/skills antigas, nunca mais usada por escolha do agente, ver
+// prompts/design.md). Diferença central: aqui a IA de imagem NUNCA recebe
+// a responsabilidade de desenhar texto/logo — só o cenário/fundo. Texto e
+// logo sempre viram camada Fabric real, composta server-side.
+const CRIAR_PECA_DESIGN_TOOL: Anthropic.Tool = {
+  name: "criar_peca_de_design",
+  description:
+    "Cria a peça de design como um PROJETO EDITÁVEL DE VERDADE: fundo visual gerado sem nenhum texto, " +
+    "headline/subheadline/CTA/legenda como camadas de texto reais e independentes (nunca pixel), ativos reais " +
+    "do Drive (produto/pessoa/ambiente) como camadas de imagem próprias, e a logo oficial como camada travada. " +
+    "Use SEMPRE esta ferramenta pra peça nova — nunca gerar_imagem (caminho legado, mantido só por " +
+    "compatibilidade com missões antigas).",
+  input_schema: {
+    type: "object",
+    properties: {
+      visual_prompt: {
+        type: "string",
+        description:
+          "Descrição SÓ do tratamento visual de fundo/cena: composição, cores, iluminação, estilo, recorte, " +
+          "ambiente, espaço reservado pra tipografia. NUNCA mencione texto, número, preço, CTA ou logotipo aqui " +
+          "— isso vai nos campos separados abaixo e nunca é desenhado pela IA de imagem.",
+      },
+      headline: { type: "string", description: "Mensagem principal da peça, se o pedido tiver uma — vira camada de texto real." },
+      subheadline: { type: "string", description: "Informação de apoio, se houver." },
+      cta: { type: "string", description: "Chamada pra ação, se houver (ex: 'Peça já pelo WhatsApp')." },
+      caption: { type: "string", description: "Selo/legenda curta adicional, se houver (ex: 'Só hoje')." },
+      formato: {
+        type: "string",
+        enum: ["feed", "story", "reels_cover", "ad", "custom"],
+        description: "Formato de destino — decide proporção e a variante certa da logo.",
+      },
+      aspect_ratio: {
+        type: "string",
+        description: "Obrigatório quando formato='custom'. Opcional pra 'ad' (default 4:5 se omitido).",
+      },
+      asset_ids: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "IDs (da lista 'Banco de ativos disponível') de produto/pessoa/ambiente reais a incluir como camada de " +
+          "imagem própria — nunca cozidos no fundo gerado. Nunca invente um id.",
+      },
+    },
+    required: ["visual_prompt", "formato"],
+  },
+};
+
 export interface AssetSelectionItem {
   assetId: string;
   papel: "referencia" | "fonte" | "logo" | "template" | "fundo" | "produto" | "pessoa";
@@ -325,6 +395,13 @@ interface MidiaExecutada {
     width: number;
     height: number;
     logo?: { assetId: string; storagePath: string; naturalWidth: number | null; naturalHeight: number | null };
+    // Design profissional V1 (camadas reais) — quando presente, o bloco de
+    // criação do design_project usa ESTE canvasJson pronto (montado por
+    // montarCanvasJsonEmCamadas, ver criar_peca_de_design) em vez de chamar
+    // montarCanvasJsonInicial(fundo+logo) — a ferramenta nova já resolveu
+    // texto/imagens reais/logo como camadas independentes, o bloco
+    // compartilhado só precisa persistir.
+    canvasJsonPronto?: unknown;
   };
   // O prompt de verdade usado pra gerar a imagem — vira o designBrief do
   // design_project (nunca reconstruído a partir do summary do LLM, que pode
@@ -632,8 +709,361 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
       }
     },
     },
+    {
+      tool: CRIAR_PECA_DESIGN_TOOL,
+      tipo: "image",
+      titulo: "Peça de design (camadas editáveis)",
+      mimeType: "image/png",
+      criaArtefatoGenerico: true,
+      executar: async (input, ctx) => {
+        try {
+          return await executarCriarPecaDeDesign(input, ctx);
+        } catch (err) {
+          throw err instanceof ImagemIndisponivelError ? err : new ImagemIndisponivelError(err instanceof Error ? err.message : "erro desconhecido");
+        }
+      },
+    },
   ],
 };
+
+// Mapeia o formato novo (feed/story/reels_cover/ad/custom) pro vocabulário
+// que buscarLogoParaFormato já entende — reels_cover usa a mesma variante
+// de story (retrato), ad/custom caem no fallback "principal" da logo
+// (nunca ficam sem logo só por não ter uma variante específica cadastrada
+// pro formato novo).
+function mapearFormatoParaLogo(formato: FormatoPeca): string {
+  if (formato === "reels_cover") return "story";
+  if (formato === "ad") return "feed";
+  if (formato === "custom") return "generico";
+  return formato;
+}
+
+// Lê fonte/cor do BrandKit de forma defensiva — o schema de `fontes`/`cores`
+// é jsonb livre (ainda sem shape fixo em produção, nenhum cliente real
+// cadastrou isso até hoje) — nunca assume uma chave que pode não existir,
+// sempre cai num fallback seguro e nunca lança erro por causa disso.
+function resolverFonteDoBrandKit(brandKit: ContextoExecucaoFerramenta["brandKit"]): { fontFamily: string; fallbackUsado: boolean } {
+  const fontes = brandKit?.fontes as { principal?: unknown; titulo?: unknown } | null | undefined;
+  const candidata = fontes?.principal ?? fontes?.titulo;
+  if (typeof candidata === "string" && candidata.trim()) return { fontFamily: candidata.trim(), fallbackUsado: false };
+  return { fontFamily: "sans", fallbackUsado: true };
+}
+
+function resolverCorPrimariaDoBrandKit(brandKit: ContextoExecucaoFerramenta["brandKit"]): string | null {
+  const cores = brandKit?.cores as { primaria?: unknown; texto?: unknown } | null | undefined;
+  const candidata = cores?.primaria;
+  return typeof candidata === "string" && /^#[0-9a-fA-F]{3,6}$/.test(candidata.trim()) ? candidata.trim() : null;
+}
+
+// Design profissional V1 (camadas reais) — orquestra o fluxo completo de
+// criar_peca_de_design: fundo gerado sem texto -> camadas reais de
+// texto/imagem/logo montadas em cima -> render server-side do preview a
+// partir das MESMAS camadas -> DesignCritic (visual + estrutural) sobre o
+// resultado real. Cada passo é real (nenhuma etapa "finge" — ver princípio
+// geral do produto), mesmo custando mais tempo/chamadas que o fluxo antigo.
+async function executarCriarPecaDeDesign(input: Record<string, unknown>, ctx: ContextoExecucaoFerramenta): Promise<MidiaExecutada> {
+  const visualPromptBruto = input.visual_prompt as string;
+  const formato = input.formato as FormatoPeca;
+  const aspectRatioInput = input.aspect_ratio as string | undefined;
+  const aspectRatio = mapearFormatoParaAspectRatio(formato, aspectRatioInput);
+  const assetIdsPedidos = Array.isArray(input.asset_ids) ? (input.asset_ids as string[]).filter((id) => typeof id === "string") : [];
+
+  const issuesBrand: string[] = [];
+
+  // Campos de texto pedidos pelo agente — "obrigatório" aqui significa
+  // "o briefing pediu isso", não um valor fixo de schema. Placeholder
+  // detectado NUNCA vira camada (nunca persiste "[CTA]" como se fosse
+  // copy real) — conta como obrigatório-mas-ausente, derruba
+  // hasEditableTextLayers no Critic.
+  const CAMPOS_TEXTO = ["headline", "subheadline", "cta", "caption"] as const;
+  type CampoTexto = (typeof CAMPOS_TEXTO)[number];
+  const valoresBrutos: Record<CampoTexto, string | undefined> = {
+    headline: typeof input.headline === "string" ? input.headline : undefined,
+    subheadline: typeof input.subheadline === "string" ? input.subheadline : undefined,
+    cta: typeof input.cta === "string" ? input.cta : undefined,
+    caption: typeof input.caption === "string" ? input.caption : undefined,
+  };
+  const camposObrigatorios = CAMPOS_TEXTO.filter((campo) => !!valoresBrutos[campo]?.trim());
+  const camposValidos = camposObrigatorios.filter((campo) => {
+    const valor = valoresBrutos[campo]!.trim();
+    const ehPlaceholder = detectarPlaceholder(valor);
+    if (ehPlaceholder) issuesBrand.push(`Campo "${campo}" continha um placeholder ("${valor}") e foi descartado — nunca persistido como copy real.`);
+    return !ehPlaceholder;
+  });
+
+  // 1) Fundo — SÓ texto-pra-imagem, nunca image-to-image com ativos reais
+  // (produto/pessoa/logo entram como camada própria depois, nunca cozidos
+  // no fundo) e nunca recebe instrução de desenhar texto (montarPromptDeFundo
+  // garante isso em código, não só no prompt do agente).
+  const promptDeFundo = montarPromptDeFundo(visualPromptBruto);
+  const imagemFundo = await gerarImagem(promptDeFundo, { aspectRatio });
+  const { width, height } = dimensaoDoTamanhoOpenAI(tamanhoOpenAI(aspectRatio));
+
+  const requestId = randomUUID();
+  const pathFundo = `${ctx.clienteId}/design/${ctx.missionStepId}/${requestId}-fundo.png`;
+  const { error: erroUploadFundo } = await supabase.storage.from("artifacts").upload(pathFundo, imagemFundo.bytes, { contentType: imagemFundo.mimeType, upsert: false });
+  if (erroUploadFundo) throw new Error(`Falha ao salvar o fundo gerado no storage: ${erroUploadFundo.message}`);
+
+  const luminanciaGeralDoFundo = await amostrarLuminanciaMedia(imagemFundo.bytes, { x: 0, y: 0, width, height });
+
+  // 2) Logo oficial — nunca desenhada pela IA, nunca enviada como
+  // referência de image-to-image; só entra como camada travada separada
+  // (mesma regra inegociável do fluxo antigo).
+  const formatoLogo = mapearFormatoParaLogo(formato);
+  const logo = await buscarLogoParaFormato(ctx.clienteId, formatoLogo);
+  let logoBytes: Buffer | null = null;
+  let logoDimensaoReal: { width: number; height: number } | null = null;
+  if (logo) {
+    logoBytes = await baixarBytesDoAtivo(logo.id);
+    if (logoBytes) {
+      logoDimensaoReal = lerDimensaoDeImagem(logoBytes);
+      await registrarUsoDeAtivo({
+        clienteId: ctx.clienteId,
+        assetId: logo.id,
+        missionId: ctx.missionId,
+        missionStepId: ctx.missionStepId,
+        agente: "design",
+        papel: "logo",
+        motivo: `Logo oficial aplicada como camada independente (formato: ${formato}).`,
+      });
+    } else {
+      issuesBrand.push("Logo oficial está cadastrada, mas o arquivo não pôde ser baixado do storage — peça bloqueada até corrigir o ativo.");
+    }
+  }
+
+  // 3) Ativos reais do Drive (produto/pessoa/ambiente) — SEMPRE camada de
+  // imagem própria, nunca image-to-image (fica genuinamente editável:
+  // mover/redimensionar sem regenerar nada). Limitado a 2 pra manter um
+  // layout determinístico simples nesta V1 — mais que isso exigiria um
+  // algoritmo de composição mais sofisticado, fora de escopo aqui.
+  interface AtivoDriveResolvido {
+    assetId: string;
+    storagePath: string;
+    bytes: Buffer;
+    naturalWidth: number;
+    naturalHeight: number;
+    role: "produto" | "pessoa" | "elemento";
+  }
+  const ativosDrive: AtivoDriveResolvido[] = [];
+  let algumAtivoPedidoInvalido = false;
+  for (const assetId of assetIdsPedidos.slice(0, 2)) {
+    const validacao = await validarAtivoParaUso(ctx.clienteId, assetId);
+    if (!validacao.valido) {
+      algumAtivoPedidoInvalido = true;
+      issuesBrand.push(`Ativo "${assetId}" pedido pra composição não é válido: ${validacao.motivo}`);
+      continue;
+    }
+    const ativo = await buscarAtivoPorId(assetId);
+    const bytes = await baixarBytesDoAtivo(assetId);
+    if (!ativo || !bytes) {
+      algumAtivoPedidoInvalido = true;
+      issuesBrand.push(`Ativo "${assetId}" pedido pra composição não pôde ser baixado do storage.`);
+      continue;
+    }
+    const dimensaoReal = ativo.width && ativo.height ? { width: ativo.width, height: ativo.height } : lerDimensaoDeImagem(bytes);
+    if (!dimensaoReal) {
+      algumAtivoPedidoInvalido = true;
+      issuesBrand.push(`Ativo "${assetId}" não teve dimensão real decodificada — descartado pra nunca distorcer.`);
+      continue;
+    }
+    ativosDrive.push({ assetId, storagePath: ativo.storagePath, bytes, naturalWidth: dimensaoReal.width, naturalHeight: dimensaoReal.height, role: "produto" });
+    await registrarUsoDeAtivo({
+      clienteId: ctx.clienteId,
+      assetId,
+      missionId: ctx.missionId,
+      missionStepId: ctx.missionStepId,
+      agente: "design",
+      papel: "produto",
+      motivo: "Selecionado pelo agente como camada de imagem própria (composição em camadas).",
+    });
+  }
+
+  // 4) Layout determinístico — margem de segurança sobre a menor dimensão,
+  // headline no topo, ativo de Drive centralizado, CTA embaixo à esquerda
+  // com uma forma de contraste atrás, logo no canto inferior direito
+  // (mesma posição do fluxo antigo, nunca colide com o CTA).
+  const { fontFamily, fallbackUsado: fonteFallbackUsada } = resolverFonteDoBrandKit(ctx.brandKit);
+  const corPrimaria = resolverCorPrimariaDoBrandKit(ctx.brandKit);
+  const corTextoPadrao = corDeTextoPadrao(luminanciaGeralDoFundo);
+  const margem = Math.round(Math.min(width, height) * 0.07);
+
+  const camadas: EspecificacaoDeCamada[] = [
+    { tipo: "imagem", role: "fundo", source: "generated", storagePath: pathFundo, bucket: "artifacts", bytes: imagemFundo.bytes, naturalWidth: width, naturalHeight: height, x: 0, y: 0, width, height },
+  ];
+
+  let cursorY = margem;
+
+  if (camposValidos.includes("caption")) {
+    const fontSize = Math.round(width * 0.028);
+    const texto = valoresBrutos.caption!.trim();
+    camadas.push({ tipo: "texto", field: "caption", texto, x: margem, y: cursorY, width: width - margem * 2, fontSize, fontFamily, fontWeight: "bold", fill: corPrimaria ?? corTextoPadrao, textAlign: "left", required: true });
+    cursorY += estimarAlturaDeTexto(texto, width - margem * 2, fontSize) + Math.round(height * 0.015);
+  }
+
+  if (camposValidos.includes("headline")) {
+    const fontSize = Math.round(width * 0.07);
+    const texto = valoresBrutos.headline!.trim();
+    camadas.push({ tipo: "texto", field: "headline", texto, x: margem, y: cursorY, width: width - margem * 2, fontSize, fontFamily, fontWeight: "bold", fill: corTextoPadrao, textAlign: "left", required: true });
+    cursorY += estimarAlturaDeTexto(texto, width - margem * 2, fontSize) + Math.round(height * 0.015);
+  }
+
+  if (camposValidos.includes("subheadline")) {
+    const fontSize = Math.round(width * 0.038);
+    const texto = valoresBrutos.subheadline!.trim();
+    camadas.push({ tipo: "texto", field: "subheadline", texto, x: margem, y: cursorY, width: width - margem * 2, fontSize, fontFamily, fontWeight: "normal", fill: corTextoPadrao, textAlign: "left", required: true });
+    cursorY += estimarAlturaDeTexto(texto, width - margem * 2, fontSize) + Math.round(height * 0.02);
+  }
+
+  if (ativosDrive.length > 0) {
+    const primeiroAtivo = ativosDrive[0]!;
+    const larguraAlvo = Math.round(width * 0.55);
+    const alturaAlvo = Math.round(larguraAlvo * (primeiroAtivo.naturalHeight / primeiroAtivo.naturalWidth));
+    const xAlvo = Math.round((width - larguraAlvo) / 2);
+    const yAlvo = Math.max(cursorY, Math.round(height * 0.4));
+    camadas.push({ tipo: "imagem", role: primeiroAtivo.role, source: "drive", assetId: primeiroAtivo.assetId, storagePath: primeiroAtivo.storagePath, bucket: "brand-assets", bytes: primeiroAtivo.bytes, naturalWidth: primeiroAtivo.naturalWidth, naturalHeight: primeiroAtivo.naturalHeight, x: xAlvo, y: yAlvo, width: larguraAlvo, height: alturaAlvo });
+  }
+
+  let ctaCaixa: { x: number; y: number; width: number; height: number } | null = null;
+  if (camposValidos.includes("cta")) {
+    const fontSize = Math.round(width * 0.042);
+    const texto = valoresBrutos.cta!.trim();
+    const larguraTexto = Math.min(width - margem * 2, Math.round(width * 0.6));
+    const alturaTexto = estimarAlturaDeTexto(texto, larguraTexto, fontSize);
+    const padding = Math.round(fontSize * 0.6);
+    const yForma = height - margem - alturaTexto - padding * 2;
+    ctaCaixa = { x: margem, y: yForma, width: larguraTexto + padding * 2, height: alturaTexto + padding * 2 };
+    camadas.push({ tipo: "forma", x: ctaCaixa.x, y: ctaCaixa.y, width: ctaCaixa.width, height: ctaCaixa.height, fill: corPrimaria ?? corTextoPadrao, opacity: 0.92, raioCanto: Math.round(fontSize * 0.4) });
+    camadas.push({
+      tipo: "texto",
+      field: "cta",
+      texto,
+      x: ctaCaixa.x + padding,
+      y: ctaCaixa.y + padding,
+      width: larguraTexto,
+      fontSize,
+      fontFamily,
+      fontWeight: "bold",
+      fill: corPrimaria ? corDeTextoPadrao(luminanciaRelativaHex(corPrimaria)) : corDeTextoPadrao(1 - luminanciaGeralDoFundo),
+      textAlign: "left",
+      required: true,
+    });
+  }
+
+  if (logo && logoBytes && logoDimensaoReal) {
+    const larguraLogo = Math.round(width * 0.18);
+    const alturaLogo = Math.round(larguraLogo * (logoDimensaoReal.height / logoDimensaoReal.width));
+    camadas.push({
+      tipo: "logo",
+      assetId: logo.id,
+      storagePath: logo.storagePath,
+      bucket: "brand-assets",
+      bytes: logoBytes,
+      naturalWidth: logoDimensaoReal.width,
+      naturalHeight: logoDimensaoReal.height,
+      x: width - larguraLogo - margem,
+      y: height - alturaLogo - margem,
+      width: larguraLogo,
+      height: alturaLogo,
+    });
+  }
+
+  // 5) Validações reais (Fase 3) — área segura e contraste medido de
+  // verdade contra os pixels do FUNDO (o texto ainda não existe nos
+  // pixels do fundo, então a amostra é honesta) em cada camada de texto;
+  // nunca aprovado só porque "parece que dá pra ler".
+  let areaSeguraOk = true;
+  for (const camada of camadas) {
+    if (camada.tipo === "texto") {
+      const altura = estimarAlturaDeTexto(camada.texto, camada.width, camada.fontSize);
+      const dentroDaArea = validarAreaSegura({ x: camada.x, y: camada.y, width: camada.width, height: altura }, width, height, 0.03);
+      if (!dentroDaArea) {
+        areaSeguraOk = false;
+        issuesBrand.push(`Camada de texto "${camada.field}" ficou fora da área segura do formato.`);
+        continue;
+      }
+      const luminanciaLocal = await amostrarLuminanciaMedia(imagemFundo.bytes, { x: camada.x, y: camada.y, width: camada.width, height: altura });
+      const contraste = calcularContraste(luminanciaLocal, luminanciaRelativaHex(camada.fill));
+      if (contraste < CONTRASTE_MINIMO_LEGIVEL) {
+        issuesBrand.push(`Contraste insuficiente (${contraste.toFixed(1)}:1, mínimo ${CONTRASTE_MINIMO_LEGIVEL}:1) na camada "${camada.field}" contra o fundo real.`);
+      }
+    } else if (camada.tipo === "logo") {
+      if (!validarAreaSegura({ x: camada.x, y: camada.y, width: camada.width, height: camada.height }, width, height, 0.02)) {
+        areaSeguraOk = false;
+        issuesBrand.push("A logo ficou fora da área segura do formato.");
+      }
+    }
+  }
+
+  if (fonteFallbackUsada && (camposValidos.length > 0)) {
+    issuesBrand.push("BrandKit não tem fonte cadastrada — usada uma fonte segura padrão (sans) como fallback.");
+  }
+
+  // 6) Preview real renderizado a partir das MESMAS camadas que viram o
+  // canvasJson — nunca duas lógicas de layout divergentes (ver
+  // designComposer.ts).
+  const corDeFundoDoCanvas = "#ffffff";
+  const previewBytes = await renderizarPecaComposta({ width, height, corDeFundo: corDeFundoDoCanvas, camadas });
+  const pathPreview = `${ctx.clienteId}/design/${ctx.missionStepId}/${requestId}.png`;
+  const { error: erroUploadPreview } = await supabase.storage.from("artifacts").upload(pathPreview, previewBytes, { contentType: "image/png", upsert: false });
+  if (erroUploadPreview) throw new Error(`Falha ao salvar o preview composto no storage: ${erroUploadPreview.message}`);
+
+  // 7) DesignCritic — visual (sobre o preview real composto) + estrutural
+  // (5 critérios novos, ver designCritic.ts) + risco de texto no fundo
+  // (visão real sobre o fundo isolado, antes de qualquer composição).
+  const briefParaCritic = [
+    visualPromptBruto,
+    camposValidos.includes("headline") ? `Headline: ${valoresBrutos.headline}` : null,
+    camposValidos.includes("cta") ? `CTA: ${valoresBrutos.cta}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const [criticoVisual, riscoDeTextoNoFundo] = await Promise.all([
+    avaliarPecaDeDesign({
+      imagemBytes: previewBytes,
+      mimeType: "image/png",
+      briefOriginal: briefParaCritic,
+      formato,
+      brandKit: ctx.brandKit,
+      logoDeveriaEstarAplicada: !!logo,
+    }),
+    avaliarRiscoDeTextoNoFundo(imagemFundo.bytes, imagemFundo.mimeType),
+  ]);
+
+  const criteriosEstruturais = calcularCriteriosEstruturais({
+    camposDeTextoObrigatorios: camposObrigatorios,
+    camposDeTextoPresentes: camposValidos,
+    logoObrigatoria: !!logo,
+    logoPresenteComoCamadaIndependente: !!(logo && logoBytes && logoDimensaoReal),
+    areaSeguraValidaParaTodasAsCamadas: areaSeguraOk,
+    ativosDeMarcaValidos: !algumAtivoPedidoInvalido,
+  });
+
+  const designCritic = combinarComCriteriosEstruturais(criticoVisual, { ...criteriosEstruturais, backgroundHasEmbeddedTextRisk: riscoDeTextoNoFundo });
+
+  const sourceAssetIds = [...ativosDrive.map((a) => a.assetId), ...(logo ? [logo.id] : [])];
+
+  const canvasJson = montarCanvasJsonEmCamadas({ canvasWidth: width, canvasHeight: height, corDeFundo: corDeFundoDoCanvas, camadas });
+
+  return {
+    requestId,
+    storagePath: pathPreview,
+    mimeType: "image/png",
+    sourceAssetIds,
+    logoAssetId: logo?.id,
+    brandValidation: { passed: issuesBrand.length === 0, issues: issuesBrand },
+    designCritic,
+    canvasInfo: {
+      width,
+      height,
+      canvasJsonPronto: canvasJson,
+      ...(logo && logoDimensaoReal
+        ? { logo: { assetId: logo.id, storagePath: logo.storagePath, naturalWidth: logoDimensaoReal.width, naturalHeight: logoDimensaoReal.height } }
+        : {}),
+    },
+    promptUsado: briefParaCritic,
+  };
+}
 
 // Departamento de skill por agente — só agentes já com skills reais
 // registradas entram aqui (rodada a rodada, por departamento; ver
@@ -929,26 +1359,28 @@ export async function executarEspecialista(
       // design_project, e o painel continua mostrando a peça pronta.
       if (agenteId === "design" && midiaGerada.storagePath && midiaGerada.canvasInfo) {
         try {
-          const canvasJson = montarCanvasJsonInicial({
-            fundo: {
-              storagePath: midiaGerada.storagePath,
-              bucket: "artifacts",
-              naturalWidth: midiaGerada.canvasInfo.width,
-              naturalHeight: midiaGerada.canvasInfo.height,
-            },
-            canvasWidth: midiaGerada.canvasInfo.width,
-            canvasHeight: midiaGerada.canvasInfo.height,
-            ...(midiaGerada.canvasInfo.logo
-              ? {
-                  logo: {
-                    assetId: midiaGerada.canvasInfo.logo.assetId,
-                    storagePath: midiaGerada.canvasInfo.logo.storagePath,
-                    naturalWidth: midiaGerada.canvasInfo.logo.naturalWidth ?? undefined,
-                    naturalHeight: midiaGerada.canvasInfo.logo.naturalHeight ?? undefined,
-                  },
-                }
-              : {}),
-          });
+          const canvasJson =
+            midiaGerada.canvasInfo.canvasJsonPronto ??
+            montarCanvasJsonInicial({
+              fundo: {
+                storagePath: midiaGerada.storagePath,
+                bucket: "artifacts",
+                naturalWidth: midiaGerada.canvasInfo.width,
+                naturalHeight: midiaGerada.canvasInfo.height,
+              },
+              canvasWidth: midiaGerada.canvasInfo.width,
+              canvasHeight: midiaGerada.canvasInfo.height,
+              ...(midiaGerada.canvasInfo.logo
+                ? {
+                    logo: {
+                      assetId: midiaGerada.canvasInfo.logo.assetId,
+                      storagePath: midiaGerada.canvasInfo.logo.storagePath,
+                      naturalWidth: midiaGerada.canvasInfo.logo.naturalWidth ?? undefined,
+                      naturalHeight: midiaGerada.canvasInfo.logo.naturalHeight ?? undefined,
+                    },
+                  }
+                : {}),
+            });
 
           const criado = await criarDesignProject({
             clienteId,

@@ -37,6 +37,85 @@ export interface DesignCriticResultado {
   resumo: string;
   issues: string[];
   checklist: ChecklistDesignCritic;
+  // Design profissional V1 (camadas reais) — critérios ADICIONAIS sobre a
+  // nova estrutura em camadas, opcional pra nunca quebrar quem já consome
+  // DesignCriticResultado do fluxo antigo (gerar_imagem, sem camadas).
+  // Nunca substitui o checklist visual acima — "não reescreva o Critic
+  // inteiro" (pedido explícito do dono do produto).
+  criteriosEstruturais?: CriteriosEstruturaisDesignCritic;
+}
+
+// hasEditableTextLayers/hasIndependentLogoLayer/safeAreaValid/brandAssetValid
+// são calculados em CÓDIGO a partir do que foi de fato construído (nunca
+// perguntado à visão computacional — um PNG achatado final não revela se o
+// texto era um objeto Fabric real ou pixel cozido, então pedir pra visão
+// "adivinhar" isso seria inventar certeza que ela não tem). Só
+// backgroundHasEmbeddedTextRisk é uma pergunta genuinamente visual
+// (ver avaliarRiscoDeTextoNoFundo abaixo) — por isso é o único campo cuja
+// polaridade é invertida (true = RISCO, não "critério passou"; os outros
+// quatro seguem a convenção "true = ok" do resto do checklist).
+export interface CriteriosEstruturaisDesignCritic {
+  hasEditableTextLayers: boolean;
+  hasIndependentLogoLayer: boolean;
+  backgroundHasEmbeddedTextRisk: boolean;
+  safeAreaValid: boolean;
+  brandAssetValid: boolean;
+}
+
+// Calcula os 4 critérios que o próprio código já sabe responder com
+// certeza — nenhum deles é um palpite. `camposDeTextoObrigatorios` são os
+// campos (headline/subheadline/cta/caption) que o briefing pediu;
+// `camposDeTextoPresentes` são os que de fato viraram Textbox real (ver
+// designProjects.ts::montarCanvasJsonEmCamadas).
+export function calcularCriteriosEstruturais(params: {
+  camposDeTextoObrigatorios: string[];
+  camposDeTextoPresentes: string[];
+  logoObrigatoria: boolean;
+  logoPresenteComoCamadaIndependente: boolean;
+  areaSeguraValidaParaTodasAsCamadas: boolean;
+  ativosDeMarcaValidos: boolean;
+}): Pick<CriteriosEstruturaisDesignCritic, "hasEditableTextLayers" | "hasIndependentLogoLayer" | "safeAreaValid" | "brandAssetValid"> {
+  const todosOsCamposObrigatoriosViraramCamada = params.camposDeTextoObrigatorios.every((campo) =>
+    params.camposDeTextoPresentes.includes(campo),
+  );
+
+  return {
+    hasEditableTextLayers: todosOsCamposObrigatoriosViraramCamada,
+    hasIndependentLogoLayer: params.logoObrigatoria ? params.logoPresenteComoCamadaIndependente : true,
+    safeAreaValid: params.areaSeguraValidaParaTodasAsCamadas,
+    brandAssetValid: params.ativosDeMarcaValidos,
+  };
+}
+
+const MENSAGEM_POR_CRITERIO_ESTRUTURAL: Record<keyof CriteriosEstruturaisDesignCritic, string> = {
+  hasEditableTextLayers: "Nem todo campo de texto obrigatório do briefing virou uma camada de texto editável real.",
+  hasIndependentLogoLayer: "A logo oficial não está presente como camada independente (só pode estar cozida no fundo, ou ausente).",
+  backgroundHasEmbeddedTextRisk: "O fundo gerado pela IA parece conter texto/logo legível cozido nos pixels — nunca deveria, é responsabilidade só da composição.",
+  safeAreaValid: "Algum elemento de texto/CTA invade a margem de segurança do formato.",
+  brandAssetValid: "Um ativo de marca referenciado (logo/produto) não é válido pra este cliente.",
+};
+
+// Combina o veredito visual (checklist de 12 critérios, avaliado sobre o
+// preview final composto) com os critérios estruturais da V1 — reprova a
+// peça se qualquer um dos dois falhar, nunca marca como aprovada só porque
+// o visual ficou bonito enquanto a estrutura de camadas está errada.
+export function combinarComCriteriosEstruturais(
+  resultado: DesignCriticResultado,
+  estruturais: CriteriosEstruturaisDesignCritic,
+): DesignCriticResultado {
+  const problemas = (Object.keys(estruturais) as Array<keyof CriteriosEstruturaisDesignCritic>).filter((campo) => {
+    const valor = estruturais[campo];
+    // backgroundHasEmbeddedTextRisk é o único campo "true = ruim" — os
+    // demais são "true = ok".
+    return campo === "backgroundHasEmbeddedTextRisk" ? valor : !valor;
+  });
+
+  return {
+    ...resultado,
+    passed: resultado.passed && problemas.length === 0,
+    issues: [...resultado.issues, ...problemas.map((campo) => MENSAGEM_POR_CRITERIO_ESTRUTURAL[campo])],
+    criteriosEstruturais: estruturais,
+  };
 }
 
 const CAMPOS_CHECKLIST = [
@@ -169,5 +248,67 @@ export async function avaliarPecaDeDesign(params: AvaliarPecaParams): Promise<De
     };
   } catch (err) {
     return checklistReprovadoPorFalha(err instanceof Error ? err.message : "erro desconhecido ao chamar o modelo de avaliação.");
+  }
+}
+
+const AVALIAR_FUNDO_TOOL: Anthropic.Tool = {
+  name: "avaliar_risco_de_texto",
+  description: "Registra se a imagem de fundo contém texto, número ou logotipo legível cozido nos pixels.",
+  input_schema: {
+    type: "object",
+    properties: {
+      contemTextoOuLogoLegivel: {
+        type: "boolean",
+        description: "true se há QUALQUER letra, palavra, número ou logotipo legível na imagem — mesmo pequeno ou parcial. false só se a imagem for puramente visual (cena/textura/composição), sem nenhuma tipografia.",
+      },
+      observacao: { type: "string", description: "1 frase justificando o veredito." },
+    },
+    required: ["contemTextoOuLogoLegivel", "observacao"],
+  },
+};
+
+const SYSTEM_PROMPT_FUNDO = `Você audita imagens de fundo geradas por IA pro Vetor. Sua ÚNICA pergunta é: essa imagem
+contém texto, número ou logotipo legível desenhado nos pixels? Fundos devem ser puramente visuais (cena,
+textura, composição, iluminação) — nenhuma tipografia. Seja rigoroso: até um texto pequeno, borrado ou
+parcialmente visível conta como risco. Ignore completamente qualidade artística — só responda a pergunta
+de risco de texto/logo.`;
+
+// Pergunta genuinamente visual (nunca inferida em código, ver comentário
+// em CriteriosEstruturaisDesignCritic) — roda sobre a imagem de FUNDO
+// isolada, antes de qualquer composição de texto/logo real por cima.
+// Fail-closed: qualquer falha na chamada assume risco=true (nunca declara
+// "sem risco" por omissão — mesma postura do resto do Critic).
+export async function avaliarRiscoDeTextoNoFundo(imagemBytes: Buffer, mimeType: string): Promise<boolean> {
+  const mediaType = mimeType === "image/jpeg" ? "image/jpeg" : "image/png";
+  const base64 = imagemBytes.toString("base64");
+
+  try {
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, fetch: fetchAtual });
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-5",
+      max_tokens: 512,
+      system: SYSTEM_PROMPT_FUNDO,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+            { type: "text", text: "Avalie essa imagem de fundo e registre com a ferramenta avaliar_risco_de_texto." },
+          ],
+        },
+      ],
+      tools: [AVALIAR_FUNDO_TOOL],
+      tool_choice: { type: "tool", name: "avaliar_risco_de_texto" },
+    });
+
+    const toolUse = response.content.find(
+      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === "avaliar_risco_de_texto",
+    );
+    if (!toolUse) return true;
+
+    const bruto = toolUse.input as { contemTextoOuLogoLegivel?: unknown };
+    return typeof bruto.contemTextoOuLogoLegivel === "boolean" ? bruto.contemTextoOuLogoLegivel : true;
+  } catch {
+    return true;
   }
 }

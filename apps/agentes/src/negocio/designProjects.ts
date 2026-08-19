@@ -15,6 +15,7 @@
 // projeto (URL assinada expira, o storage_path não).
 
 import { supabase } from "../db/supabase.js";
+import type { EspecificacaoDeCamada } from "./designLayout.js";
 
 export interface DimensaoImagem {
   width: number;
@@ -237,4 +238,117 @@ export async function buscarReferenciasAprovadas(clienteId: string, limite = 3):
     width: d.width as number,
     height: d.height as number,
   }));
+}
+
+// Design profissional V1 (camadas reais) — monta o canvasJson a partir da
+// especificação canônica de camadas (ver designLayout.ts). Diferente de
+// montarCanvasJsonInicial (mantida intacta, usada pela ferramenta antiga
+// gerar_imagem): aqui CADA campo de texto e CADA imagem real vira seu
+// próprio objeto Fabric selecionável — nunca uma única imagem cobrindo o
+// canvas com texto cozido nos pixels.
+export function montarCanvasJsonEmCamadas(params: { canvasWidth: number; canvasHeight: number; corDeFundo: string; camadas: EspecificacaoDeCamada[] }): unknown {
+  const objetos = params.camadas.map((camada) => {
+    if (camada.tipo === "imagem" || camada.tipo === "logo") {
+      const ehLogo = camada.tipo === "logo";
+      return {
+        type: "image",
+        left: camada.x,
+        top: camada.y,
+        width: camada.naturalWidth,
+        height: camada.naturalHeight,
+        scaleX: camada.width / camada.naturalWidth,
+        scaleY: camada.height / camada.naturalHeight,
+        originX: "left",
+        originY: "top",
+        selectable: true,
+        ...(ehLogo
+          ? {
+              lockMovementX: true,
+              lockMovementY: true,
+              lockScalingX: true,
+              lockScalingY: true,
+              lockRotation: true,
+              hasControls: false,
+              editable: false,
+            }
+          : {}),
+        vetorMeta: {
+          role: ehLogo ? "logo" : camada.role,
+          storagePath: camada.storagePath,
+          bucket: camada.bucket,
+          ...(ehLogo ? { isOfficialLogo: true, assetId: camada.assetId } : {}),
+          ...(!ehLogo && camada.assetId ? { assetId: camada.assetId } : {}),
+          source: ehLogo ? "brand_kit" : camada.source,
+          editable: !ehLogo,
+        },
+      };
+    }
+
+    if (camada.tipo === "forma") {
+      return {
+        type: "rect",
+        left: camada.x,
+        top: camada.y,
+        width: camada.width,
+        height: camada.height,
+        rx: camada.raioCanto,
+        ry: camada.raioCanto,
+        fill: camada.fill,
+        opacity: camada.opacity,
+        originX: "left",
+        originY: "top",
+        selectable: true,
+        vetorMeta: { role: "forma", source: "system", editable: true },
+      };
+    }
+
+    // texto
+    return {
+      type: "textbox",
+      left: camada.x,
+      top: camada.y,
+      width: camada.width,
+      fontSize: camada.fontSize,
+      fontFamily: camada.fontFamily,
+      fontWeight: camada.fontWeight,
+      fill: camada.fill,
+      textAlign: camada.textAlign,
+      text: camada.texto,
+      originX: "left",
+      originY: "top",
+      selectable: true,
+      vetorMeta: { role: "texto", field: camada.field, source: "generated", editable: true, required: camada.required },
+    };
+  });
+
+  return { version: "7.4.0", background: params.corDeFundo, objects: objetos };
+}
+
+export interface EditabilidadeDoProjeto {
+  editabilityStatus: "flat_image_legacy" | "editable_layers";
+  editableLayerCount: number;
+  migrationAvailable: boolean;
+}
+
+// Design profissional V1, Fase 5 — nunca finge que um PNG achatado antigo
+// virou camadas precisas. "Editável" aqui significa objetos reais além do
+// fundo/logo (texto real, forma real, imagem real adicional) — um projeto
+// só com [fundo, logo] é tão flat quanto um PNG puro pra fins de edição de
+// copy, mesmo tecnicamente sendo canvasJson.
+export function avaliarEditabilidade(canvasJson: unknown): EditabilidadeDoProjeto {
+  const objetos = (canvasJson as { objects?: Array<{ vetorMeta?: { role?: string } }> } | null)?.objects;
+  if (!Array.isArray(objetos) || objetos.length === 0) {
+    return { editabilityStatus: "flat_image_legacy", editableLayerCount: 0, migrationAvailable: false };
+  }
+
+  const camadasEditaveis = objetos.filter((o) => {
+    const role = o.vetorMeta?.role;
+    return role === "texto" || role === "forma" || role === "produto" || role === "pessoa" || role === "elemento";
+  });
+
+  if (camadasEditaveis.length === 0) {
+    return { editabilityStatus: "flat_image_legacy", editableLayerCount: 0, migrationAvailable: true };
+  }
+
+  return { editabilityStatus: "editable_layers", editableLayerCount: camadasEditaveis.length, migrationAvailable: false };
 }

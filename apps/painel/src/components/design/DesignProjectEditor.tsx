@@ -7,11 +7,12 @@
 // + version+1), exporta PNG e sobe o thumbnail no bucket brand-assets já
 // existente (reaproveitado, não criamos bucket novo).
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import DesignCanvasEditor from "./DesignCanvasEditor";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { DesignProjectStatus } from "@/lib/design/types";
+import { avaliarEditabilidade } from "@/lib/design/editability";
 
 export interface DesignProjectInicial {
   id: string;
@@ -32,6 +33,12 @@ export default function DesignProjectEditor({ projeto }: { projeto: DesignProjec
   const [status, setStatus] = useState<DesignProjectStatus>(projeto.status);
   const [aprovando, setAprovando] = useState(false);
   const canvasJsonAtualRef = useRef<unknown>(projeto.canvasJson);
+  // Design profissional V1, Fase 5 — calculado uma vez sobre o canvasJson
+  // ORIGINAL do servidor (nunca sobre o estado ao vivo do canvas, que já
+  // teria ganho as camadas que o próprio usuário adicionou manualmente
+  // depois de abrir — a pergunta é "essa peça NASCEU editável?", não "tem
+  // algo editável nela agora?").
+  const editabilidade = useMemo(() => avaliarEditabilidade(projeto.canvasJson), [projeto.canvasJson]);
 
   // Aprovar marca esta peça como referência de estilo real pro Design
   // aprender em próximas gerações do mesmo cliente (ver
@@ -104,6 +111,13 @@ export default function DesignProjectEditor({ projeto }: { projeto: DesignProjec
 
   return (
     <div>
+      {editabilidade.editabilityStatus === "flat_image_legacy" && (
+        <div className="mb-3 rounded-lg border border-ambar/30 bg-ambar/10 px-3 py-2 text-xs text-ambar">
+          Esta peça é uma imagem única (criada antes do editor em camadas, ou sem texto/imagem próprios além do
+          fundo) — não é possível corrigir texto ou reposicionar elementos com precisão nela. Use como referência
+          visual, ou peça ao Vetor pra criar uma versão nova editável a partir do mesmo briefing.
+        </div>
+      )}
       <div className="mb-3 flex items-center justify-between">
         <div>
           <p className="text-sm text-areia">

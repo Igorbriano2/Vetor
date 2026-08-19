@@ -36,7 +36,7 @@ export interface VetorObjectMeta {
   // setado pelo usuário diretamente.
   assetId?: string;
   isOfficialLogo?: boolean;
-  role?: "logo" | "produto" | "pessoa" | "fundo" | "texto" | "elemento";
+  role?: "logo" | "produto" | "pessoa" | "fundo" | "texto" | "forma" | "elemento";
   // Caminho real no storage (nunca a URL assinada — essa expira). Presente
   // só em objetos de imagem que vieram de um asset/artifact nosso (fundo
   // gerado pelo agente, logo aplicada). O servidor (ver
@@ -44,6 +44,14 @@ export interface VetorObjectMeta {
   // toda vez que o projeto é aberto.
   storagePath?: string;
   bucket?: "artifacts" | "brand-assets";
+  // Design profissional V1 (camadas reais) — de onde este objeto veio e,
+  // se é texto, qual campo do briefing ele representa. Nunca inferido no
+  // painel: gravado pelo agente no momento da composição (ver
+  // designProjects.ts::montarCanvasJsonEmCamadas).
+  source?: "generated" | "drive" | "brand_kit" | "system" | "user";
+  field?: "headline" | "subheadline" | "cta" | "caption";
+  editable?: boolean;
+  required?: boolean;
 }
 
 export const CAMPOS_EXTRAS_SERIALIZACAO = ["vetorMeta"] as const;

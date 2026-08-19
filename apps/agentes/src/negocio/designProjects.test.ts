@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { dimensaoDoTamanhoOpenAI, lerDimensaoDeImagem, montarCanvasJsonInicial } from "./designProjects.js";
+import { dimensaoDoTamanhoOpenAI, lerDimensaoDeImagem, montarCanvasJsonInicial, montarCanvasJsonEmCamadas, avaliarEditabilidade } from "./designProjects.js";
+import type { EspecificacaoDeCamada } from "./designLayout.js";
 
 function construirPngFake(width: number, height: number): Buffer {
   const assinatura = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -112,5 +113,145 @@ describe("lerDimensaoDeImagem", () => {
       "base64",
     );
     expect(lerDimensaoDeImagem(png1x1)).toEqual({ width: 1, height: 1 });
+  });
+});
+
+const CAMADA_FUNDO: EspecificacaoDeCamada = {
+  tipo: "imagem",
+  role: "fundo",
+  source: "generated",
+  storagePath: "cliente-1/design/req-1/fundo.png",
+  bucket: "artifacts",
+  bytes: Buffer.from([]),
+  naturalWidth: 1080,
+  naturalHeight: 1080,
+  x: 0,
+  y: 0,
+  width: 1080,
+  height: 1080,
+};
+
+const CAMADA_HEADLINE: EspecificacaoDeCamada = {
+  tipo: "texto",
+  field: "headline",
+  texto: "Combo Dog Bacon",
+  x: 60,
+  y: 80,
+  width: 960,
+  fontSize: 64,
+  fontFamily: "sans",
+  fontWeight: "bold",
+  fill: "#ffffff",
+  textAlign: "left",
+  required: true,
+};
+
+const CAMADA_LOGO: EspecificacaoDeCamada = {
+  tipo: "logo",
+  assetId: "logo-1",
+  storagePath: "cliente-1/brandkit/logo.png",
+  bucket: "brand-assets",
+  bytes: Buffer.from([]),
+  naturalWidth: 400,
+  naturalHeight: 100,
+  x: 800,
+  y: 950,
+  width: 200,
+  height: 50,
+};
+
+const CAMADA_PRODUTO: EspecificacaoDeCamada = {
+  tipo: "imagem",
+  role: "produto",
+  source: "drive",
+  assetId: "produto-1",
+  storagePath: "cliente-1/drive/produto.png",
+  bucket: "brand-assets",
+  bytes: Buffer.from([]),
+  naturalWidth: 500,
+  naturalHeight: 500,
+  x: 300,
+  y: 400,
+  width: 480,
+  height: 480,
+};
+
+describe("montarCanvasJsonEmCamadas", () => {
+  it("cria um objeto Fabric independente por camada — texto nunca vira pixel do fundo", () => {
+    const canvas = montarCanvasJsonEmCamadas({
+      canvasWidth: 1080,
+      canvasHeight: 1080,
+      corDeFundo: "#ffffff",
+      camadas: [CAMADA_FUNDO, CAMADA_PRODUTO, CAMADA_HEADLINE, CAMADA_LOGO],
+    }) as { objects: Array<Record<string, unknown>> };
+
+    expect(canvas.objects).toHaveLength(4);
+
+    const headline = canvas.objects.find((o) => (o.vetorMeta as Record<string, unknown>).field === "headline")!;
+    expect(headline.type).toBe("textbox");
+    expect(headline.text).toBe("Combo Dog Bacon");
+    expect((headline.vetorMeta as Record<string, unknown>).editable).toBe(true);
+    expect((headline.vetorMeta as Record<string, unknown>).role).toBe("texto");
+
+    const produto = canvas.objects.find((o) => (o.vetorMeta as Record<string, unknown>).role === "produto")!;
+    expect(produto.type).toBe("image");
+    expect((produto.vetorMeta as Record<string, unknown>).source).toBe("drive");
+    expect((produto.vetorMeta as Record<string, unknown>).assetId).toBe("produto-1");
+  });
+
+  it("logo continua travada por padrão, como no fluxo antigo", () => {
+    const canvas = montarCanvasJsonEmCamadas({
+      canvasWidth: 1080,
+      canvasHeight: 1080,
+      corDeFundo: "#ffffff",
+      camadas: [CAMADA_FUNDO, CAMADA_LOGO],
+    }) as { objects: Array<Record<string, unknown>> };
+
+    const logo = canvas.objects.find((o) => (o.vetorMeta as Record<string, unknown>).isOfficialLogo)!;
+    expect(logo.lockMovementX).toBe(true);
+    expect(logo.hasControls).toBe(false);
+    expect((logo.vetorMeta as Record<string, unknown>).editable).toBe(false);
+  });
+
+  it("nunca cria uma camada de texto vazia quando o campo não foi pedido", () => {
+    const canvas = montarCanvasJsonEmCamadas({
+      canvasWidth: 1080,
+      canvasHeight: 1080,
+      corDeFundo: "#ffffff",
+      camadas: [CAMADA_FUNDO],
+    }) as { objects: Array<Record<string, unknown>> };
+
+    expect(canvas.objects).toHaveLength(1);
+    expect(canvas.objects.some((o) => o.type === "textbox")).toBe(false);
+  });
+});
+
+describe("avaliarEditabilidade", () => {
+  it("identifica como flat_image_legacy um projeto só com fundo (sem nenhum texto/forma/imagem adicional)", () => {
+    const canvas = montarCanvasJsonEmCamadas({ canvasWidth: 1080, canvasHeight: 1080, corDeFundo: "#fff", camadas: [CAMADA_FUNDO] });
+    expect(avaliarEditabilidade(canvas)).toEqual({ editabilityStatus: "flat_image_legacy", editableLayerCount: 0, migrationAvailable: true });
+  });
+
+  it("identifica como flat_image_legacy um projeto só com fundo + logo (logo sozinha não conta como camada editável)", () => {
+    const canvas = montarCanvasJsonEmCamadas({ canvasWidth: 1080, canvasHeight: 1080, corDeFundo: "#fff", camadas: [CAMADA_FUNDO, CAMADA_LOGO] });
+    expect(avaliarEditabilidade(canvas).editabilityStatus).toBe("flat_image_legacy");
+  });
+
+  it("identifica como editable_layers um projeto com pelo menos uma camada de texto/imagem real", () => {
+    const canvas = montarCanvasJsonEmCamadas({
+      canvasWidth: 1080,
+      canvasHeight: 1080,
+      corDeFundo: "#fff",
+      camadas: [CAMADA_FUNDO, CAMADA_HEADLINE, CAMADA_LOGO],
+    });
+    const resultado = avaliarEditabilidade(canvas);
+    expect(resultado.editabilityStatus).toBe("editable_layers");
+    expect(resultado.editableLayerCount).toBe(1);
+    expect(resultado.migrationAvailable).toBe(false);
+  });
+
+  it("um canvasJson vazio/malformado (projeto muito antigo) nunca lança erro, só reporta honestamente", () => {
+    expect(avaliarEditabilidade({})).toEqual({ editabilityStatus: "flat_image_legacy", editableLayerCount: 0, migrationAvailable: false });
+    expect(avaliarEditabilidade(null)).toEqual({ editabilityStatus: "flat_image_legacy", editableLayerCount: 0, migrationAvailable: false });
   });
 });
