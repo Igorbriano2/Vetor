@@ -220,11 +220,45 @@ export default function DesignCanvasEditor({
     agendarAutosave();
   }
 
+  // Bloqueio manual (qualquer elemento, não só a logo) — pedido explícito da
+  // spec ("bloquear" como ação própria, separada do bloqueio automático da
+  // logo). Reusa os mesmos campos lockX/Y/Scaling/Rotation que a logo usa,
+  // mas sem o vetorMeta.isOfficialLogo — então nunca é confundido com a
+  // trava automática nem some se o usuário desbloquear manualmente.
+  function alternarBloqueioSelecionado() {
+    const canvas = fabricCanvasRef.current;
+    const ativo = canvas?.getActiveObject();
+    if (!canvas || !ativo || objetoEhLogoOficial(ativo)) return; // logo oficial só destrava por ação do BrandKit
+    const bloqueado = !!ativo.lockMovementX;
+    ativo.set({
+      lockMovementX: !bloqueado,
+      lockMovementY: !bloqueado,
+      lockScalingX: !bloqueado,
+      lockScalingY: !bloqueado,
+      lockRotation: !bloqueado,
+      hasControls: bloqueado,
+    });
+    canvas.renderAll();
+    registrarHistorico();
+    agendarAutosave();
+  }
+
   function aplicarPropriedadeTexto(propriedade: "fontFamily" | "fontSize" | "fill" | "textAlign", valor: string | number) {
     const canvas = fabricCanvasRef.current;
     const ativo = canvas?.getActiveObject();
     if (!canvas || !ativo || objetoEhLogoOficial(ativo)) return;
     ativo.set(propriedade, valor);
+    canvas.renderAll();
+    registrarHistorico();
+    agendarAutosave();
+  }
+
+  function aplicarPosicao(eixo: "left" | "top", valor: number) {
+    const canvas = fabricCanvasRef.current;
+    const ativo = canvas?.getActiveObject();
+    if (!canvas || !ativo || objetoEhLogoOficial(ativo)) return;
+    ativo.set(eixo, valor);
+    ativo.setCoords();
     canvas.renderAll();
     registrarHistorico();
     agendarAutosave();
@@ -262,13 +296,13 @@ export default function DesignCanvasEditor({
     setPodeRefazer(h.indice < h.pilha.length - 1);
   }
 
-  function exportarPng(): void {
+  function exportarImagem(formato: "png" | "jpeg"): void {
     const canvas = fabricCanvasRef.current;
     if (!canvas) return;
-    const dataUrl = canvas.toDataURL({ format: "png", multiplier: 2 });
+    const dataUrl = canvas.toDataURL({ format: formato, multiplier: 2, quality: 0.92 });
     const link = document.createElement("a");
     link.href = dataUrl;
-    link.download = "design.png";
+    link.download = `design.${formato === "jpeg" ? "jpg" : "png"}`;
     link.click();
   }
 
@@ -300,6 +334,14 @@ export default function DesignCanvasEditor({
           </button>
           <button
             type="button"
+            onClick={alternarBloqueioSelecionado}
+            disabled={!objetoSelecionado || selecaoEhLogo}
+            className="rounded-lg border border-areia/15 px-3 py-1.5 text-xs hover:bg-areia/5 disabled:opacity-30"
+          >
+            {objetoSelecionado?.lockMovementX ? "Desbloquear" : "Bloquear"}
+          </button>
+          <button
+            type="button"
             onClick={removerSelecionado}
             disabled={!objetoSelecionado || selecaoEhLogo}
             className="rounded-lg border border-coral/30 px-3 py-1.5 text-xs text-coral hover:bg-coral/10 disabled:opacity-30"
@@ -312,8 +354,11 @@ export default function DesignCanvasEditor({
           <button type="button" onClick={refazer} disabled={!podeRefazer} className="rounded-lg border border-areia/15 px-3 py-1.5 text-xs hover:bg-areia/5 disabled:opacity-30">
             Refazer
           </button>
-          <button type="button" onClick={exportarPng} className="rounded-lg border border-menta/30 px-3 py-1.5 text-xs text-menta hover:bg-menta/10">
+          <button type="button" onClick={() => exportarImagem("png")} className="rounded-lg border border-menta/30 px-3 py-1.5 text-xs text-menta hover:bg-menta/10">
             Exportar PNG
+          </button>
+          <button type="button" onClick={() => exportarImagem("jpeg")} className="rounded-lg border border-menta/30 px-3 py-1.5 text-xs text-menta hover:bg-menta/10">
+            Exportar JPG
           </button>
         </div>
 
@@ -360,6 +405,28 @@ export default function DesignCanvasEditor({
                 <option value="center">Centro</option>
                 <option value="right">Direita</option>
               </select>
+            </label>
+          </div>
+        )}
+        {objetoSelecionado && !selecaoEhLogo && (
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block text-xs text-areia/60">
+              X
+              <input
+                type="number"
+                defaultValue={Math.round(objetoSelecionado.left ?? 0)}
+                onChange={(e) => aplicarPosicao("left", Number(e.target.value))}
+                className="mt-1 w-full rounded border border-areia/15 bg-petroleo px-2 py-1 text-areia"
+              />
+            </label>
+            <label className="block text-xs text-areia/60">
+              Y
+              <input
+                type="number"
+                defaultValue={Math.round(objetoSelecionado.top ?? 0)}
+                onChange={(e) => aplicarPosicao("top", Number(e.target.value))}
+                className="mt-1 w-full rounded border border-areia/15 bg-petroleo px-2 py-1 text-areia"
+              />
             </label>
           </div>
         )}
