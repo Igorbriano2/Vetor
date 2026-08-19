@@ -49,6 +49,14 @@ export default function VideoProjectEditor({ projeto }: { projeto: VideoProjectI
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
   const [playheadMs, setPlayheadMs] = useState(0);
+  // Começa com o que o servidor resolveu na abertura do projeto — clipes
+  // adicionados NESTA sessão (via biblioteca de mídia) entram aqui na hora
+  // (a MediaLibraryPanel já assinou a URL pra mostrar a miniatura, reusa
+  // em vez de re-buscar). Sem isso, um clip recém-adicionado mostrava
+  // "selecione um clip pra pré-visualizar" mesmo já selecionado — achado
+  // ao vivo.
+  const [clipUrls, setClipUrls] = useState<Record<string, string>>(projeto.clipUrls);
+  const [clipMimeTypes, setClipMimeTypes] = useState<Record<string, string | null>>({});
   const [status] = useState(projeto.status);
   const [salvando, setSalvando] = useState(false);
   const [criandoVersao, setCriandoVersao] = useState(false);
@@ -124,6 +132,8 @@ export default function VideoProjectEditor({ projeto }: { projeto: VideoProjectI
 
   function adicionarAtivoNaFaixa(ativo: AtivoDeMidia) {
     if (!selectedTrackId) return;
+    setClipUrls((atual) => ({ ...atual, [ativo.id]: ativo.url }));
+    setClipMimeTypes((atual) => ({ ...atual, [ativo.id]: ativo.mimeType }));
     aplicar(ops.adicionarClipe(timeline, selectedTrackId, { sourceAssetId: ativo.id, durationMs: duracaoPadraoPorMime(ativo.mimeType) }));
   }
 
@@ -188,8 +198,8 @@ export default function VideoProjectEditor({ projeto }: { projeto: VideoProjectI
         <div className="col-span-2 space-y-3">
           <VideoPreviewPlayer
             clip={clipSelecionado}
-            url={clipSelecionado ? (projeto.clipUrls[clipSelecionado.sourceAssetId] ?? null) : null}
-            mimeType={null}
+            url={clipSelecionado ? (clipUrls[clipSelecionado.sourceAssetId] ?? null) : null}
+            mimeType={clipSelecionado ? (clipMimeTypes[clipSelecionado.sourceAssetId] ?? null) : null}
           />
           <VideoTimeline
             timeline={timeline}
