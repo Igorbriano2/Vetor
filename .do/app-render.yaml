@@ -1,0 +1,35 @@
+# Spec da DigitalOcean App Platform para apps/render (serviço de render de
+# vídeo — Parte 5/6 da evolução de Design/Vídeo). Dockerfile explícito (não
+# o buildpack node-js dos outros dois apps) porque precisa do binário
+# ffmpeg de verdade no PATH em runtime — o buildpack padrão não garante
+# isso de forma confiável (achado da spike de licenciamento/infra).
+#
+# Os campos SECRET abaixo ficam em branco de propósito — preencha na tela
+# da DO antes de aplicar o spec, nunca aqui no arquivo. INTERNAL_API_TOKEN
+# precisa ser O MESMO valor já usado em vetor-agentes e vetor-painel (é o
+# segredo que autentica agentes -> render).
+name: vetor-render
+region: nyc
+services:
+  - name: render
+    github:
+      repo: Igorbriano2/Vetor
+      branch: main
+      deploy_on_push: true
+    source_dir: apps/render
+    dockerfile_path: apps/render/Dockerfile
+    instance_size_slug: basic-xs
+    instance_count: 1
+    health_check:
+      http_path: /health
+    envs:
+      - key: SUPABASE_URL
+        scope: RUN_TIME
+        value: "https://rhqkzhiuweiblfkfsqxm.supabase.co"
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: INTERNAL_API_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+        # MESMO valor usado nos apps "agentes" e "painel".
