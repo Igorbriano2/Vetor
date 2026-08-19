@@ -125,7 +125,15 @@ export default function DesignCanvasEditor({
     // setado) — sempre força o primeiro render explícito.
     canvas.renderAll();
 
-    if (canvasJsonInicial) {
+    // Achado ao vivo: um projeto novo grava canvas_json como "{}" (jsonb
+    // default), que é truthy em JS — canvas.loadFromJSON({}) carrega um
+    // estado "vazio" que sobrescreve até o backgroundColor, deixando o
+    // canvas literalmente transparente em vez de branco. Só entra no
+    // caminho de load quando existe conteúdo real (objects/background).
+    const temConteudoReal =
+      !!canvasJsonInicial && typeof canvasJsonInicial === "object" && Object.keys(canvasJsonInicial).length > 0;
+
+    if (temConteudoReal) {
       historicoRef.current.suprimirRegistro = true;
       void canvas.loadFromJSON(canvasJsonInicial).then(() => {
         // Reaplica o bloqueio de logo após o load — nunca confia que o JSON
