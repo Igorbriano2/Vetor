@@ -4,7 +4,7 @@ import { supabase } from "../db/supabase.js";
 import { getSystemPrompt, type AgenteId } from "./prompts/index.js";
 import { gerarVideoAPartirDeImagem, VideoIndisponivelError } from "../integrations/higgsfield.js";
 import { gerarImagem, gerarImagemComReferencia, ImagemIndisponivelError, tamanhoOpenAI, type ReferenciaImagem } from "../integrations/imageProvider.js";
-import { dimensaoDoTamanhoOpenAI, montarCanvasJsonInicial, criarDesignProject } from "../negocio/designProjects.js";
+import { dimensaoDoTamanhoOpenAI, lerDimensaoDeImagem, montarCanvasJsonInicial, criarDesignProject } from "../negocio/designProjects.js";
 import { persistirArtefato, type ArtefatoPersistido, type ArtifactType } from "../artifacts/artifactsService.js";
 import { selecionarSkills, carregarSkillsSelecionadas, listarTodosOsManifestos } from "../skills/registry.js";
 import type { SkillDefinition, SkillDepartment } from "../skills/types.js";
@@ -312,6 +312,11 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<
         const sourceAssetIds: string[] = [];
         const issues: string[] = [];
         let logoAssetId: string | undefined;
+        // Dimensão real decodificada dos bytes baixados — nunca a coluna
+        // business_assets.width/height (achado ao vivo: ativos antigos têm
+        // essa coluna nula, e um fallback aqui forçaria a logo pra uma
+        // caixa quadrada, distorcendo ela no canvas).
+        let logoDimensaoReal: { width: number; height: number } | null = null;
 
         // Regra inegociável: se existe logo oficial cadastrada pro formato,
         // ela É incorporada (image-to-image real) — nunca opcional quando
@@ -325,6 +330,7 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<
             referencias.push({ bytes: bytesLogo, mimeType: "image/png", nome: "logo-oficial.png" });
             sourceAssetIds.push(logo.id);
             logoAssetId = logo.id;
+            logoDimensaoReal = lerDimensaoDeImagem(bytesLogo);
             await registrarUsoDeAtivo({
               clienteId: ctx.clienteId,
               assetId: logo.id,
@@ -389,8 +395,20 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<
           canvasInfo: {
             width,
             height,
-            ...(logo && logoAssetId
-              ? { logo: { assetId: logoAssetId, storagePath: logo.storagePath, naturalWidth: logo.width, naturalHeight: logo.height } }
+            // Só adiciona o objeto travado de logo no canvas quando a
+            // dimensão real foi decodificada dos bytes — sem isso, a caixa
+            // cairia num fallback quadrado e distorceria a logo (proibido
+            // pela spec). A logo ainda assim já foi incorporada na imagem
+            // via image-to-image acima, mesmo sem o overlay.
+            ...(logo && logoAssetId && logoDimensaoReal
+              ? {
+                  logo: {
+                    assetId: logoAssetId,
+                    storagePath: logo.storagePath,
+                    naturalWidth: logoDimensaoReal.width,
+                    naturalHeight: logoDimensaoReal.height,
+                  },
+                }
               : {}),
           },
           promptUsado: prompt,

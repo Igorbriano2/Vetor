@@ -26,6 +26,44 @@ export function dimensaoDoTamanhoOpenAI(tamanho: string): DimensaoImagem {
   return { width: width || 1024, height: height || 1024 };
 }
 
+// Lê a dimensão real dos bytes da imagem (PNG/JPEG) — nunca confia em
+// business_assets.width/height pra montar o canvas: achado ao vivo que
+// ativos antigos (cadastrados antes da coluna existir) ficam com width/
+// height nulos, e cair pra um fallback 1x1 força a logo pra uma caixa
+// quadrada, DISTORCENDO ela (viola a regra "nunca distorce a logo" da
+// spec). Decodifica direto dos bytes já baixados pra geração — sempre
+// preciso, nunca depende de backfill.
+export function lerDimensaoDeImagem(bytes: Buffer): DimensaoImagem | null {
+  // PNG: assinatura de 8 bytes + chunk IHDR (width/height big-endian nos
+  // bytes 16-23).
+  const assinaturaPng = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (bytes.length >= 24 && bytes.subarray(0, 8).equals(assinaturaPng)) {
+    return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+  }
+
+  // JPEG: sequência de marcadores 0xFFxx; os marcadores SOF (Start Of
+  // Frame, 0xC0–0xCF exceto 0xC4/0xC8/0xCC) carregam altura/largura logo
+  // após o byte de precisão.
+  if (bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    let offset = 2;
+    while (offset + 9 <= bytes.length) {
+      if (bytes[offset] !== 0xff) {
+        offset++;
+        continue;
+      }
+      const marcador = bytes[offset + 1];
+      const ehSOF = marcador >= 0xc0 && marcador <= 0xcf && marcador !== 0xc4 && marcador !== 0xc8 && marcador !== 0xcc;
+      if (ehSOF) {
+        return { height: bytes.readUInt16BE(offset + 5), width: bytes.readUInt16BE(offset + 7) };
+      }
+      const tamanhoSegmento = bytes.readUInt16BE(offset + 2);
+      offset += 2 + tamanhoSegmento;
+    }
+  }
+
+  return null;
+}
+
 interface ObjetoDeImagemCanvas {
   type: "image";
   left: number;

@@ -1,5 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { dimensaoDoTamanhoOpenAI, montarCanvasJsonInicial } from "./designProjects.js";
+import { dimensaoDoTamanhoOpenAI, lerDimensaoDeImagem, montarCanvasJsonInicial } from "./designProjects.js";
+
+function construirPngFake(width: number, height: number): Buffer {
+  const assinatura = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const ihdr = Buffer.alloc(25);
+  ihdr.writeUInt32BE(13, 0); // length do chunk
+  ihdr.write("IHDR", 4, "ascii");
+  ihdr.writeUInt32BE(width, 8);
+  ihdr.writeUInt32BE(height, 12);
+  return Buffer.concat([assinatura, ihdr]);
+}
+
+function construirJpegFake(width: number, height: number): Buffer {
+  const sof0 = Buffer.alloc(9);
+  sof0[0] = 0xff;
+  sof0[1] = 0xc0;
+  sof0.writeUInt16BE(8, 2); // length do segmento (não conta os 2 bytes do marcador)
+  sof0[4] = 8; // precisão
+  sof0.writeUInt16BE(height, 5);
+  sof0.writeUInt16BE(width, 7);
+  return Buffer.concat([Buffer.from([0xff, 0xd8]), sof0]);
+}
 
 describe("dimensaoDoTamanhoOpenAI", () => {
   it("converte o tamanho da OpenAI (WxH) em width/height numéricos", () => {
@@ -69,5 +90,27 @@ describe("montarCanvasJsonInicial", () => {
     const proporcaoOriginal = 400 / 100;
     const proporcaoRenderizada = ((logo.width as number) * (logo.scaleX as number)) / ((logo.height as number) * (logo.scaleY as number));
     expect(proporcaoRenderizada).toBeCloseTo(proporcaoOriginal, 5);
+  });
+});
+
+describe("lerDimensaoDeImagem", () => {
+  it("lê width/height reais de um PNG (achado ao vivo: nunca confiar em business_assets.width/height nulo)", () => {
+    expect(lerDimensaoDeImagem(construirPngFake(500, 200))).toEqual({ width: 500, height: 200 });
+  });
+
+  it("lê width/height reais de um JPEG (marcador SOF0)", () => {
+    expect(lerDimensaoDeImagem(construirJpegFake(800, 450))).toEqual({ width: 800, height: 450 });
+  });
+
+  it("devolve null pra um formato não reconhecido, em vez de inventar dimensão (nunca força distorção)", () => {
+    expect(lerDimensaoDeImagem(Buffer.from("não é uma imagem"))).toBeNull();
+  });
+
+  it("decodifica corretamente o PNG 1x1 real usado nos testes do imageProvider", () => {
+    const png1x1 = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    );
+    expect(lerDimensaoDeImagem(png1x1)).toEqual({ width: 1, height: 1 });
   });
 });
