@@ -80,11 +80,11 @@ Não existe `credit_ledger`, `credit_reservations`, nem qualquer tabela de walle
 
 ## 6. Plano de execução em fases (conforme ordem exigida pelo prompt mestre)
 
-| Rodada | Escopo | Depende de |
-|---|---|---|
-| A | Esta auditoria + modelo de dados da biblioteca (Fase 1: `reference_library_items`, `reference_collections`, `reference_collection_items`) | — |
-| B | Biblioteca com upload, URL externa, filtros, coleções (Fase 2, sem scraping) | A |
-| C | `ReferenceStyleProfile` generalizado (hoje só vídeo) + fluxo de inspiração | B, `referenceVideoAnalysis.ts` existente |
+| Rodada | Escopo | Depende de | Status |
+|---|---|---|---|
+| A | Esta auditoria + modelo de dados da biblioteca (Fase 1: `reference_library_items`, `reference_collections`, `reference_collection_items`) | — | **Feita** — migration `0029_reference_library.sql` aplicada em produção, `apps/agentes/src/negocio/referenceLibrary.ts` criado, sem advisories novos. |
+| B | Biblioteca com upload, URL externa, filtros, coleções (Fase 2, sem scraping) | A | **Feita** — página `/referencias` no painel (server component + client component, mesmo padrão de `configuracoes/negocio/banco-de-imagens`), entrada nova na sidebar. Testada ao vivo em produção: criar referência por URL, criar por arquivo do Drive, criar coleção, adicionar à coleção, filtrar por coleção, arquivar — todos confirmados via reload real da página (não só estado otimista do client). |
+| C | `ReferenceStyleProfile` generalizado (hoje só vídeo) + fluxo de inspiração | B, `referenceVideoAnalysis.ts` existente | Próxima rodada — ainda não iniciada. |
 | D | Creative Mission Canvas pra Design (Fase 3) — visualização sobre `mission_steps`/`creative_mission_graphs` | C |
 | E | `design_flows`/templates + geração em lote (Fases 4/5) | D |
 | F | Integração com Videomaker/Planejamento (Fase 6) — preservar timeline/estágios já provados | D, E |
