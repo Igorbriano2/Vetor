@@ -174,7 +174,8 @@ pedido do cliente
 | 0 — Inventário e fluxo principal | **Feita** — este documento |
 | 1 — Design Command Center | **Feita** — ver detalhamento abaixo |
 | 2 — Galeria de Referências | **Feita** — ver detalhamento abaixo |
-| 3–10 | Não iniciadas |
+| 3 — Templates como receitas de agência | **Feita** — ver detalhamento abaixo |
+| 4–10 | Não iniciadas |
 
 ### Fase 1 — Design Command Center (feita, testada ao vivo em produção)
 
@@ -204,6 +205,16 @@ Cada card tem thumbnail real (ou link/estado honesto quando não há), título, 
 
 Build/lint de `apps/painel` e `apps/agentes` passando, suítes de teste sem regressão (233 + 53), advisors de segurança sem achados novos.
 
+### Fase 3 — Templates como receitas de agência (feita, testada ao vivo em produção)
+
+`design_flows` ganhou `thumbnail_url` e `receita` (jsonb, aditivo — `tarefa_template` continua existindo, nenhum consumidor antigo quebra) cobrindo todos os campos pedidos: objetivo, setor recomendado, formato, exemplo de resultado, campos guiados (reaproveitando os mesmos 5 campos do wizard da Fase 1 — tom/oferta/produto-pessoa/CTA/restrições, em vez de inventar um sistema de formulário dinâmico novo), assets necessários, número de variações, etapas de execução e se precisa de aprovação. Semeados os 10 templates pedidos pelo prompt (Promoção de produto, Post editorial, Carrossel educativo, Story com CTA, Capa de Reel, Depoimento, Lançamento, Oferta relâmpago, Produto premium, Serviço profissional) pro cliente de teste — `design_flows.cliente_id` é `not null` (schema não muda), então não existe "template curado global" ainda, mesma decisão já tomada pra referências na Fase 2.
+
+"Usar este template" não é mais um prefill de chat: abre o mesmo `CriarPecaWizard` da Fase 1 (`/design?template=...&objetivo=...&formato=...`), já preenchido com a receita, terminando no mesmo resumo antes de gastar geração — nunca um caminho de execução paralelo. `numeroDeDirecoes` deixou de ser uma constante fixa (3) e passou a vir do template quando presente. Templates sem `receita` (o 1 template legado já existente, criado antes desta rodada) continuam funcionando pelo caminho antigo (prefill no chat) — nada quebrou.
+
+**Testado ao vivo em produção, ponta a ponta**: clicado "Usar este template" no template real "Promoção de produto" — abriu `/design` com o wizard já preenchido ("Divulgar uma promoção de um produto específico", formato Feed pré-selecionado, "Template: Promoção de produto — revise e ajuste..."), avançado até o passo 4 confirmando tom/CTA pré-preenchidos e editáveis. **Achado real corrigido durante esse teste**: 6 dos 10 templates seedados tinham texto instrucional ("Preencha a condição real...", "Nome do produto em destaque...") escrito como VALOR do campo em vez de ficar em branco pro cliente preencher — o campo aparecia com esse texto como se o cliente já tivesse digitado, não como dica. Corrigido via `jsonb_set` direto nas linhas afetadas (`oferta` em Promoção de produto/Oferta relâmpago; `produtoOuPessoa` em Promoção de produto/Depoimento/Lançamento/Produto premium/Serviço profissional) — agora ficam em branco, o wizard mostra seu próprio placeholder genérico.
+
+Build/lint de `apps/painel` passando, suíte de testes sem regressão (53/53).
+
 ---
 
-**Seguindo para a Fase 3 (Templates como receitas de agência) em modo automático, conforme instrução vigente da sessão.**
+**Seguindo para a Fase 4 (Campanhas e Geração Controlada) em modo automático, conforme instrução vigente da sessão.**
