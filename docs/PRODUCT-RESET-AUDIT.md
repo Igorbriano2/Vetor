@@ -175,7 +175,8 @@ pedido do cliente
 | 1 — Design Command Center | **Feita** — ver detalhamento abaixo |
 | 2 — Galeria de Referências | **Feita** — ver detalhamento abaixo |
 | 3 — Templates como receitas de agência | **Feita** — ver detalhamento abaixo |
-| 4–10 | Não iniciadas |
+| 4 — Campanhas e Geração Controlada | **Feita (escopo real, 7/8 rótulos)** — ver detalhamento abaixo |
+| 5–10 | Não iniciadas |
 
 ### Fase 1 — Design Command Center (feita, testada ao vivo em produção)
 
@@ -215,6 +216,18 @@ Build/lint de `apps/painel` e `apps/agentes` passando, suítes de teste sem regr
 
 Build/lint de `apps/painel` passando, suíte de testes sem regressão (53/53).
 
+### Fase 4 — Campanhas e Geração Controlada (feita, escopo real — ver limitação)
+
+Novo `apps/painel/src/lib/campanha/pecaStatus.ts`: traduz status técnico (`mission_steps.status` + `design_projects.status`/`version`) pro vocabulário de peça pedido — mas só emite um rótulo quando existe sinal real por trás, nunca força um rótulo errado (etapa `failed`/`blocked`/`cancelled` cai pro `StatusBadge` técnico de sempre, nunca vira "Briefing recebido" por omissão). Mapeamento: `pending`/`ready`→Briefing recebido, `awaiting_approval`→Aguardando sua aprovação, `running`→Criando opções, `completed`+`design_project.status='approved'`+missão terminal→Entregue, `completed`+`approved`+missão ainda ativa→Aprovada, `completed`+`draft`+`version>1` (prova real de edição salva)→Em edição, `completed`+`draft`+`version=1`→Pronta para aprovação. Achado que destravou isso: `design_projects.mission_step_id` **já existia** desde a migration `0021` — zero migration nova precisou ser feita pra ligar uma peça específica ao seu projeto editável.
+
+**Limitação real e documentada, não escondida**: "Escolha uma direção" (o 8º rótulo pedido) não foi implementado. Ele exige um conceito real de "peça com N direções irmãs" — hoje `mission_steps` não persiste a `chave` do plano (só é usada em memória na hora de resolver `depende_de`), então não existe like agrupar de verdade as 3 etapas de uma mesma peça sem recorrer a uma heurística frágil de parsing de texto. Decisão: não fabricar esse rótulo com um sinal falso — fica como gap real pra uma rodada futura que adicione um campo de agrupamento de verdade (ex: `mission_steps.peca_id`).
+
+`GerarPecasCampanha.tsx` (botão "Gerar peças da campanha" em `/planejamento`) ganhou a tela de resumo pedida: quantas peças, separadas por Design/Vídeo/Copy, texto explícito sobre o que é gerado agora vs. o que precisaria de aprovação (hoje nada precisa, por design — só ferramentas de baixo risco), e um botão "Tentar novamente" que reaparece em caso de erro sem duplicar a missão (o botão de confirmar já ficava desabilitado durante o envio e desaparecia depois de criada — idempotência de UI já existia, só faltava a tela de resumo em si).
+
+**Testado ao vivo em produção**: a tela de resumo em `/planejamento` mostrou corretamente "4 briefing(s) de Design, 1 briefing(s) de Vídeo, 5 copy(s)" pro calendário real da Dog King Cambé (a peça "Vídeo preparação dog na chapa" classificada certo como Vídeo). O rótulo amigável de peça foi verificado no código e no fallback (uma missão real com 3 etapas de Design falhadas mostrou corretamente a frase técnica de erro, sem fingir "Briefing recebido") — os estados de sucesso (Pronta para aprovação/Em edição/Aprovada/Entregue) **não puderam ser testados com dado real nesta sessão** porque a conta OpenAI configurada em produção está sem crédito (achado da Fase 1) e nenhuma imagem real conseguiu ser gerada pra criar um `design_project` de verdade — a lógica foi verificada por leitura de código e type-check, não por execução real ponta a ponta.
+
+Build/lint de `apps/painel` passando, suíte de testes sem regressão (53/53).
+
 ---
 
-**Seguindo para a Fase 4 (Campanhas e Geração Controlada) em modo automático, conforme instrução vigente da sessão.**
+**Seguindo para a Fase 5 (Resultado Visual Real) em modo automático, conforme instrução vigente da sessão.**
