@@ -5,7 +5,7 @@ import VetorCore from "./VetorCore";
 import VetorIntentCard, { type MissaoProposta } from "./VetorIntentCard";
 import { readApiResponse } from "@/lib/api/readApiResponse";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { lerConversationId, salvarConversationId } from "@/lib/conversation";
+import { lerConversationId, salvarConversationId, lerEconsumirPrefillComando } from "@/lib/conversation";
 
 interface RespostaComando {
   conversationId: string;
@@ -46,7 +46,12 @@ async function blobParaBase64(blob: Blob): Promise<string> {
 // Anexos ficam fora desta rodada — precisam de storage S3, não provisionado.
 export default function VetorCommandBar() {
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
-  const [texto, setTexto] = useState("");
+  // Templates (Fase 4 do upgrade Gravyx) — se o cliente veio de "Usar
+  // template" em /templates, o campo já nasce preenchido com o texto
+  // salvo (lazy initializer, não efeito — evita cascata de render). Nunca
+  // envia sozinho: só preenche, a revisão e o clique em Enviar continuam
+  // sendo do cliente.
+  const [texto, setTexto] = useState(() => lerEconsumirPrefillComando() ?? "");
   const [enviando, setEnviando] = useState(false);
   const [gravando, setGravando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);

@@ -38,6 +38,7 @@ const GRUPOS_NAV: Array<{ titulo: string | null; itens: Array<{ href: string; la
     itens: [
       { href: "/entregas", label: "Entregas" },
       { href: "/referencias", label: "Referências" },
+      { href: "/templates", label: "Templates" },
     ],
   },
   { titulo: "Contexto", itens: [{ href: "/configuracoes/negocio", label: "Negócio" }] },
