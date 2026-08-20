@@ -6,49 +6,38 @@ import { usePathname } from "next/navigation";
 import LogoutButton from "@/components/LogoutButton";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
 
-// Agrupado como departamentos de uma agência (auditoria de arquitetura) —
-// o cliente nunca precisa entender que por trás disso são agentes de IA.
-// /conteudo e /insights continuam existindo como rotas (não removidas), só
-// saíram do menu: o papel deles hoje é coberto por Design/Videomaker (peças)
-// e pelos filtros de Entregas (Resultados), sem duplicar entrada no menu.
+// Vetor Manager — menu reduzido a quatro áreas conversacionais em torno do
+// agente Vetor (docs/VETOR-PRODUCT-CONTRACT.md). Cada área é um hub que
+// reaproveita as páginas antigas como destino de link ou aba interna — a
+// sub-navegação (Missões/Solicitações dentro de Vetor; Design/Videomaker/
+// Referências/Templates/Entregas dentro de Criações) vive dentro da própria
+// página da área, não neste menu. Nenhuma rota antiga foi removida: todas
+// viram alias (redirect 307) ou continuam acessíveis por link a partir da
+// área que as absorveu.
 const GRUPOS_NAV: Array<{ titulo: string | null; itens: Array<{ href: string; label: string }> }> = [
-  { titulo: null, itens: [{ href: "/dashboard", label: "VETOR" }] },
   {
-    titulo: "Operação",
+    titulo: null,
     itens: [
-      { href: "/missoes", label: "Missões" },
-      { href: "/solicitacoes", label: "Solicitações" },
-    ],
-  },
-  {
-    titulo: "Criação",
-    itens: [
-      { href: "/design", label: "Design" },
-      { href: "/videomaker", label: "Videomaker" },
-    ],
-  },
-  {
-    titulo: "Crescimento",
-    itens: [
-      { href: "/trafego", label: "Tráfego" },
+      { href: "/vetor", label: "VETOR" },
+      { href: "/criacoes", label: "Criações" },
       { href: "/planejamento", label: "Planejamento" },
+      { href: "/configuracoes/negocio", label: "Negócio" },
     ],
   },
-  {
-    titulo: "Biblioteca",
-    itens: [
-      { href: "/entregas", label: "Entregas" },
-      { href: "/referencias", label: "Referências" },
-      { href: "/templates", label: "Templates" },
-    ],
-  },
-  { titulo: "Contexto", itens: [{ href: "/configuracoes/negocio", label: "Negócio" }] },
-  { titulo: "Sistema", itens: [{ href: "/conexoes", label: "Conexões" }] },
 ];
 
+// Sub-rotas que continuam existindo fora da área (linkadas a partir do hub
+// da área, não deste menu) mas devem acender o mesmo item — ver comentário
+// de GRUPOS_NAV acima.
+const SUB_ROTAS_DA_AREA: Record<string, string[]> = {
+  "/vetor": ["/missoes", "/solicitacoes"],
+  "/criacoes": ["/design", "/videomaker", "/referencias", "/templates", "/entregas"],
+};
+
 function ehAtivo(pathname: string, href: string): boolean {
-  if (href === "/dashboard") return pathname === "/dashboard";
-  return pathname === href || pathname.startsWith(`${href}/`);
+  if (pathname === href || pathname.startsWith(`${href}/`)) return true;
+  const subRotas = SUB_ROTAS_DA_AREA[href] ?? [];
+  return subRotas.some((sub) => pathname === sub || pathname.startsWith(`${sub}/`));
 }
 
 function VetorMark() {

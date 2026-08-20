@@ -146,7 +146,7 @@ export default function TemplatesPainel({ clienteId, templatesIniciais }: { clie
     // /dashboard já montada antes nesta aba, e o lazy initializer do
     // Command Bar (que lê o prefill) só roda no mount.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination, react-hooks/immutability
-    window.location.href = "/dashboard";
+    window.location.href = "/vetor";
   }
 
   async function arquivar(id: string) {

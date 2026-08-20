@@ -197,7 +197,7 @@ export default function OnboardingWizard({ clienteId, perfilInicial, brandKitIni
       // Best-effort — o cliente ainda pode pedir isso puxando conversa normal.
     } finally {
       setEnviandoParaVetor(false);
-      router.push("/dashboard");
+      router.push("/vetor");
     }
   }
 

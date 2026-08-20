@@ -148,7 +148,7 @@ export default function TrafegoPainel({
         <div className="mt-6 rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4">
           <p className="text-sm text-areia/60">
             O Gestor de Tráfego é o Vetor — peça pelo{" "}
-            <Link href="/dashboard" className="text-menta underline underline-offset-2">
+            <Link href="/vetor" className="text-menta underline underline-offset-2">
               chat principal
             </Link>{" "}
             coisas como &ldquo;crie uma campanha pro combo de sexta com R$50/dia&rdquo; ou &ldquo;o que os números

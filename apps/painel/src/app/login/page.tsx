@@ -30,7 +30,7 @@ function LoginForm() {
     }
 
     const next = searchParams.get("next");
-    router.replace(caminhoInternoSeguro(next) ? next : "/dashboard");
+    router.replace(caminhoInternoSeguro(next) ? next : "/vetor");
     router.refresh();
   }
 

@@ -54,7 +54,7 @@ export async function updateSession(request: NextRequest) {
     const next = request.nextUrl.searchParams.get("next");
     const url = caminhoInternoSeguro(next)
       ? new URL(next, request.url)
-      : new URL("/dashboard", request.url);
+      : new URL("/vetor", request.url);
     return NextResponse.redirect(url);
   }
 
