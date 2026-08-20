@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { salvarPrefillComando } from "@/lib/conversation";
 
@@ -28,7 +27,6 @@ export default function TemplatesPainel({ clienteId, templatesIniciais }: { clie
   const [templates, setTemplates] = useState(templatesIniciais);
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
-  const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   async function criarTemplate(dados: { nome: string; descricao: string; department: string; tarefaTemplate: string; tagsTexto: string }) {
@@ -80,7 +78,13 @@ export default function TemplatesPainel({ clienteId, templatesIniciais }: { clie
       .update({ vezes_usado: template.vezesUsado + 1 })
       .eq("id", template.id)
       .eq("cliente_id", clienteId);
-    router.push("/dashboard");
+    // Navegação "dura" (não router.push) de propósito — achado real: o
+    // router cache do Next.js pode reaproveitar uma instância de
+    // /dashboard já montada antes nesta aba, e o lazy initializer do
+    // Command Bar (que lê o prefill) só roda no mount — com router.push o
+    // prefill ficava esquecido no sessionStorage sem nunca ser aplicado.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = "/dashboard";
   }
 
   async function arquivar(id: string) {
