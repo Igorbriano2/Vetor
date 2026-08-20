@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import StatusBadge from "@/components/StatusBadge";
 import VetorMissionTimeline from "@/components/VetorMissionTimeline";
+import MissionCanvas from "@/components/MissionCanvas";
 
 export default async function MissaoDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -92,6 +93,25 @@ export default async function MissaoDetalhePage({ params }: { params: Promise<{ 
             <VetorMissionTimeline missionId={missao.id} etapas={etapas ?? []} approvals={aprovacoes ?? []} artefatos={artefatos} />
           </div>
         </section>
+
+        {(etapas ?? []).length > 0 && (
+          <details className="mt-6 group">
+            <summary className="cursor-pointer font-mono text-xs font-semibold uppercase tracking-widest text-areia/40 hover:text-areia/70">
+              Ver como canvas ▸
+            </summary>
+            <div className="mt-3">
+              <MissionCanvas
+                etapas={(etapas ?? []).map((e) => ({
+                  id: e.id as string,
+                  agente: e.agente as string,
+                  tarefa: e.tarefa as string,
+                  status: e.status as string,
+                  dependeDe: (e.depende_de as string[] | null) ?? [],
+                }))}
+              />
+            </div>
+          </details>
+        )}
       </div>
     </main>
   );
