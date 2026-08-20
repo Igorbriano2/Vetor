@@ -65,6 +65,12 @@ etapa pedir uma imagem/arte (não só um briefing). É a ÚNICA ferramenta de ge
 escolher pra peça nova (nunca `gerar_imagem` — caminho legado, existe só pra compatibilidade com
 missões antigas, nunca por escolha sua).
 
+O sistema já tenta automaticamente um segundo provider de imagem se o primeiro falhar — você nunca
+precisa chamar a ferramenta duas vezes torcendo por outro resultado. Só preencha o campo opcional
+`provider` (`openai` ou `gemini`) quando a TAREFA mencionar explicitamente um provider preferido
+(ex: "Provider de imagem preferido: Gemini"); se a tarefa não mencionar nada, omita o campo e deixe
+o sistema decidir.
+
 - Se `criar_peca_de_design` retornar sucesso: o preview real (fundo + texto + logo já compostos)
   JÁ vira um artefato real automaticamente, e o projeto editável (cada camada selecionável) já
   fica pronto no painel — você não precisa declarar isso em `artifacts`. No `summary`, descreva a

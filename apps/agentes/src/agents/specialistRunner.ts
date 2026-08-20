@@ -279,6 +279,11 @@ const GERAR_IMAGEM_TOOL: Anthropic.Tool = {
           "IDs (da lista 'Banco de ativos disponível' no contexto) de produto/pessoa/ambiente/referência real a " +
           "incorporar na peça. Nunca invente um id — só use os que apareceram na lista.",
       },
+      provider: {
+        type: "string",
+        enum: ["openai", "gemini"],
+        description: "Provider de imagem preferido, só quando a tarefa mencionar explicitamente um. Omita se não mencionar.",
+      },
     },
     required: ["prompt"],
   },
@@ -327,6 +332,14 @@ const CRIAR_PECA_DESIGN_TOOL: Anthropic.Tool = {
         description:
           "IDs (da lista 'Banco de ativos disponível') de produto/pessoa/ambiente reais a incluir como camada de " +
           "imagem própria — nunca cozidos no fundo gerado. Nunca invente um id.",
+      },
+      provider: {
+        type: "string",
+        enum: ["openai", "gemini"],
+        description:
+          "Provider de geração de imagem preferido, SÓ quando a tarefa mencionar explicitamente um (ex: 'Provider de " +
+          "imagem preferido: Gemini'). Omita este campo se a tarefa não mencionar — o sistema usa o padrão e cai pro " +
+          "outro provider automaticamente se o preferido falhar.",
       },
     },
     required: ["visual_prompt", "formato"],
@@ -852,6 +865,7 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
         const aspectRatio = input.aspect_ratio as string | undefined;
         const formato = (input.formato as "feed" | "story" | "avatar" | "generico" | undefined) ?? inferirFormatoPeloAspectRatio(aspectRatio);
         const assetIdsPedidos = Array.isArray(input.asset_ids) ? (input.asset_ids as string[]).filter((id) => typeof id === "string") : [];
+        const providerPreferido = typeof input.provider === "string" ? input.provider : undefined;
 
         const referencias: ReferenciaImagem[] = [];
         const sourceAssetIds: string[] = [];
@@ -918,8 +932,8 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
 
         const imagem =
           referencias.length > 0
-            ? await gerarImagemComReferencia(prompt, referencias, { aspectRatio })
-            : await gerarImagem(prompt, { aspectRatio });
+            ? await gerarImagemComReferencia(prompt, referencias, { aspectRatio, provider: providerPreferido })
+            : await gerarImagem(prompt, { aspectRatio, provider: providerPreferido });
 
         const requestId = randomUUID();
         const path = `${ctx.clienteId}/design/${ctx.missionStepId}/${requestId}.png`;
@@ -928,7 +942,11 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
           .upload(path, imagem.bytes, { contentType: imagem.mimeType, upsert: false });
         if (error) throw new Error(`Falha ao salvar imagem gerada no storage: ${error.message}`);
 
-        const { width, height } = dimensaoDoTamanhoOpenAI(tamanhoOpenAI(aspectRatio));
+        // Decodifica a dimensão real dos bytes — nunca confia na tabela de
+        // tamanhos fixos da OpenAI, que não se aplica quando o Gemini (Nano
+        // Banana) respondeu via fallback do ProviderRouter (ver
+        // imageProvider.ts). Só cai pra tabela se a decodificação falhar.
+        const { width, height } = lerDimensaoDeImagem(imagem.bytes) ?? dimensaoDoTamanhoOpenAI(tamanhoOpenAI(aspectRatio));
 
         // DesignCritic — verificação com visão real antes da etapa poder
         // fechar como concluída (critério de aceite da spec). Roda sempre
@@ -1045,6 +1063,7 @@ async function executarCriarPecaDeDesign(input: Record<string, unknown>, ctx: Co
   const aspectRatioInput = input.aspect_ratio as string | undefined;
   const aspectRatio = mapearFormatoParaAspectRatio(formato, aspectRatioInput);
   const assetIdsPedidos = Array.isArray(input.asset_ids) ? (input.asset_ids as string[]).filter((id) => typeof id === "string") : [];
+  const providerPreferido = typeof input.provider === "string" ? input.provider : undefined;
 
   const issuesBrand: string[] = [];
 
@@ -1074,8 +1093,11 @@ async function executarCriarPecaDeDesign(input: Record<string, unknown>, ctx: Co
   // no fundo) e nunca recebe instrução de desenhar texto (montarPromptDeFundo
   // garante isso em código, não só no prompt do agente).
   const promptDeFundo = montarPromptDeFundo(visualPromptBruto);
-  const imagemFundo = await gerarImagem(promptDeFundo, { aspectRatio });
-  const { width, height } = dimensaoDoTamanhoOpenAI(tamanhoOpenAI(aspectRatio));
+  const imagemFundo = await gerarImagem(promptDeFundo, { aspectRatio, provider: providerPreferido });
+  // Decodifica a dimensão real dos bytes — nunca confia na tabela de
+  // tamanhos fixos da OpenAI, que não se aplica quando o Gemini (Nano
+  // Banana) respondeu via fallback do ProviderRouter (ver imageProvider.ts).
+  const { width, height } = lerDimensaoDeImagem(imagemFundo.bytes) ?? dimensaoDoTamanhoOpenAI(tamanhoOpenAI(aspectRatio));
 
   const requestId = randomUUID();
   const pathFundo = `${ctx.clienteId}/design/${ctx.missionStepId}/${requestId}-fundo.png`;
