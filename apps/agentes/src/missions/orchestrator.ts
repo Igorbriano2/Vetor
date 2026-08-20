@@ -362,14 +362,33 @@ async function checarConclusaoMissao(missionId: string): Promise<void> {
   const { data: etapas } = await supabase.from("mission_steps").select("status, resultado").eq("mission_id", missionId);
   if (!etapas || etapas.length === 0) return;
 
-  const todasFinalizadas = etapas.every((e) => ["completed", "skipped", "cancelled"].includes(e.status as string));
-  const algumaFalhou = etapas.some((e) => e.status === "failed");
-
-  if (algumaFalhou) return; // fica bloqueada/rodando; não fecha sozinha em caso de falha
+  // Achado real em produção (auditoria, 20/08): "failed" nunca entrava na
+  // lista de status terminais aqui, e o caminho de falha só fazia `return`
+  // sem nunca mudar o status da missão — toda missão com pelo menos uma
+  // etapa que falhasse ficava presa em "running" PRA SEMPRE, mesmo com
+  // todo o resto já resolvido (nada rodando de verdade, só um status
+  // mentiroso). Reproduzido em pelo menos 20 missões reais já em produção
+  // (algumas de meses atrás, não só desta sessão). Corrigido: falha agora
+  // fecha a missão como "failed" de verdade (transição já existia no
+  // stateMachine, só nunca era usada), com o motivo real registrado no
+  // evento — nunca mais um "em andamento" que na verdade não é.
+  const STATUS_TERMINAIS_DE_ETAPA = ["completed", "skipped", "cancelled", "failed"];
+  const todasFinalizadas = etapas.every((e) => STATUS_TERMINAIS_DE_ETAPA.includes(e.status as string));
   if (!todasFinalizadas) return;
 
   const missao = await buscarMissao(missionId);
   if (missao.status !== "running") return;
+
+  const algumaFalhou = etapas.some((e) => e.status === "failed");
+  if (algumaFalhou) {
+    const etapasFalhas = etapas.filter((e) => e.status === "failed");
+    const motivo = `${etapasFalhas.length} etapa(s) falharam: ${etapasFalhas
+      .map((e) => (e.resultado as { summary?: string } | null)?.summary)
+      .filter(Boolean)
+      .join(" | ")}`;
+    await atualizarStatusMissao(missionId, "running", "failed", { clienteId: missao.cliente_id, motivo });
+    return;
+  }
 
   // Checkpoint de qualidade: alguma etapa completou com baixa confiança? A
   // missão não fecha como "completed" limpo — passa por quality_review e
