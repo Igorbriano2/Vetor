@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 
 // Proxy para apps/agentes, mesmo padrão de /api/comando: resolve cliente_id da
 // sessão autenticada, nunca confia em cliente_id vindo do corpo da requisição.
+// Fase 8 do reset de produto — usa resolverClienteAtivo() em vez do lookup
+// direto em usuarios.cliente_id, senão uma missão criada com o workspace
+// switcher em "Cantina da Ana" nascia sob o cliente_id do próprio admin
+// (Dog King) por engano.
 export async function POST(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -13,13 +18,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
 
-  const { data: usuario } = await supabase
-    .from("usuarios")
-    .select("cliente_id")
-    .eq("id", user.id)
-    .maybeSingle();
+  const ativo = await resolverClienteAtivo(supabase);
 
-  if (!usuario?.cliente_id) {
+  if (!ativo.clienteId) {
     return NextResponse.json({ error: "Seu usuário ainda não está vinculado a um cliente" }, { status: 403 });
   }
 
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-internal-token": internalToken },
       body: JSON.stringify({
-        cliente_id: usuario.cliente_id,
+        cliente_id: ativo.clienteId,
         plano,
         solicitacao_id: solicitacaoId,
         // Quem confirma vem sempre da sessão autenticada no servidor, nunca do
