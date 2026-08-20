@@ -31,26 +31,39 @@ interface RespostaMissao {
 }
 
 const FORMATOS = ["Feed", "Story", "Carrossel", "Capa de Reel", "Anúncio", "Outro"];
-const NUMERO_DE_DIRECOES = 3;
+const NUMERO_DE_DIRECOES_PADRAO = 3;
 
 type OrigemReferencia = "biblioteca" | "url" | "drive" | "nenhuma";
 
+export interface TemplatePreFill {
+  nome: string;
+  objetivo?: string;
+  formato?: string;
+  tom?: string;
+  oferta?: string;
+  produtoOuPessoa?: string;
+  cta?: string;
+  restricoes?: string;
+  numeroVariacoes?: number;
+}
+
 // Wizard em linguagem natural (Fase 1 do reset de produto) — nunca um
-// formulário técnico vazio. Ao confirmar, monta um PlanoConfirmado com
-// NUMERO_DE_DIRECOES etapas do agente "design" declarando gerar_imagem (a
-// mesma ferramenta que qualquer missão de Design criada via chat já
-// declara) e reusa o caminho de criação de missão já existente
-// (POST /api/missoes → criarMissaoDeIntencao) — nunca um caminho paralelo.
-// gerar_imagem é risco médio no Tool Registry, então a missão nasce
-// aguardando aprovação automaticamente (mesmo mecanismo de sempre); a
-// aprovação de fato acontece na tela da missão, ainda sem um botão dedicado
-// aqui (isso é escopo da Fase 5 — "Aprovar criação de N opções").
+// formulário técnico vazio. Ao confirmar, monta um PlanoConfirmado com N
+// etapas do agente "design" declarando gerar_imagem (a mesma ferramenta que
+// qualquer missão de Design criada via chat já declara) e reusa o caminho
+// de criação de missão já existente (POST /api/missoes →
+// criarMissaoDeIntencao) — nunca um caminho paralelo. gerar_imagem é risco
+// médio no Tool Registry, então a missão nasce aguardando aprovação
+// automaticamente (mesmo mecanismo de sempre); a aprovação de fato acontece
+// na tela da missão, ainda sem um botão dedicado aqui (isso é escopo da
+// Fase 5 — "Aprovar criação de N opções").
 export default function CriarPecaWizard({
   temBrandKit,
   referencias,
   assetsDrive,
   referenciaPreSelecionada,
   categoriaInicial,
+  templatePreFill,
   onFechar,
 }: {
   temBrandKit: boolean;
@@ -62,21 +75,26 @@ export default function CriarPecaWizard({
   // Chegou de um tile de categoria curada (sem item real por trás — ver
   // CATEGORIAS_CURADAS em ReferenciasPainel.tsx) — só um hint de contexto.
   categoriaInicial?: string;
+  // Chegou de /templates ("Usar este template") — Fase 3 do reset de
+  // produto: pré-preenche os campos guiados, mas continua editável (o
+  // cliente sempre revisa e confirma antes de gastar geração).
+  templatePreFill?: TemplatePreFill;
   onFechar: () => void;
 }) {
   const router = useRouter();
   const [passo, setPasso] = useState(1);
-  const [objetivo, setObjetivo] = useState("");
-  const [formato, setFormato] = useState<string>(FORMATOS[0]);
+  const [objetivo, setObjetivo] = useState(templatePreFill?.objetivo ?? "");
+  const [formato, setFormato] = useState<string>(templatePreFill?.formato ?? FORMATOS[0]);
   const [origemReferencia, setOrigemReferencia] = useState<OrigemReferencia>(referenciaPreSelecionada ? "biblioteca" : "nenhuma");
   const [referenciaId, setReferenciaId] = useState(referenciaPreSelecionada?.id ?? "");
   const [referenciaUrl, setReferenciaUrl] = useState("");
   const [assetDriveId, setAssetDriveId] = useState("");
-  const [tom, setTom] = useState("");
-  const [oferta, setOferta] = useState("");
-  const [produtoOuPessoa, setProdutoOuPessoa] = useState("");
-  const [cta, setCta] = useState("");
-  const [restricoes, setRestricoes] = useState("");
+  const [tom, setTom] = useState(templatePreFill?.tom ?? "");
+  const [oferta, setOferta] = useState(templatePreFill?.oferta ?? "");
+  const [produtoOuPessoa, setProdutoOuPessoa] = useState(templatePreFill?.produtoOuPessoa ?? "");
+  const [cta, setCta] = useState(templatePreFill?.cta ?? "");
+  const [restricoes, setRestricoes] = useState(templatePreFill?.restricoes ?? "");
+  const numeroDeDirecoes = templatePreFill?.numeroVariacoes ?? NUMERO_DE_DIRECOES_PADRAO;
 
   const [status, setStatus] = useState<"formulario" | "enviando" | "confirmada" | "erro">("formulario");
   const [erro, setErro] = useState<string | null>(null);
@@ -123,11 +141,11 @@ export default function CriarPecaWizard({
       contextoAjustesParaTarefa() +
       " Use a identidade visual e o brand kit já cadastrados do cliente.";
 
-    const etapas: EtapaPlano[] = Array.from({ length: NUMERO_DE_DIRECOES }, (_, i) => ({
+    const etapas: EtapaPlano[] = Array.from({ length: numeroDeDirecoes }, (_, i) => ({
       chave: `direcao-${i + 1}`,
       agente: "design",
       tarefa:
-        `${contextoBase} Esta é a Direção ${i + 1} de ${NUMERO_DE_DIRECOES} para a mesma peça — produza uma direção ` +
+        `${contextoBase} Esta é a Direção ${i + 1} de ${numeroDeDirecoes} para a mesma peça — produza uma direção ` +
         `visual DIFERENTE das outras (varie composição, paleta ou enquadramento), nunca uma cópia, pra o cliente ` +
         `poder escolher entre opções de verdade.`,
       dependeDe: [],
@@ -138,7 +156,7 @@ export default function CriarPecaWizard({
       titulo: `Design — ${objetivo.trim().slice(0, 60)}`,
       objetivo: objetivo.trim(),
       criterioSucesso: [
-        `Cliente recebe ${NUMERO_DE_DIRECOES} direções visuais distintas para escolher`,
+        `Cliente recebe ${numeroDeDirecoes} direções visuais distintas para escolher`,
         "Peça aprovada reflete o brand kit e a referência indicada (quando houver)",
       ],
       etapas,
@@ -174,7 +192,7 @@ export default function CriarPecaWizard({
           <div>
             <p className="mono-label text-menta">Missão criada</p>
             <h2 className="mt-2 text-lg font-semibold text-areia">
-              Vou preparar {NUMERO_DE_DIRECOES} direções visuais e avisar quando estiverem prontas pra sua aprovação.
+              Vou preparar {numeroDeDirecoes} direções visuais e avisar quando estiverem prontas pra sua aprovação.
             </h2>
             <p className="mt-2 text-sm text-areia/60">
               Como é uma peça final (não só briefing), a criação precisa da sua aprovação antes de gerar de verdade —
@@ -204,6 +222,9 @@ export default function CriarPecaWizard({
             {passo === 1 && (
               <div className="mt-4">
                 <h2 className="text-lg font-semibold text-areia">O que você quer divulgar?</h2>
+                {templatePreFill && (
+                  <p className="mt-1 text-xs text-areia/40">Template: {templatePreFill.nome} — revise e ajuste o que quiser antes de confirmar.</p>
+                )}
                 {categoriaInicial && (
                   <p className="mt-1 text-xs text-areia/40">Categoria escolhida: {categoriaInicial}</p>
                 )}
@@ -338,7 +359,7 @@ export default function CriarPecaWizard({
               <div className="mt-4">
                 <h2 className="text-lg font-semibold text-areia">Confirmar</h2>
                 <p className="mt-3 rounded-xl border border-areia/10 bg-petroleo p-4 text-sm text-areia/80">
-                  Vou criar <strong className="text-areia">{NUMERO_DE_DIRECOES} direções visuais</strong> para{" "}
+                  Vou criar <strong className="text-areia">{numeroDeDirecoes} direções visuais</strong> para{" "}
                   <strong className="text-areia">{objetivo.trim() || "essa peça"}</strong> ({formato}), usando a identidade{" "}
                   {temBrandKit ? "cadastrada da marca" : "padrão (nenhum brand kit cadastrado ainda)"}
                   {nomeDaReferencia() ? (

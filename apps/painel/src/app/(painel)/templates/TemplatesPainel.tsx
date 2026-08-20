@@ -1,8 +1,25 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { salvarPrefillComando } from "@/lib/conversation";
+
+interface Receita {
+  objetivo?: string;
+  setorRecomendado?: string;
+  formato?: string;
+  exemploResultado?: string;
+  tom?: string;
+  oferta?: string;
+  produtoOuPessoa?: string;
+  cta?: string;
+  restricoes?: string;
+  assetsNecessarios?: string;
+  numeroVariacoes?: number;
+  etapasExecucao?: string[];
+  aprovacaoNecessaria?: boolean;
+}
 
 interface Template {
   id: string;
@@ -13,6 +30,8 @@ interface Template {
   tags: string[];
   vezesUsado: number;
   createdAt: string;
+  thumbnailUrl: string | null;
+  receita: Receita;
 }
 
 const DEPARTAMENTOS = [
@@ -23,11 +42,31 @@ const DEPARTAMENTOS = [
   { valor: "conteudo", label: "Conteúdo" },
 ] as const;
 
+// Composição própria do Vetor por departamento — mesmo princípio das
+// categorias curadas em /referencias: nunca um card vazio, mas também
+// nunca uma imagem fingindo ser um exemplo real quando não existe um.
+const GRADIENTE_POR_DEPARTAMENTO: Record<string, string> = {
+  design: "from-menta/25 to-petroleo",
+  videomaker: "from-coral/25 to-petroleo",
+  trafego: "from-ambar/25 to-petroleo",
+  planejamento: "from-menta/20 to-petroleo-2",
+  conteudo: "from-ambar/20 to-petroleo-2",
+};
+
+// Fase 3 do reset de produto (docs/PRODUCT-RESET-AUDIT.md) — template deixa
+// de ser só um texto guardado e vira uma receita completa (objetivo, setor,
+// formato, exemplo, campos guiados, assets, variações, etapas, aprovação).
+// "Usar este template" abre o MESMO wizard da Fase 1 (CriarPecaWizard, via
+// /design?template=...) já pré-preenchido — nunca um caminho de geração
+// paralelo. Templates sem `receita` (ex: criados à mão antes desta rodada,
+// ou de outro departamento) continuam funcionando pelo caminho antigo
+// (prefill no chat do dashboard).
 export default function TemplatesPainel({ clienteId, templatesIniciais }: { clienteId: string; templatesIniciais: Template[] }) {
   const [templates, setTemplates] = useState(templatesIniciais);
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const router = useRouter();
 
   async function criarTemplate(dados: { nome: string; descricao: string; department: string; tarefaTemplate: string; tagsTexto: string }) {
     if (!dados.nome.trim() || !dados.tarefaTemplate.trim()) return;
@@ -45,7 +84,7 @@ export default function TemplatesPainel({ clienteId, templatesIniciais }: { clie
           tarefa_template: dados.tarefaTemplate.trim(),
           tags,
         })
-        .select("id, nome, descricao, department, tarefa_template, tags, vezes_usado, created_at")
+        .select("id, nome, descricao, department, tarefa_template, tags, vezes_usado, created_at, thumbnail_url, receita")
         .single();
       if (error || !data) throw new Error(error?.message ?? "Falha ao salvar o template.");
 
@@ -59,6 +98,8 @@ export default function TemplatesPainel({ clienteId, templatesIniciais }: { clie
           tags: (data.tags as string[]) ?? [],
           vezesUsado: data.vezes_usado as number,
           createdAt: data.created_at as string,
+          thumbnailUrl: data.thumbnail_url as string | null,
+          receita: (data.receita as Receita | null) ?? {},
         },
         ...atual,
       ]);
@@ -69,8 +110,7 @@ export default function TemplatesPainel({ clienteId, templatesIniciais }: { clie
     }
   }
 
-  async function usarNoChat(template: Template) {
-    salvarPrefillComando(template.tarefaTemplate);
+  async function registrarUso(template: Template) {
     // Contador é só indicativo (mostra os mais úteis primeiro) — nunca
     // bloqueia a navegação se a escrita falhar.
     await supabase
@@ -78,12 +118,34 @@ export default function TemplatesPainel({ clienteId, templatesIniciais }: { clie
       .update({ vezes_usado: template.vezesUsado + 1 })
       .eq("id", template.id)
       .eq("cliente_id", clienteId);
+  }
+
+  // Receita real (Fase 3) → abre o wizard de Design já preenchido, com
+  // resumo da missão antes de qualquer geração.
+  async function usarTemplate(template: Template) {
+    await registrarUso(template);
+    const params = new URLSearchParams({ template: template.nome });
+    if (template.receita.objetivo) params.set("objetivo", template.receita.objetivo);
+    if (template.receita.formato) params.set("formato", template.receita.formato);
+    if (template.receita.tom) params.set("tom", template.receita.tom);
+    if (template.receita.oferta) params.set("oferta", template.receita.oferta);
+    if (template.receita.produtoOuPessoa) params.set("produtoOuPessoa", template.receita.produtoOuPessoa);
+    if (template.receita.cta) params.set("cta", template.receita.cta);
+    if (template.receita.restricoes) params.set("restricoes", template.receita.restricoes);
+    if (template.receita.numeroVariacoes) params.set("variacoes", String(template.receita.numeroVariacoes));
+    router.push(`/design?${params.toString()}`);
+  }
+
+  // Sem receita (template legado, só tarefa_template) — caminho antigo:
+  // prefill no Command Bar do dashboard.
+  async function usarNoChat(template: Template) {
+    await registrarUso(template);
+    salvarPrefillComando(template.tarefaTemplate);
     // Navegação "dura" (não router.push) de propósito — achado real: o
     // router cache do Next.js pode reaproveitar uma instância de
     // /dashboard já montada antes nesta aba, e o lazy initializer do
-    // Command Bar (que lê o prefill) só roda no mount — com router.push o
-    // prefill ficava esquecido no sessionStorage sem nunca ser aplicado.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    // Command Bar (que lê o prefill) só roda no mount.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination, react-hooks/immutability
     window.location.href = "/dashboard";
   }
 
@@ -105,54 +167,114 @@ export default function TemplatesPainel({ clienteId, templatesIniciais }: { clie
       <NovoTemplateForm salvando={salvando} onCriar={criarTemplate} />
       {erro && <p className="mt-2 text-xs text-coral">{erro}</p>}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {templates.length === 0 && (
           <p className="col-span-full rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
             Nenhum template ainda — guarde o primeiro acima.
           </p>
         )}
-        {templates.map((t) => (
-          <div key={t.id} className="flex flex-col gap-2 rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-sm font-semibold text-areia">{t.nome}</p>
-              {t.department && (
-                <span className="mono-label shrink-0 rounded border border-areia/15 px-1.5 py-0.5 text-[10px] text-areia/50">
-                  {DEPARTAMENTOS.find((d) => d.valor === t.department)?.label ?? t.department}
-                </span>
-              )}
-            </div>
-            {t.descricao && <p className="text-xs text-areia/50">{t.descricao}</p>}
-            <p className="line-clamp-3 rounded-lg bg-petroleo-3/60 p-2 text-xs text-areia/60">{t.tarefaTemplate}</p>
-            {t.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {t.tags.map((tag) => (
-                  <span key={tag} className="rounded border border-areia/10 px-1.5 py-0.5 text-[10px] text-areia/40">
-                    {tag}
-                  </span>
-                ))}
+        {templates.map((t) => {
+          const temReceita = Object.keys(t.receita ?? {}).length > 0;
+          const gradiente = GRADIENTE_POR_DEPARTAMENTO[t.department ?? ""] ?? "from-areia/10 to-petroleo";
+          return (
+            <div key={t.id} className="flex flex-col overflow-hidden rounded-2xl border border-areia/10 bg-petroleo-2/60">
+              <div className={`flex aspect-video items-center justify-center bg-gradient-to-br ${gradiente} p-3 text-center`}>
+                {t.thumbnailUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={t.thumbnailUrl} alt={t.nome} className="size-full object-cover" />
+                ) : (
+                  <span className="text-sm font-semibold text-areia">{t.nome}</span>
+                )}
               </div>
-            )}
-            <div className="mt-auto flex items-center justify-between gap-2 pt-2">
-              <span className="text-[10px] text-areia/30">usado {t.vezesUsado}x</span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => arquivar(t.id)}
-                  className="mono-label rounded-lg border border-areia/15 px-2 py-1 text-[11px] text-areia/50 hover:text-coral"
-                >
-                  Arquivar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => usarNoChat(t)}
-                  className="mono-label rounded-lg border border-menta/40 bg-menta/10 px-3 py-1 text-[11px] text-menta hover:bg-menta/20"
-                >
-                  Usar no chat
-                </button>
+
+              <div className="flex flex-1 flex-col gap-2 p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-semibold text-areia">{t.nome}</p>
+                  {t.department && (
+                    <span className="mono-label shrink-0 rounded border border-areia/15 px-1.5 py-0.5 text-[10px] text-areia/50">
+                      {DEPARTAMENTOS.find((d) => d.valor === t.department)?.label ?? t.department}
+                    </span>
+                  )}
+                </div>
+
+                {(t.receita.objetivo ?? t.descricao) && (
+                  <p className="text-xs text-areia/60">{t.receita.objetivo ?? t.descricao}</p>
+                )}
+
+                {temReceita ? (
+                  <div className="space-y-1 rounded-lg bg-petroleo-3/40 p-2 text-[11px] text-areia/60">
+                    {t.receita.setorRecomendado && (
+                      <p>
+                        <span className="text-areia/40">Setor:</span> {t.receita.setorRecomendado}
+                      </p>
+                    )}
+                    {t.receita.formato && (
+                      <p>
+                        <span className="text-areia/40">Formato:</span> {t.receita.formato}
+                      </p>
+                    )}
+                    {t.receita.exemploResultado && (
+                      <p>
+                        <span className="text-areia/40">Exemplo:</span> {t.receita.exemploResultado}
+                      </p>
+                    )}
+                    {t.receita.assetsNecessarios && (
+                      <p>
+                        <span className="text-areia/40">Assets necessários:</span> {t.receita.assetsNecessarios}
+                      </p>
+                    )}
+                    {typeof t.receita.numeroVariacoes === "number" && (
+                      <p>
+                        <span className="text-areia/40">Variações:</span> {t.receita.numeroVariacoes}
+                      </p>
+                    )}
+                    {t.receita.etapasExecucao && t.receita.etapasExecucao.length > 0 && (
+                      <p>
+                        <span className="text-areia/40">Etapas:</span> {t.receita.etapasExecucao.join(" → ")}
+                      </p>
+                    )}
+                    <p>
+                      <span className="text-areia/40">Aprovação:</span>{" "}
+                      {t.receita.aprovacaoNecessaria === false ? "não precisa" : "precisa aprovar antes de gerar"}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="line-clamp-3 rounded-lg bg-petroleo-3/60 p-2 text-xs text-areia/60">{t.tarefaTemplate}</p>
+                )}
+
+                {t.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {t.tags.map((tag) => (
+                      <span key={tag} className="rounded border border-areia/10 px-1.5 py-0.5 text-[10px] text-areia/40">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-auto flex items-center justify-between gap-2 pt-2">
+                  <span className="text-[10px] text-areia/30">usado {t.vezesUsado}x</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => arquivar(t.id)}
+                      className="mono-label rounded-lg border border-areia/15 px-2 py-1 text-[11px] text-areia/50 hover:text-coral"
+                    >
+                      Arquivar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => (temReceita ? usarTemplate(t) : usarNoChat(t))}
+                      className="mono-label rounded-lg border border-ambar/40 bg-ambar/10 px-3 py-1 text-[11px] text-ambar hover:bg-ambar/20"
+                    >
+                      Usar este template
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -165,6 +287,7 @@ function NovoTemplateForm({
   salvando: boolean;
   onCriar: (dados: { nome: string; descricao: string; department: string; tarefaTemplate: string; tagsTexto: string }) => void;
 }) {
+  const [aberto, setAberto] = useState(false);
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
   const [department, setDepartment] = useState("");
@@ -178,13 +301,32 @@ function NovoTemplateForm({
     setDepartment("");
     setTarefaTemplate("");
     setTagsTexto("");
+    setAberto(false);
+  }
+
+  if (!aberto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAberto(true)}
+        className="mono-label rounded-lg border border-menta/40 bg-menta/10 px-4 py-2 text-menta transition hover:bg-menta/20"
+      >
+        + Guardar um novo template
+      </button>
+    );
   }
 
   return (
     <div className="rounded-2xl border border-menta/20 bg-petroleo-2/60 p-5">
-      <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-menta">Novo template</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-menta">Novo template</h2>
+        <button onClick={() => setAberto(false)} className="text-xs text-areia/40 hover:text-areia">
+          cancelar
+        </button>
+      </div>
       <p className="mt-1 text-xs text-areia/50">
-        Escreva o pedido exatamente como você digitaria pro Vetor — é esse texto que vai ser reaproveitado.
+        Escreva o pedido exatamente como você digitaria pro Vetor — é esse texto que vai ser reaproveitado (ainda sem
+        os campos guiados dos templates prontos do Vetor, isso é feito pelo time).
       </p>
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">

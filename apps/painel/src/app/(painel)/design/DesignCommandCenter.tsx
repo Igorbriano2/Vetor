@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import StatusBadge from "@/components/StatusBadge";
 import ArtifactLibrary from "@/components/ArtifactLibrary";
 import type { ArtefatoBiblioteca } from "@/lib/artifacts/fetchArtifacts";
-import CriarPecaWizard from "./CriarPecaWizard";
+import CriarPecaWizard, { type TemplatePreFill } from "./CriarPecaWizard";
 
 interface EtapaEmAndamento {
   id: string;
@@ -63,17 +63,20 @@ export default function DesignCommandCenter({
   const [wizardAberto, setWizardAberto] = useState(false);
   const [referenciaPreSelecionada, setReferenciaPreSelecionada] = useState<{ id: string; nome: string } | undefined>(undefined);
   const [categoriaInicial, setCategoriaInicial] = useState<string | undefined>(undefined);
+  const [templatePreFill, setTemplatePreFill] = useState<TemplatePreFill | undefined>(undefined);
 
   const router = useRouter();
   const searchParams = useSearchParams();
 
   // Chegando de /referencias ("Usar como inspiração" num item real ou num
-  // tile de categoria curada) — abre o wizard já com esse contexto, e limpa
-  // a query string pra não reabrir num refresh/voltar.
+  // tile de categoria curada) ou de /templates ("Usar este template") —
+  // abre o wizard já com esse contexto, e limpa a query string pra não
+  // reabrir num refresh/voltar.
   useEffect(() => {
     const referenciaId = searchParams.get("referencia");
     const referenciaNome = searchParams.get("nome");
     const categoria = searchParams.get("categoria");
+    const templateNome = searchParams.get("template");
     if (referenciaId && referenciaNome) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setReferenciaPreSelecionada({ id: referenciaId, nome: referenciaNome });
@@ -81,6 +84,21 @@ export default function DesignCommandCenter({
       router.replace("/design");
     } else if (categoria) {
       setCategoriaInicial(categoria);
+      setWizardAberto(true);
+      router.replace("/design");
+    } else if (templateNome) {
+      const numeroVariacoes = Number(searchParams.get("variacoes"));
+      setTemplatePreFill({
+        nome: templateNome,
+        objetivo: searchParams.get("objetivo") ?? undefined,
+        formato: searchParams.get("formato") ?? undefined,
+        tom: searchParams.get("tom") ?? undefined,
+        oferta: searchParams.get("oferta") ?? undefined,
+        produtoOuPessoa: searchParams.get("produtoOuPessoa") ?? undefined,
+        cta: searchParams.get("cta") ?? undefined,
+        restricoes: searchParams.get("restricoes") ?? undefined,
+        numeroVariacoes: Number.isFinite(numeroVariacoes) && numeroVariacoes > 0 ? numeroVariacoes : undefined,
+      });
       setWizardAberto(true);
       router.replace("/design");
     }
@@ -251,10 +269,12 @@ export default function DesignCommandCenter({
           assetsDrive={assetsDrive}
           referenciaPreSelecionada={referenciaPreSelecionada}
           categoriaInicial={categoriaInicial}
+          templatePreFill={templatePreFill}
           onFechar={() => {
             setWizardAberto(false);
             setReferenciaPreSelecionada(undefined);
             setCategoriaInicial(undefined);
+            setTemplatePreFill(undefined);
           }}
         />
       )}
