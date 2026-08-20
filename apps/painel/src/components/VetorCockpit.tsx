@@ -31,6 +31,9 @@ interface Mensagem {
 }
 
 const CHAVE_CONVERSATION_ID = "vetor:conversationId";
+// Templates (Fase 4 do upgrade Gravyx) — /templates grava aqui antes de
+// navegar de volta pro dashboard; ver TemplatesPainel.tsx.
+const CHAVE_PREFILL_COMANDO = "vetor:prefillComando";
 
 interface Props {
   missaoAtual?: { id: string; titulo: string; status: string } | null;
@@ -42,7 +45,17 @@ interface Props {
 export default function VetorCockpit({ missaoAtual, contagemPendentes, contagemAtivas, saudacaoJaTocada }: Props) {
   const [estado, setEstado] = useState<EstadoCore>("idle");
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
-  const [texto, setTexto] = useState("");
+  // Lazy initializer (não efeito) — lê o texto salvo por "Usar no chat" em
+  // /templates, se houver, e já some com a chave. Achado real: com
+  // router.push a instância podia vir do router cache do Next.js (mount
+  // reaproveitado), então /templates navega com window.location.href pra
+  // garantir um mount novo de verdade toda vez.
+  const [texto, setTexto] = useState(() => {
+    if (typeof window === "undefined") return "";
+    const prefill = sessionStorage.getItem(CHAVE_PREFILL_COMANDO);
+    if (prefill) sessionStorage.removeItem(CHAVE_PREFILL_COMANDO);
+    return prefill ?? "";
+  });
   const [enviando, setEnviando] = useState(false);
   const [gravando, setGravando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
