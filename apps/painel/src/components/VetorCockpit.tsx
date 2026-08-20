@@ -45,17 +45,7 @@ interface Props {
 export default function VetorCockpit({ missaoAtual, contagemPendentes, contagemAtivas, saudacaoJaTocada }: Props) {
   const [estado, setEstado] = useState<EstadoCore>("idle");
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
-  // Lazy initializer (não efeito) — lê o texto salvo por "Usar no chat" em
-  // /templates, se houver, e já some com a chave. Achado real: com
-  // router.push a instância podia vir do router cache do Next.js (mount
-  // reaproveitado), então /templates navega com window.location.href pra
-  // garantir um mount novo de verdade toda vez.
-  const [texto, setTexto] = useState(() => {
-    if (typeof window === "undefined") return "";
-    const prefill = sessionStorage.getItem(CHAVE_PREFILL_COMANDO);
-    if (prefill) sessionStorage.removeItem(CHAVE_PREFILL_COMANDO);
-    return prefill ?? "";
-  });
+  const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [gravando, setGravando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -77,6 +67,24 @@ export default function VetorCockpit({ missaoAtual, contagemPendentes, contagemA
   useEffect(() => {
     const id = sessionStorage.getItem(CHAVE_CONVERSATION_ID);
     if (id) conversationIdRef.current = id;
+  }, []);
+
+  // Templates (Fase 4 do upgrade Gravyx) — preenche o campo com o texto
+  // salvo por "Usar no chat" em /templates, se houver. Achado real: um
+  // lazy initializer no useState (sem efeito) lia e limpava a chave
+  // certinho, mas o <input> renderizado ficava vazio mesmo assim — o React
+  // não força a sincronização do value de um <input> controlado durante a
+  // hidratação de uma navegação nova (window.location.href), pra não
+  // atropelar algo que o usuário tenha digitado nesse intervalo. Um efeito
+  // (garantido pós-hidratação) é o jeito certo de sincronizar estado
+  // externo (sessionStorage) pra dentro do React aqui — não é o caso que a
+  // regra de "nunca setState em efeito" quer evitar.
+  useEffect(() => {
+    const prefill = sessionStorage.getItem(CHAVE_PREFILL_COMANDO);
+    if (!prefill) return;
+    sessionStorage.removeItem(CHAVE_PREFILL_COMANDO);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTexto(prefill);
   }, []);
 
   // Saudação de áudio — toca toda vez que a página carrega/atualiza (pedido
