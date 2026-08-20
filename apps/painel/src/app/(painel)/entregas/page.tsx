@@ -1,8 +1,13 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import StatusBadge from "@/components/StatusBadge";
 import { buscarArtefatos, buscarVideosFinalizados } from "@/lib/artifacts/fetchArtifacts";
+import { agruparPorCampanha } from "@/lib/artifacts/agruparPorCampanha";
+import StatusBadge from "@/components/StatusBadge";
 import EntregasPainel from "./EntregasPainel";
 
+// Fase 6 do reset de produto (docs/PRODUCT-RESET-AUDIT.md) — Entregas
+// reorganizado por campanha (missão), não mais um grid único de artefatos
+// soltos. `entregas` (canal WhatsApp legado) continua existindo como seção
+// à parte — não tem mission_id, não é uma "campanha" no sentido novo.
 export default async function EntregasPage() {
   const supabase = await createSupabaseServerClient();
 
@@ -11,7 +16,22 @@ export default async function EntregasPage() {
     buscarArtefatos(supabase),
     buscarVideosFinalizados(supabase),
   ]);
-  const todosArtefatos = [...artefatos, ...videosFinalizados].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const todosArtefatos = [...artefatos, ...videosFinalizados];
+
+  const missionIds = Array.from(new Set(todosArtefatos.map((a) => a.missionId).filter((id): id is string => !!id)));
+  const { data: missoesBrutas } = missionIds.length
+    ? await supabase.from("missions").select("id, objetivo, status, created_at").in("id", missionIds)
+    : { data: [] };
+
+  const campanhas = agruparPorCampanha(
+    todosArtefatos,
+    (missoesBrutas ?? []).map((m) => ({
+      id: m.id as string,
+      objetivo: m.objetivo as string | null,
+      status: m.status as string | null,
+      createdAt: m.created_at as string,
+    })),
+  );
 
   return (
     <div className="px-6 py-10">
@@ -19,10 +39,10 @@ export default async function EntregasPage() {
         <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
         <h1 className="mt-1 text-2xl font-bold text-areia">Entregas</h1>
         <p className="mt-2 text-sm text-areia/60">
-          Espelho de tudo que já foi entregue — Design, Vídeo, Planejamento, Campanhas e Resultados num só lugar.
+          Tudo que já foi entregue, organizado por campanha — Design, Vídeo, Planejamento e Resultados num só lugar.
         </p>
 
-        <EntregasPainel artefatos={todosArtefatos} />
+        <EntregasPainel campanhas={campanhas} />
 
         {entregas && entregas.length > 0 && (
           <section className="mt-10">
