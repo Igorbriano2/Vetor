@@ -1625,7 +1625,10 @@ export async function executarEspecialista(
           `${contexto.etapaTarefa}\n\nAntes de entregar o resultado formal, escreva em texto livre TODO o conteúdo real que ` +
           `você vai entregar. Se for um documento/plano/calendário, escreva cada item já no formato final (data, título, canal, ` +
           `cada indicador com métrica e meta) — não só um resumo narrativo. No próximo passo você só vai copiar isso pro formato ` +
-          `estruturado, então escreva aqui o conteúdo completo, não uma versão resumida.`,
+          `estruturado, então escreva aqui o conteúdo completo, não uma versão resumida. IMPORTANTE: completo não é sinônimo de ` +
+          `exaustivo — é um documento PRÁTICO pra alguém executar, não um relatório de consultoria. Evite repetir a mesma coisa ` +
+          `de formas diferentes, roteiro segundo-a-segundo, ou detalhar excessivamente cada item; poucas frases objetivas por ` +
+          `item já bastam. Este rascunho todo precisa caber em poucos parágrafos, não múltiplas páginas.`,
       },
     ];
     const rascunho = await anthropic.messages.create({
@@ -1653,10 +1656,14 @@ export async function executarEspecialista(
         role: "user",
         content: contexto.exigeDocumento
           ? "Esta etapa PRECISA entregar um documento real. Use entregar_documento agora com o conteúdo completo do texto " +
-            "acima (calendario/indicadores reais, copiados item por item, nunca resumidos)."
+            "acima (calendario/indicadores reais, copiados item por item, nunca resumidos) — mas mantenha CONCISO e prático: " +
+            "não expanda além do que já está no rascunho, não adicione roteiro segundo-a-segundo nem repita a mesma informação " +
+            "de formas diferentes. O campo content tem espaço limitado — se estourar, o documento inteiro é perdido, então " +
+            "prefira objetividade a exaustividade."
           : "Se o texto acima é um documento/plano/calendário real que você deve ENTREGAR como artefato salvo (não só uma " +
             "análise interna), use entregar_documento agora com o conteúdo completo (calendario/indicadores reais, copiados do " +
-            "texto acima). Se esta etapa é só uma análise/decisão sem documento pra salvar, use entregar_resultado diretamente.",
+            "texto acima), mantendo conciso e prático — sem expandir além do rascunho. Se esta etapa é só uma análise/decisão " +
+            "sem documento pra salvar, use entregar_resultado diretamente.",
       },
     ];
     // max_tokens generoso (8192) — achado real (prova em produção, missão
