@@ -512,6 +512,7 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
     trafego,
     etapasAnteriores,
     exigeDocumento,
+    ferramentasDeclaradas: etapa.ferramentas as string[],
   };
 
   const opcoesEtapa = { missionId: etapa.mission_id as string, clienteId: etapa.cliente_id as string };

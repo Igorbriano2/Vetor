@@ -74,6 +74,16 @@ const FERRAMENTAS_BAIXO_RISCO: VetorToolDefinition[] = [
   ferramenta("transferir_humano", "Transfere o atendimento pra um humano da agência.", "low"),
   ferramenta("registrar_ticket", "Registra um ticket/demanda (canal legado).", "low"),
   ferramenta("agendar_conteudo_social", "Agenda uma peça de conteúdo social já aprovada.", "low"),
+  // As 3 abaixo são o pipeline de Vídeo (Videomaker) rodando sobre um ativo já
+  // enviado pelo cliente: renderização local via apps/render (ffmpeg) +
+  // transcrição/análise — nunca uma chamada paga a um provider de geração
+  // externo (isso é só gerar_video_higgsfield, na lista de risco médio
+  // abaixo). Precisam estar aqui pra continuar liberadas em execução
+  // automática depois do filtro por ferramentasDeclaradas em
+  // specialistRunner.ts (sem isso, o pipeline de Vídeo já provado quebrava).
+  ferramenta("editar_video_timeline", "Cria/retoma o projeto de edição não destrutiva de um vídeo real já enviado pelo cliente.", "low"),
+  ferramenta("finalizar_video_com_legendas", "Transcreve, gera legendas e renderiza o preview/final a partir da timeline atual do projeto.", "low"),
+  ferramenta("analisar_video_de_referencia", "Extrai o perfil de estilo (ritmo, energia, estrutura) de um vídeo de referência real, sem copiar conteúdo.", "low"),
 ];
 
 // Médio/alto risco — ainda sem efeito público direto, mas mexem em algo que
@@ -96,9 +106,18 @@ const FERRAMENTAS_RISCO_MEDIO_ALTO: VetorToolDefinition[] = [
   }),
   // Provider-neutro de propósito: o agente de Design nunca fica acoplado a um
   // vendor específico no nome da ferramenta — ver integrations/imageProvider.ts.
-  ferramenta("gerar_imagem", "Gera a peça visual final a partir de um prompt de texto (provider de imagem configurado no sistema).", "medium", {
+  ferramenta("gerar_imagem", "Gera a peça visual final a partir de um prompt de texto (provider de imagem configurado no sistema — caminho legado, ver criar_peca_de_design).", "medium", {
     reversible: false,
     inputSchema: { required: ["prompt"] },
+  }),
+  // Sucessor de gerar_imagem (specialistRunner.ts instrui o especialista de
+  // Design a usar sempre este, nunca gerar_imagem, pra peça nova) — mesmo
+  // custo real por chamada, mesma classificação de risco. Precisa estar
+  // registrada aqui pra nunca ser tratada como "sem risco" só por não constar
+  // no catálogo (ver ferramentasDeclaradas em specialistRunner.ts).
+  ferramenta("criar_peca_de_design", "Cria a peça de design como projeto editável real (fundo gerado + camadas de texto/imagem/logo).", "medium", {
+    reversible: false,
+    inputSchema: { required: ["visual_prompt", "formato"] },
   }),
 ];
 

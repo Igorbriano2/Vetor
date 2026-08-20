@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "../db/supabase.js";
 import { getSystemPrompt, type AgenteId } from "./prompts/index.js";
+import { buscarFerramenta } from "../tools/registry.js";
 import { gerarVideoAPartirDeImagem, VideoIndisponivelError } from "../integrations/higgsfield.js";
 import { gerarProxyDeVideo, renderizarVideoFinal } from "../integrations/renderService.js";
 import { transcreverComTimestamps, isSandbox as transcricaoEmSandbox, TranscricaoIndisponivelError } from "../integrations/transcricao.js";
@@ -453,6 +454,16 @@ export interface ContextoMissaoParaEspecialista {
   // repetidamente escolhia só entregar_resultado mesmo sabendo que a
   // tarefa pedia um documento).
   exigeDocumento?: boolean;
+  // Nomes de ferramenta que a etapa declarou no plano (mission_steps.ferramentas)
+  // — já passaram pelo Policy Engine (avaliarRisco/aprovação) no orchestrator.
+  // Achado real: ferramentasGeracao (abaixo) é indexado só por agenteId, sem
+  // nenhuma checagem contra o que a etapa de fato declarou — uma etapa de
+  // Design declarada só com ferramentas de baixo risco (criar_briefing,
+  // gerar_design) ainda assim tinha acesso irrestrito a criar_peca_de_design/
+  // gerar_imagem (custo real, nunca aprovado por ninguém). Usado abaixo pra
+  // nunca oferecer uma ferramenta de geração real (custo/efeito externo) que
+  // não foi declarada nesta etapa especificamente.
+  ferramentasDeclaradas?: string[];
 }
 
 // Departamento pro artefato (Design/Videomaker/Tráfego/Planejamento/
@@ -559,6 +570,17 @@ interface FerramentaDeExecucao {
   criaArtefatoGenerico: boolean;
   executar: (input: Record<string, unknown>, ctx: ContextoExecucaoFerramenta) => Promise<MidiaExecutada>;
 }
+
+// gerar_imagem é o nome que o catálogo do Vetor (prompts/vetor.md) e o Policy
+// Engine conhecem pra "gerar a peça visual final" — mas o próprio prompt do
+// especialista de Design instrui "nunca gerar_imagem, sempre
+// criar_peca_de_design" (ver CRIAR_PECA_DESIGN_TOOL). Sem este alias, uma
+// etapa declarada/aprovada com gerar_imagem nunca liberava de fato a
+// ferramenta que o especialista realmente chama, quebrando toda geração de
+// imagem real de Design depois do filtro por ferramentasDeclaradas abaixo.
+const ALIAS_FERRAMENTA_GERACAO: Record<string, string[]> = {
+  gerar_imagem: ["criar_peca_de_design"],
+};
 
 // Cada agente pode ter MAIS DE UMA ferramenta de execução real (ex: Vídeo
 // tem gerar_video_higgsfield E editar_video_timeline — são dois caminhos
@@ -1575,7 +1597,18 @@ export async function executarEspecialista(
 
   const systemPrompt = `${getSystemPrompt(agenteId)}\n\n${montarContexto(contexto)}${blocoSkill}${blocoReferencias}`;
   const departamento = DEPARTAMENTO_POR_AGENTE[agenteId];
-  const ferramentasGeracao = FERRAMENTA_GERACAO_POR_AGENTE[agenteId] ?? [];
+  // Fail-closed: uma ferramenta de geração real só é oferecida ao especialista
+  // se ela mesma é de baixo risco no Tool Registry OU se o nome dela (ou de um
+  // alias dela — ver ALIAS_FERRAMENTA_GERACAO) foi explicitamente declarado em
+  // mission_steps.ferramentas (e portanto já passou por avaliarRisco/aprovação
+  // no orchestrator) — nunca por já existir no mapa por agente. Ver comentário
+  // em ContextoMissaoParaEspecialista.ferramentasDeclaradas.
+  const ferramentasDeclaradas = contexto.ferramentasDeclaradas ?? [];
+  const ferramentasGeracao = (FERRAMENTA_GERACAO_POR_AGENTE[agenteId] ?? []).filter((f) => {
+    if (buscarFerramenta(f.tool.name).riskLevel === "low") return true;
+    if (ferramentasDeclaradas.includes(f.tool.name)) return true;
+    return ferramentasDeclaradas.some((nome) => ALIAS_FERRAMENTA_GERACAO[nome]?.includes(f.tool.name));
+  });
 
   let response: Anthropic.Message;
   let midiaGerada: ResultadoTurnoExecucao["midiaGerada"];
