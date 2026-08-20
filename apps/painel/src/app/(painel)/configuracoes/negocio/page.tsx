@@ -5,6 +5,35 @@ import OnboardingWizard from "@/components/onboarding/OnboardingWizard";
 import ConexoesPainel from "../../conexoes/ConexoesPainel";
 import { perfilVazio, brandKitVazio, type BusinessProfileForm, type BrandKitForm } from "@/lib/onboarding/types";
 
+// brand_kits.cores é jsonb livre — já apareceu em pelo menos duas formas
+// reais em produção: array já no formato certo, ou um objeto agrupado
+// {primarias:[{nome,hex}...], secundarias:[{nome,hex}...]} (usado pelo
+// brand kit real do Dog King, configurado via SQL direto numa rodada
+// anterior). Achado ao vivo verificando a área Negócio desta rodada: o
+// código antigo tratava QUALQUER objeto como um mapa plano {nome: hex},
+// então um grupo virava `hex: "[object Object],[object Object]"`. Nunca
+// assume o shape — sempre normaliza pro formato flat que BrandKitForm
+// espera.
+function normalizarCoresBrandKit(cores: unknown): BrandKitForm["cores"] {
+  if (Array.isArray(cores)) return cores as BrandKitForm["cores"];
+  if (!cores || typeof cores !== "object") return [];
+
+  const obj = cores as Record<string, unknown>;
+  const grupos = ["primarias", "secundarias"] as const;
+  if (grupos.some((g) => Array.isArray(obj[g]))) {
+    return grupos.flatMap((g) => {
+      const lista = obj[g];
+      if (!Array.isArray(lista)) return [];
+      return lista
+        .filter((item): item is { nome?: string; hex?: string } => !!item && typeof item === "object")
+        .map((item) => ({ nome: String(item.nome ?? ""), hex: String(item.hex ?? ""), uso: g }));
+    });
+  }
+
+  // Fallback: mapa plano {nome: hex}.
+  return Object.entries(obj).map(([nome, hex]) => ({ nome, hex: String(hex) }));
+}
+
 // Server wrapper: resolve cliente_id da sessão e busca o estado salvo
 // (retomada) antes de montar o wizard client-side (Fase 2). CRUD continua
 // direto no Supabase (RLS já permite insert/update do próprio cliente_id),
@@ -74,9 +103,7 @@ export default async function ConfiguracoesNegocioPage({
   const brandKitInicial: BrandKitForm = brandKitDb
     ? {
         ...brandKitVazio(),
-        cores: Array.isArray(brandKitDb.cores)
-          ? brandKitDb.cores
-          : Object.entries(brandKitDb.cores ?? {}).map(([nome, hex]) => ({ nome, hex: String(hex) })),
+        cores: normalizarCoresBrandKit(brandKitDb.cores),
         fontes: brandKitDb.fontes ?? {},
         logo_principal_ref: brandKitDb.logo_principal_ref ?? null,
         logo_clara_ref: brandKitDb.logo_clara_ref ?? null,
