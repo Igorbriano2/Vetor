@@ -167,4 +167,26 @@ pedido do cliente
 
 ---
 
-**Fim da Fase 0. Nenhum código foi alterado. Aguardando aprovação antes de iniciar a Fase 1 (Design Command Center).**
+## 7. Progresso das fases
+
+| Fase | Status |
+|---|---|
+| 0 — Inventário e fluxo principal | **Feita** — este documento |
+| 1 — Design Command Center | **Feita** — ver detalhamento abaixo |
+| 2–10 | Não iniciadas |
+
+### Fase 1 — Design Command Center (feita, testada ao vivo em produção)
+
+`/design` reconstruído (`DesignCommandCenter.tsx`, `CriarPecaWizard.tsx`) com a primeira dobra pedida: 4 botões de entrada por intenção (Criar peça nova / Escolher referência / Usar template / Abrir campanha — os 3 últimos linkam pras rotas já existentes `/referencias`, `/templates`, `/planejamento`), seção "Trabalhando agora" (mission_steps de Design em `running`/`awaiting_approval`/`ready`), "Minhas campanhas" (missões distintas com etapa de Design, com contagem de peças/aprovação/conclusão), "Projetos recentes" (grid existente, com o placeholder "sem prévia" trocado por "Briefing aguardando criação" e o `status` agora passando por `StatusBadge` em vez de impresso cru — fecha o gap concreto achado na Fase 0) e "Biblioteca visual" (preview das referências + link pra `/referencias`).
+
+O wizard "Criar uma nova peça" tem os 4 passos pedidos (objetivo → formato → referência → ajustes) e termina num resumo antes de gastar geração, com o texto quase literal do prompt mestre ("Vou criar 3 direções visuais para [objetivo]... Você poderá escolher uma e editar as camadas antes da entrega"). Ao confirmar, monta um `PlanoConfirmado` com 3 etapas do agente `design` declarando `gerar_imagem` (risco médio) e reusa 100% o caminho de criação de missão já existente (`POST /api/missoes` → `criarMissaoDeIntencao`) — zero rota nova, zero caminho paralelo. Como `gerar_imagem` é risco médio, a missão nasce `awaiting_approval` pelo mecanismo já existente, e a aprovação usa a UI que já existe em `/missoes/[id]` (`VetorMissionTimeline`) — nenhuma tela de aprovação nova foi construída nesta fase (fica pra Fase 5, que pode simplificar pra um botão único "Aprovar as 3 opções").
+
+**Testado ao vivo em produção, ponta a ponta**: criada a missão `1bb32d6f-5352-467e-a55d-95898271b61a` ("Design — Divulgar o novo combo de Natal...") pelo wizard real; as 3 etapas nasceram `awaiting_approval` com risco `medium`, exatamente como esperado. Aprovada 1 das 3 direções (as outras 2 propositalmente deixadas pendentes, pra não gastar 3x à toa) — a etapa tentou gerar a imagem de verdade e **falhou por um motivo real e externo ao código**: o provider de imagem (OpenAI) está sem créditos disponíveis na conta configurada em produção. O fail-closed já existente (`orchestrator.ts`, corrigido numa rodada anterior desta sessão) funcionou corretamente: a etapa foi marcada `failed` com o motivo explícito, em vez de fingir sucesso — o especialista ainda assim escreveu um briefing completo como fallback, mas isso não conta como entrega verificável de Design.
+
+**Achado operacional importante, fora do escopo deste reset (ação do usuário, não código)**: a conta OpenAI usada pra gerar imagens está sem crédito. Isso bloqueia HOJE qualquer geração de imagem real de Design em produção — não só pelo wizard novo, por qualquer missão de Design (chat incluso). Precisa de recarga de crédito na conta OpenAI configurada (fora do alcance deste agente — ação financeira). Achado extra que confirma o fix da Rodada H (`GRAVYX-UPGRADE-AUDIT.md`) continua correto: a etapa aprovada acionou de fato a ferramenta paga (`criar_peca_de_design`, via o alias de `gerar_imagem`) — o gate por `ferramentasDeclaradas` está funcionando nos dois sentidos (bloqueia quando não aprovado, libera quando aprovado).
+
+Build (`apps/painel`) e lint passando, suíte de testes (53/53) sem regressão.
+
+---
+
+**Aguardando indicação de prioridade pra Fase 2 (Galeria de Referências) — seguindo em modo automático conforme instrução vigente da sessão, salvo objeção.**
