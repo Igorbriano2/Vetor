@@ -377,6 +377,13 @@ export interface AgentResult {
   artifacts: ArtefatoPersistido[];
   needsApproval: boolean;
   nextAction?: string;
+  // Sinal estruturado e real (nunca inferido de texto): a ferramenta de
+  // geração de imagem esgotou todos os provedores do ProviderRouter
+  // (ImagemIndisponivelError) nesta execução, mesmo que o especialista
+  // ainda assim tenha entregue um briefing como fallback. Consumido pelo
+  // painel (pecaStatus.ts) pra mostrar uma explicação honesta em vez de um
+  // erro técnico cru ou silêncio (Vetor Manager Fase 2).
+  imagemIndisponivel?: boolean;
   // Preenchidos só pelo agente de Design (Drive de ativos) — opcionais pros
   // demais agentes, nunca quebram o contrato compartilhado.
   sourceAssetIds?: string[];
@@ -1501,6 +1508,14 @@ interface ResultadoTurnoExecucao {
   // (Vídeo agora tem duas ferramentas bem diferentes, ver
   // FERRAMENTA_GERACAO_POR_AGENTE).
   ferramentaUsada?: FerramentaDeExecucao;
+  // Sinal estruturado (não texto livre) de que a ferramenta de geração
+  // real falhou especificamente por ImagemIndisponivelError (todos os
+  // provedores do ProviderRouter esgotados) — mesmo que o LLM continue e
+  // entregue um briefing como fallback depois. Vetor Manager Fase 2: o
+  // painel usa isto pra mostrar "provedor indisponível, aqui está o
+  // briefing" em vez de um erro técnico cru ou silêncio sem explicação
+  // (nunca inferido por parsing de texto do summary).
+  imagemIndisponivel?: boolean;
 }
 
 // Loop curto e limitado (máx. 3 idas e voltas) pros agentes que têm uma ou
@@ -1518,6 +1533,7 @@ async function rodarComFerramentaDeExecucao(
   const mensagens: Anthropic.MessageParam[] = [{ role: "user", content: tarefa }];
   let midiaGerada: ResultadoTurnoExecucao["midiaGerada"];
   let ferramentaUsada: FerramentaDeExecucao | undefined;
+  let imagemIndisponivel = false;
   const nomesFerramentas = new Set(ferramentas.map((f) => f.tool.name));
 
   for (let turno = 0; turno < 3; turno++) {
@@ -1534,7 +1550,7 @@ async function rodarComFerramentaDeExecucao(
     const chamada = response.content.find(
       (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && nomesFerramentas.has(b.name),
     );
-    if (!chamada) return { message: response, midiaGerada, ferramentaUsada };
+    if (!chamada) return { message: response, midiaGerada, ferramentaUsada, imagemIndisponivel };
 
     const ferramenta = ferramentas.find((f) => f.tool.name === chamada.name)!;
     ferramentaUsada = ferramenta;
@@ -1559,6 +1575,7 @@ async function rodarComFerramentaDeExecucao(
           : {}),
       });
     } catch (err) {
+      if (err instanceof ImagemIndisponivelError) imagemIndisponivel = true;
       resultadoFerramenta = JSON.stringify({ status: "failed", error: err instanceof Error ? err.message : "erro desconhecido" });
     }
 
@@ -1578,7 +1595,7 @@ async function rodarComFerramentaDeExecucao(
     tools: [ENTREGAR_RESULTADO_TOOL],
     tool_choice: { type: "tool", name: "entregar_resultado" },
   });
-  return { message: response, midiaGerada, ferramentaUsada };
+  return { message: response, midiaGerada, ferramentaUsada, imagemIndisponivel };
 }
 
 // Executa um especialista (design, trafego, estrategia...) para uma etapa de
@@ -1635,6 +1652,7 @@ export async function executarEspecialista(
   let response: Anthropic.Message;
   let midiaGerada: ResultadoTurnoExecucao["midiaGerada"];
   let ferramentaUsada: FerramentaDeExecucao | undefined;
+  let imagemIndisponivel = false;
 
   interface ArtefatoBruto {
     type: string;
@@ -1660,6 +1678,7 @@ export async function executarEspecialista(
     response = resultadoExecucao.message;
     midiaGerada = resultadoExecucao.midiaGerada;
     ferramentaUsada = resultadoExecucao.ferramentaUsada;
+    imagemIndisponivel = !!resultadoExecucao.imagemIndisponivel;
   } else {
     // Achado real (prova do Planejamento, Fase 3, 4 execuções reais em
     // produção): oferecer `artifacts` como campo opcional dentro de
@@ -1944,6 +1963,7 @@ export async function executarEspecialista(
     artifacts: artefatosPersistidos,
     needsApproval: !!bruto.needsApproval,
     nextAction: bruto.nextAction,
+    ...(imagemIndisponivel ? { imagemIndisponivel: true } : {}),
     ...(midiaGerada?.sourceAssetIds ? { sourceAssetIds: midiaGerada.sourceAssetIds } : {}),
     ...(midiaGerada?.logoAssetId ? { logoAssetId: midiaGerada.logoAssetId } : {}),
     ...(midiaGerada?.brandValidation ? { brandValidation: midiaGerada.brandValidation } : {}),

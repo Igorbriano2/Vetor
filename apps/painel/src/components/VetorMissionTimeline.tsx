@@ -12,7 +12,7 @@ interface MissionStep {
   tarefa: string;
   status: string;
   risco: string;
-  resultado: { summary?: string } | null;
+  resultado: { summary?: string; imagemIndisponivel?: boolean } | null;
 }
 
 interface Approval {
@@ -200,6 +200,7 @@ export default function VetorMissionTimeline({
                 missaoStatus,
                 designProjectStatus: designProject?.status as "draft" | "awaiting_approval" | "approved" | "archived" | undefined,
                 designProjectVersion: designProject?.version,
+                imagemIndisponivel: etapa.resultado?.imagemIndisponivel,
               })
             : null;
 
@@ -215,7 +216,9 @@ export default function VetorMissionTimeline({
                     ? "border-menta/30 bg-menta/10 text-menta"
                     : GRUPO_STATUS_PECA[statusPeca] === "decisao"
                       ? "border-ambar/40 bg-ambar/10 text-ambar"
-                      : "border-areia/20 bg-areia/5 text-areia/60"
+                      : GRUPO_STATUS_PECA[statusPeca] === "atencao"
+                        ? "border-coral/40 bg-coral/10 text-coral"
+                        : "border-areia/20 bg-areia/5 text-areia/60"
                 }`}
               >
                 {statusPeca}
