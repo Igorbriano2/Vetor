@@ -49,19 +49,27 @@ export default function CriarPecaWizard({
   temBrandKit,
   referencias,
   assetsDrive,
+  referenciaPreSelecionada,
+  categoriaInicial,
   onFechar,
 }: {
   temBrandKit: boolean;
   referencias: ReferenciaOpcao[];
   assetsDrive: AssetOpcao[];
+  // Chegou de /referencias ("Usar como inspiração" num item real) — já sabe
+  // qual referência usar, nem sempre presente na lista curta `referencias`.
+  referenciaPreSelecionada?: { id: string; nome: string };
+  // Chegou de um tile de categoria curada (sem item real por trás — ver
+  // CATEGORIAS_CURADAS em ReferenciasPainel.tsx) — só um hint de contexto.
+  categoriaInicial?: string;
   onFechar: () => void;
 }) {
   const router = useRouter();
   const [passo, setPasso] = useState(1);
   const [objetivo, setObjetivo] = useState("");
   const [formato, setFormato] = useState<string>(FORMATOS[0]);
-  const [origemReferencia, setOrigemReferencia] = useState<OrigemReferencia>("nenhuma");
-  const [referenciaId, setReferenciaId] = useState("");
+  const [origemReferencia, setOrigemReferencia] = useState<OrigemReferencia>(referenciaPreSelecionada ? "biblioteca" : "nenhuma");
+  const [referenciaId, setReferenciaId] = useState(referenciaPreSelecionada?.id ?? "");
   const [referenciaUrl, setReferenciaUrl] = useState("");
   const [assetDriveId, setAssetDriveId] = useState("");
   const [tom, setTom] = useState("");
@@ -78,6 +86,7 @@ export default function CriarPecaWizard({
   const assetEscolhido = assetsDrive.find((a) => a.id === assetDriveId);
 
   function nomeDaReferencia(): string | null {
+    if (origemReferencia === "biblioteca" && referenciaId === referenciaPreSelecionada?.id) return referenciaPreSelecionada.nome;
     if (origemReferencia === "biblioteca" && referenciaEscolhida) return referenciaEscolhida.title;
     if (origemReferencia === "url" && referenciaUrl.trim()) return referenciaUrl.trim();
     if (origemReferencia === "drive" && assetEscolhido) return assetEscolhido.nome;
@@ -95,6 +104,7 @@ export default function CriarPecaWizard({
 
   function contextoAjustesParaTarefa(): string {
     const partes: string[] = [];
+    if (categoriaInicial) partes.push(`Categoria de referência: ${categoriaInicial}.`);
     if (tom.trim()) partes.push(`Tom: ${tom.trim()}.`);
     if (oferta.trim()) partes.push(`Oferta: ${oferta.trim()}.`);
     if (produtoOuPessoa.trim()) partes.push(`Produto/pessoa em destaque: ${produtoOuPessoa.trim()}.`);
@@ -194,10 +204,17 @@ export default function CriarPecaWizard({
             {passo === 1 && (
               <div className="mt-4">
                 <h2 className="text-lg font-semibold text-areia">O que você quer divulgar?</h2>
+                {categoriaInicial && (
+                  <p className="mt-1 text-xs text-areia/40">Categoria escolhida: {categoriaInicial}</p>
+                )}
                 <textarea
                   value={objetivo}
                   onChange={(e) => setObjetivo(e.target.value)}
-                  placeholder='Ex: "Promoção de combo de dogs pra Black Friday"'
+                  placeholder={
+                    categoriaInicial
+                      ? `Ex: um(a) ${categoriaInicial.toLowerCase()} sobre...`
+                      : 'Ex: "Promoção de combo de dogs pra Black Friday"'
+                  }
                   rows={3}
                   className="mt-3 w-full rounded-xl border border-areia/15 bg-petroleo px-4 py-3 text-sm text-areia placeholder:text-areia/30 focus:border-menta focus:outline-none"
                 />
@@ -249,7 +266,12 @@ export default function CriarPecaWizard({
 
                 {origemReferencia === "biblioteca" && (
                   <div className="mt-3 space-y-2">
-                    {referencias.length === 0 && (
+                    {referenciaPreSelecionada && referenciaId === referenciaPreSelecionada.id && (
+                      <p className="rounded-xl border border-menta/30 bg-menta/10 px-3 py-2 text-sm text-areia">
+                        Selecionada: <strong>{referenciaPreSelecionada.nome}</strong>
+                      </p>
+                    )}
+                    {referencias.length === 0 && !referenciaPreSelecionada && (
                       <p className="text-xs text-areia/40">
                         Sua biblioteca ainda não tem referências salvas —{" "}
                         <Link href="/referencias" className="text-menta hover:underline">

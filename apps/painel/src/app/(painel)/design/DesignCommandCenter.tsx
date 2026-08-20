@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import StatusBadge from "@/components/StatusBadge";
 import ArtifactLibrary from "@/components/ArtifactLibrary";
 import type { ArtefatoBiblioteca } from "@/lib/artifacts/fetchArtifacts";
@@ -60,6 +61,31 @@ export default function DesignCommandCenter({
   assetsDrive: Array<{ id: string; nome: string }>;
 }) {
   const [wizardAberto, setWizardAberto] = useState(false);
+  const [referenciaPreSelecionada, setReferenciaPreSelecionada] = useState<{ id: string; nome: string } | undefined>(undefined);
+  const [categoriaInicial, setCategoriaInicial] = useState<string | undefined>(undefined);
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Chegando de /referencias ("Usar como inspiração" num item real ou num
+  // tile de categoria curada) — abre o wizard já com esse contexto, e limpa
+  // a query string pra não reabrir num refresh/voltar.
+  useEffect(() => {
+    const referenciaId = searchParams.get("referencia");
+    const referenciaNome = searchParams.get("nome");
+    const categoria = searchParams.get("categoria");
+    if (referenciaId && referenciaNome) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setReferenciaPreSelecionada({ id: referenciaId, nome: referenciaNome });
+      setWizardAberto(true);
+      router.replace("/design");
+    } else if (categoria) {
+      setCategoriaInicial(categoria);
+      setWizardAberto(true);
+      router.replace("/design");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="px-6 py-10">
@@ -223,7 +249,13 @@ export default function DesignCommandCenter({
           temBrandKit={temBrandKit}
           referencias={referencias}
           assetsDrive={assetsDrive}
-          onFechar={() => setWizardAberto(false)}
+          referenciaPreSelecionada={referenciaPreSelecionada}
+          categoriaInicial={categoriaInicial}
+          onFechar={() => {
+            setWizardAberto(false);
+            setReferenciaPreSelecionada(undefined);
+            setCategoriaInicial(undefined);
+          }}
         />
       )}
     </div>

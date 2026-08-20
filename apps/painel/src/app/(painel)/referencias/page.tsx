@@ -13,7 +13,7 @@ export default async function ReferenciasPage() {
   }
   const clienteId = usuario.cliente_id;
 
-  const [{ data: itens }, { data: colecoes }, { data: itensDeColecao }, { data: assetsDrive }, { data: perfis }] = await Promise.all([
+  const [{ data: itens }, { data: colecoes }, { data: itensDeColecao }, { data: assetsDrive }, { data: perfis }, { data: perfisImagem }] = await Promise.all([
     supabase
       .from("reference_library_items")
       .select("id, cliente_id, source_type, asset_id, external_url, title, description, tags, department, direitos_uso, status, created_at")
@@ -44,6 +44,13 @@ export default async function ReferenciasPage() {
       .select("reference_library_item_id, pacing, hook_structure, color_profile, composition_notes, cut_density_per_minute, music_energy")
       .eq("cliente_id", clienteId)
       .not("reference_library_item_id", "is", null),
+    // Fase 2 do reset de produto — perfil visual de imagem, mesmo padrão do
+    // de vídeo acima (ver migration 0032).
+    supabase
+      .from("reference_image_profiles")
+      .select("reference_library_item_id, composicao, grid, hierarquia, paleta, ritmo_visual, densidade, tipografia_descricao, tratamento_imagem")
+      .eq("cliente_id", clienteId)
+      .not("reference_library_item_id", "is", null),
   ]);
 
   // Assina URL só dos assets que já viraram referência (upload) — evita
@@ -52,6 +59,7 @@ export default async function ReferenciasPage() {
   const pathPorAssetId = new Map((assetsDrive ?? []).map((a) => [a.id as string, a.storage_path as string]));
   const mimeTypePorAssetId = new Map((assetsDrive ?? []).map((a) => [a.id as string, a.mime_type as string | null]));
   const perfilPorItemId = new Map((perfis ?? []).map((p) => [p.reference_library_item_id as string, p]));
+  const perfilImagemPorItemId = new Map((perfisImagem ?? []).map((p) => [p.reference_library_item_id as string, p]));
   const urlsAssinadas = new Map<string, string>();
   await Promise.all(
     Array.from(assetIdsUsados).map(async (assetId) => {
@@ -68,9 +76,8 @@ export default async function ReferenciasPage() {
         <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Biblioteca</p>
         <h1 className="mt-1 text-2xl font-bold text-areia">Referências</h1>
         <p className="mt-2 text-sm text-areia/60">
-          Reúna inspirações de estilo antes de pedir uma peça — link externo que você colar, arquivo já no Drive da
-          empresa, ou itens curados pelo time Vetor. É catálogo de inspiração, nunca copiado literalmente numa peça
-          (isso continua sendo só a matéria-prima real do Drive).
+          Se inspire antes de pedir uma peça nova — categorias prontas do Vetor, ou suas próprias referências (link,
+          Drive). Nunca copiado literalmente numa peça, só a linguagem visual.
         </p>
 
         <ReferenciasPainel
@@ -89,6 +96,7 @@ export default async function ReferenciasPage() {
             createdAt: i.created_at as string,
             thumbnailUrl: i.asset_id ? (urlsAssinadas.get(i.asset_id as string) ?? null) : null,
             isVideo: i.asset_id ? !!mimeTypePorAssetId.get(i.asset_id as string)?.startsWith("video/") : false,
+            isImage: i.asset_id ? !!mimeTypePorAssetId.get(i.asset_id as string)?.startsWith("image/") : false,
             perfilEstilo: (() => {
               const p = perfilPorItemId.get(i.id as string);
               if (!p) return null;
@@ -99,6 +107,20 @@ export default async function ReferenciasPage() {
                 compositionNotes: p.composition_notes as string,
                 cutDensityPerMinute: p.cut_density_per_minute as number,
                 musicEnergy: p.music_energy as string,
+              };
+            })(),
+            perfilVisual: (() => {
+              const p = perfilImagemPorItemId.get(i.id as string);
+              if (!p) return null;
+              return {
+                composicao: p.composicao as string,
+                grid: p.grid as string,
+                hierarquia: p.hierarquia as string,
+                paleta: p.paleta as string,
+                ritmoVisual: p.ritmo_visual as string,
+                densidade: p.densidade as string,
+                tipografiaDescricao: p.tipografia_descricao as string,
+                tratamentoImagem: p.tratamento_imagem as string,
               };
             })(),
           }))}
