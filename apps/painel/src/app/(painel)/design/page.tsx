@@ -1,82 +1,129 @@
-import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buscarArtefatos } from "@/lib/artifacts/fetchArtifacts";
-import ArtifactLibrary from "@/components/ArtifactLibrary";
+import DesignCommandCenter from "./DesignCommandCenter";
 
-// Biblioteca visual do Design — organizada por solicitação/missão (ver
-// artifacts.mission_id) em vez de pastas físicas nesta rodada: cada card já
-// leva pra missão de origem. Hoje mostra sobretudo briefings (documento),
-// já que não existe gerador de imagem real configurado — ver
-// apps/agentes/src/agents/prompts/design.md.
+// Fase 1 do reset de produto (docs/PRODUCT-RESET-AUDIT.md) — /design deixa de
+// ser um inventário de projetos técnicos e vira o departamento de criação:
+// entrada por intenção (nova peça/referência/template/campanha), trabalho em
+// andamento, campanhas e biblioteca visual na primeira dobra. Nenhum caminho
+// de criação novo — o wizard só monta um PlanoConfirmado e reusa
+// criarMissaoDeIntencao via /api/missoes, igual ao VetorIntentCard.
 export default async function DesignPage() {
   const supabase = await createSupabaseServerClient();
-  const artefatos = await buscarArtefatos(supabase, { departamentos: ["design"] });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const { data: projetos } = await supabase
-    .from("design_projects")
-    .select("id, title, version, status, thumbnail_url, updated_at, mission_id, missions(titulo)")
-    .order("updated_at", { ascending: false })
-    .limit(30);
+  const { data: usuario } = await supabase.from("usuarios").select("cliente_id").eq("id", user?.id ?? "").maybeSingle();
+  const clienteId = usuario?.cliente_id as string | undefined;
+
+  if (!clienteId) {
+    return <div className="px-6 py-10 text-sm text-coral">Seu usuário ainda não está vinculado a um cliente.</div>;
+  }
+
+  const [
+    artefatos,
+    { data: projetos },
+    { data: etapasEmAndamento },
+    { data: brandKit },
+    { data: referenciasPreview },
+    { data: assetsDrive },
+  ] = await Promise.all([
+    buscarArtefatos(supabase, { departamentos: ["design"] }),
+    supabase
+      .from("design_projects")
+      .select("id, title, version, status, thumbnail_url, updated_at, mission_id, missions(titulo)")
+      .order("updated_at", { ascending: false })
+      .limit(12),
+    supabase
+      .from("mission_steps")
+      .select("id, tarefa, status, mission_id, missions(titulo)")
+      .eq("cliente_id", clienteId)
+      .eq("agente", "design")
+      .in("status", ["running", "awaiting_approval", "ready"])
+      .order("created_at", { ascending: false })
+      .limit(8),
+    supabase.from("brand_kits").select("id").eq("cliente_id", clienteId).eq("is_atual", true).maybeSingle(),
+    supabase
+      .from("reference_library_items")
+      .select("id, title, description, source_type")
+      .or(`cliente_id.eq.${clienteId},cliente_id.is.null`)
+      .eq("status", "ativo")
+      .order("created_at", { ascending: false })
+      .limit(6),
+    supabase
+      .from("business_assets")
+      .select("id, nome")
+      .eq("cliente_id", clienteId)
+      .eq("status", "aprovado")
+      .order("created_at", { ascending: false })
+      .limit(30),
+  ]);
+
+  // "Minhas campanhas": missões distintas que já têm pelo menos uma etapa de
+  // Design — sem tabela nova, mission_steps continua a única fonte de
+  // verdade (ver docs/PRODUCT-RESET-AUDIT.md, seção "o que não pode quebrar").
+  const { data: todasEtapasDesign } = await supabase
+    .from("mission_steps")
+    .select("mission_id, status")
+    .eq("cliente_id", clienteId)
+    .eq("agente", "design");
+
+  const missionIdsComDesign = Array.from(new Set((todasEtapasDesign ?? []).map((e) => e.mission_id as string)));
+  const contagemPorMissao = new Map<string, { total: number; aprovacao: number; concluidas: number }>();
+  for (const e of todasEtapasDesign ?? []) {
+    const missionId = e.mission_id as string;
+    const atual = contagemPorMissao.get(missionId) ?? { total: 0, aprovacao: 0, concluidas: 0 };
+    atual.total += 1;
+    if (e.status === "awaiting_approval") atual.aprovacao += 1;
+    if (e.status === "completed" || e.status === "completed_with_caveats") atual.concluidas += 1;
+    contagemPorMissao.set(missionId, atual);
+  }
+
+  const { data: campanhasBrutas } = missionIdsComDesign.length
+    ? await supabase
+        .from("missions")
+        .select("id, titulo, status, created_at")
+        .in("id", missionIdsComDesign)
+        .order("created_at", { ascending: false })
+        .limit(6)
+    : { data: [] };
+
+  const campanhas = (campanhasBrutas ?? []).map((m) => ({
+    id: m.id as string,
+    titulo: m.titulo as string,
+    status: m.status as string,
+    contagem: contagemPorMissao.get(m.id as string) ?? { total: 0, aprovacao: 0, concluidas: 0 },
+  }));
 
   return (
-    <div className="px-6 py-10">
-      <div className="mx-auto max-w-6xl">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
-            <h1 className="mt-1 text-2xl font-bold text-areia">Design</h1>
-            <p className="mt-2 text-sm text-areia/60">
-              Artes, briefings e peças criadas pelo Vetor, organizadas por solicitação e missão.
-            </p>
-          </div>
-          <Link
-            href="/design/editor"
-            className="mt-1 shrink-0 rounded-full bg-ambar px-4 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte"
-          >
-            + Novo design
-          </Link>
-        </div>
-
-        {projetos && projetos.length > 0 && (
-          <div className="mt-8">
-            <p className="mono-label mb-3 text-areia/50">Projetos editáveis</p>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-              {projetos.map((p) => (
-                <Link
-                  key={p.id as string}
-                  href={`/design/editor/${p.id}`}
-                  className="group overflow-hidden rounded-xl border border-areia/10 bg-petroleo-2/60 transition hover:border-menta/40"
-                >
-                  <div className="flex aspect-square items-center justify-center bg-petroleo">
-                    {p.thumbnail_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={p.thumbnail_url as string} alt={p.title as string} className="size-full object-cover" />
-                    ) : (
-                      <span className="text-xs text-areia/30">sem prévia</span>
-                    )}
-                  </div>
-                  <div className="p-2">
-                    <p className="truncate text-xs text-areia">{p.title as string}</p>
-                    <p className="text-[11px] text-areia/40">
-                      v{p.version as number} · {p.status as string}
-                    </p>
-                    {p.mission_id && (
-                      <p className="mt-0.5 truncate font-mono text-[10px] text-areia/30">
-                        campanha: {(p.missions as unknown as { titulo?: string } | null)?.titulo ?? "missão"}
-                      </p>
-                    )}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="mt-8">
-          <p className="mono-label mb-3 text-areia/50">Entregas</p>
-          <ArtifactLibrary artefatos={artefatos} vazio="Nenhuma peça de design ainda — peça algo pro Vetor no chat." />
-        </div>
-      </div>
-    </div>
+    <DesignCommandCenter
+      temBrandKit={!!brandKit}
+      etapasEmAndamento={(etapasEmAndamento ?? []).map((e) => ({
+        id: e.id as string,
+        tarefa: e.tarefa as string,
+        status: e.status as string,
+        missionId: e.mission_id as string,
+        missionTitulo: (e.missions as unknown as { titulo?: string } | null)?.titulo ?? "Missão",
+      }))}
+      campanhas={campanhas}
+      projetos={(projetos ?? []).map((p) => ({
+        id: p.id as string,
+        title: p.title as string,
+        version: p.version as number,
+        status: p.status as string,
+        thumbnailUrl: p.thumbnail_url as string | null,
+        missionId: p.mission_id as string | null,
+        missionTitulo: (p.missions as unknown as { titulo?: string } | null)?.titulo ?? null,
+      }))}
+      artefatos={artefatos}
+      referencias={(referenciasPreview ?? []).map((r) => ({
+        id: r.id as string,
+        title: r.title as string,
+        description: r.description as string | null,
+        sourceType: r.source_type as string,
+      }))}
+      assetsDrive={(assetsDrive ?? []).map((a) => ({ id: a.id as string, nome: a.nome as string }))}
+    />
   );
 }
