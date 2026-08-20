@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import GerarPecasCampanha from "@/components/GerarPecasCampanha";
 
 interface CalendarioItem {
   data: string;
@@ -70,6 +71,10 @@ export default async function PlanejamentoPage() {
                             ))}
                         </div>
                       </div>
+                    )}
+
+                    {calendario.length > 0 && (
+                      <GerarPecasCampanha tituloPlano={p.title} periodo={meta.periodo} calendario={calendario} />
                     )}
 
                     {Array.isArray(meta.indicadores) && meta.indicadores.length > 0 && (
