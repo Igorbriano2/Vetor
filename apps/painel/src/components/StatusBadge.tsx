@@ -22,11 +22,22 @@ const GRUPO: Record<string, "info" | "decisao" | "sucesso" | "risco"> = {
   awaiting_approval: "decisao",
   queued: "info",
   running: "info",
+  awaiting_evidence: "decisao",
+  quality_review: "decisao",
+  replanning: "info",
   blocked: "risco",
   completed: "sucesso",
+  completed_with_caveats: "sucesso",
   failed: "risco",
   cancelled: "risco",
   archived: "info",
+  // Status de etapa (mission_steps, mesma migration 0004) — "pending"/"ready"
+  // faltavam aqui (achado real: caíam no fallback "info" com o texto em
+  // inglês cru, visível sobretudo no Creative Mission Canvas, que mostra
+  // status de etapa direto).
+  pending: "info",
+  ready: "info",
+  skipped: "info",
   // Status de solicitação (supabase/migrations/0009_conversas_solicitacoes.sql)
   // — mesmo vocabulário visual acima, chaves em inglês (é o que fica gravado).
   received: "info",
@@ -68,11 +79,18 @@ const ROTULOS: Record<string, string> = {
   awaiting_approval: "Aguardando aprovação",
   queued: "Na fila",
   running: "Em execução",
+  awaiting_evidence: "Aguardando evidência",
+  quality_review: "Em revisão de qualidade",
+  replanning: "Replanejando",
   blocked: "Bloqueada",
   completed: "Concluída",
+  completed_with_caveats: "Concluída com ressalvas",
   failed: "Falhou",
   cancelled: "Cancelada",
   archived: "Arquivada",
+  pending: "Pendente",
+  ready: "Pronta pra rodar",
+  skipped: "Pulada",
   received: "Recebida",
   transcribing: "Transcrevendo",
   awaiting_context: "Aguardando informação",
