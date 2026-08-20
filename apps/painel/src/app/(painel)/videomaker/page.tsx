@@ -29,7 +29,7 @@ export default async function VideomakerPage() {
 
   const { data: projetos } = await supabase
     .from("video_projects")
-    .select("id, title, timeline_version, status, duration_ms, updated_at")
+    .select("id, title, timeline_version, status, duration_ms, updated_at, mission_id, missions(titulo)")
     .order("updated_at", { ascending: false })
     .limit(30);
 
@@ -68,6 +68,11 @@ export default async function VideomakerPage() {
                     v{p.timeline_version as number} · {STATUS_LABEL[p.status as string] ?? (p.status as string)} ·{" "}
                     {(((p.duration_ms as number) ?? 0) / 1000).toFixed(1)}s
                   </p>
+                  {p.mission_id && (
+                    <p className="mt-0.5 truncate font-mono text-[10px] text-areia/30">
+                      campanha: {(p.missions as unknown as { titulo?: string } | null)?.titulo ?? "missão"}
+                    </p>
+                  )}
                 </Link>
               ))}
             </div>

@@ -14,7 +14,7 @@ export default async function DesignPage() {
 
   const { data: projetos } = await supabase
     .from("design_projects")
-    .select("id, title, version, status, thumbnail_url, updated_at")
+    .select("id, title, version, status, thumbnail_url, updated_at, mission_id, missions(titulo)")
     .order("updated_at", { ascending: false })
     .limit(30);
 
@@ -60,6 +60,11 @@ export default async function DesignPage() {
                     <p className="text-[11px] text-areia/40">
                       v{p.version as number} · {p.status as string}
                     </p>
+                    {p.mission_id && (
+                      <p className="mt-0.5 truncate font-mono text-[10px] text-areia/30">
+                        campanha: {(p.missions as unknown as { titulo?: string } | null)?.titulo ?? "missão"}
+                      </p>
+                    )}
                   </div>
                 </Link>
               ))}

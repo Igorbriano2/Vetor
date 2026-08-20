@@ -25,15 +25,21 @@ interface RespostaMissao {
 }
 
 // Geração em lote (Fase 5 do upgrade Gravyx) — a partir do calendário editorial
-// já confirmado num artefato de planejamento, monta uma etapa de design +
-// uma etapa de copy por peça (a de copy depende da de design da mesma peça,
-// pra manter coerência entre briefing visual e legenda) e reutiliza o mesmo
-// caminho de criação de missão já usado pelo VetorIntentCard — nunca inventa
-// um caminho de criação paralelo. Só usa ferramentas de baixo risco
-// (criar_briefing/gerar_design/criar_copy): gera os briefings/rascunhos de
-// todas as peças de uma vez sem gerar custo real nem exigir N aprovações —
-// a geração da imagem/vídeo final de cada peça continua um passo manual
-// separado, como em qualquer outra missão.
+// já confirmado num artefato de planejamento, monta uma etapa de design ou
+// vídeo (conforme o `tipo` da peça — ver ehConteudoDeVideo) + uma etapa de
+// copy por peça (a de copy depende da etapa visual da mesma peça, pra manter
+// coerência entre briefing e legenda) e reutiliza o mesmo caminho de criação
+// de missão já usado pelo VetorIntentCard — nunca inventa um caminho de
+// criação paralelo. Só usa ferramentas de baixo risco (criar_briefing/
+// gerar_design/criar_copy): gera os briefings/rascunhos de todas as peças de
+// uma vez sem gerar custo real nem exigir N aprovações — a geração da
+// imagem/vídeo final de cada peça (Fase 6) continua um passo manual separado
+// no Design/Videomaker, como em qualquer outra missão.
+function ehConteudoDeVideo(tipo?: string): boolean {
+  if (!tipo) return false;
+  const t = tipo.toLowerCase();
+  return t.includes("video") || t.includes("vídeo") || t.includes("reels") || t.includes("reel");
+}
 export default function GerarPecasCampanha({
   tituloPlano,
   periodo,
@@ -53,23 +59,32 @@ export default function GerarPecasCampanha({
 
     const itens = [...calendario].sort((a, b) => a.data.localeCompare(b.data));
     const etapas: EtapaPlano[] = itens.flatMap((item, i) => {
-      const chaveDesign = `design-${i}`;
+      const chaveVisual = `visual-${i}`;
       const chaveCopy = `copy-${i}`;
       const canal = item.canal ?? "o canal indicado no calendário";
       const tipo = item.tipo ?? "post";
+      const video = ehConteudoDeVideo(item.tipo);
       return [
-        {
-          chave: chaveDesign,
-          agente: "design",
-          tarefa: `Crie o briefing e o rascunho de design da peça "${item.titulo}" (${tipo}) para ${canal}, prevista para ${item.data}, dentro da campanha "${tituloPlano}". Use a identidade visual e o brand kit já cadastrados do cliente.`,
-          dependeDe: [],
-          ferramentas: ["criar_briefing", "gerar_design"],
-        },
+        video
+          ? {
+              chave: chaveVisual,
+              agente: "video",
+              tarefa: `Crie o briefing/roteiro do vídeo "${item.titulo}" (${tipo}) para ${canal}, previsto para ${item.data}, dentro da campanha "${tituloPlano}". Use a identidade visual e o brand kit já cadastrados do cliente.`,
+              dependeDe: [],
+              ferramentas: ["criar_briefing"],
+            }
+          : {
+              chave: chaveVisual,
+              agente: "design",
+              tarefa: `Crie o briefing e o rascunho de design da peça "${item.titulo}" (${tipo}) para ${canal}, prevista para ${item.data}, dentro da campanha "${tituloPlano}". Use a identidade visual e o brand kit já cadastrados do cliente.`,
+              dependeDe: [],
+              ferramentas: ["criar_briefing", "gerar_design"],
+            },
         {
           chave: chaveCopy,
           agente: "social-media",
-          tarefa: `Escreva a copy/legenda da peça "${item.titulo}" (${tipo}) para ${canal}, prevista para ${item.data}, alinhada ao briefing de design da mesma peça.`,
-          dependeDe: [chaveDesign],
+          tarefa: `Escreva a copy/legenda da peça "${item.titulo}" (${tipo}) para ${canal}, prevista para ${item.data}, alinhada ao briefing ${video ? "do roteiro" : "de design"} da mesma peça.`,
+          dependeDe: [chaveVisual],
           ferramentas: ["criar_copy"],
         },
       ];
