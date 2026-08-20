@@ -150,6 +150,7 @@ export async function avaliarVisualDoVideo(frames: Array<{ atMs: number; dataUrl
 
 export interface ReferenceVideoProfileCriado {
   id: string;
+  referenceLibraryItemId: string | null;
   durationMs: number;
   aspectRatio: string;
   cutDensityPerMinute: number;
@@ -172,6 +173,13 @@ export interface ReferenceVideoProfileCriado {
 export async function gerarPerfilDeVideoDeReferencia(params: {
   clienteId: string;
   assetId: string;
+  // Fase 3 do upgrade Gravyx (generalização da Biblioteca de Referências,
+  // ver migration 0030) — quando a análise partiu de um item já catalogado
+  // em reference_library_items, o id fica registrado no perfil resultante
+  // (só rastreabilidade; a análise em si continua rodando sobre o asset
+  // real, nunca sobre o item de catálogo). Opcional: chamadas antigas (só
+  // assetId, direto do Drive) continuam funcionando sem alteração.
+  referenceLibraryItemId?: string;
 }): Promise<ReferenceVideoProfileCriado> {
   const validacao = await validarAtivoParaUso(params.clienteId, params.assetId);
   if (!validacao.valido) throw new Error(`Ativo inválido pra análise de referência: ${validacao.motivo}`);
@@ -197,6 +205,7 @@ export async function gerarPerfilDeVideoDeReferencia(params: {
     .insert({
       cliente_id: params.clienteId,
       source_asset_id: params.assetId,
+      reference_library_item_id: params.referenceLibraryItemId ?? null,
       duration_ms: sinal.durationMs,
       aspect_ratio: aspectRatio,
       cut_density_per_minute: metricas.cutDensityPerMinute,
@@ -219,6 +228,7 @@ export async function gerarPerfilDeVideoDeReferencia(params: {
 
   return {
     id: linha.id as string,
+    referenceLibraryItemId: params.referenceLibraryItemId ?? null,
     durationMs: sinal.durationMs,
     aspectRatio,
     cutDensityPerMinute: metricas.cutDensityPerMinute,

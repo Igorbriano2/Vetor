@@ -10,6 +10,7 @@ import { connectionsRouter } from "./routes/connections.js";
 import { perfilRouter } from "./routes/perfil.js";
 import { metaWebhookRouter } from "./routes/metaWebhook.js";
 import { trafegoRouter } from "./routes/trafego.js";
+import { referenciasRouter } from "./routes/referencias.js";
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use("/connections", connectionsRouter);
 app.use("/perfil", perfilRouter);
 app.use("/webhooks/meta", metaWebhookRouter);
 app.use("/trafego", trafegoRouter);
+app.use("/referencias", referenciasRouter);
 
 const port = Number(process.env.PORT ?? 3333);
 app.listen(port, () => {

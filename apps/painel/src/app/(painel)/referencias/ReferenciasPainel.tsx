@@ -3,6 +3,15 @@
 import { useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
+interface PerfilEstilo {
+  pacing: string;
+  hookStructure: string;
+  colorProfile: string;
+  compositionNotes: string;
+  cutDensityPerMinute: number;
+  musicEnergy: string;
+}
+
 interface ItemReferencia {
   id: string;
   clienteId: string | null;
@@ -16,6 +25,8 @@ interface ItemReferencia {
   direitosUso: string | null;
   createdAt: string;
   thumbnailUrl: string | null;
+  isVideo: boolean;
+  perfilEstilo: PerfilEstilo | null;
 }
 
 interface Colecao {
@@ -32,6 +43,7 @@ interface ItemDeColecao {
 interface AssetDrive {
   id: string;
   nome: string;
+  mimeType: string | null;
 }
 
 const DEPARTAMENTOS = [
@@ -163,12 +175,54 @@ export default function ReferenciasPainel({
         const { data: signed } = await supabase.storage.from("brand-assets").createSignedUrl(assetRow.storage_path as string, 60 * 60);
         thumbnailUrl = signed?.signedUrl ?? null;
       }
+      const isVideo = assetsDrive.find((a) => a.id === dados.assetId)?.mimeType?.startsWith("video/") ?? false;
 
-      setItens((atual) => [{ ...mapearLinha(data), thumbnailUrl }, ...atual]);
+      setItens((atual) => [{ ...mapearLinha(data), thumbnailUrl, isVideo }, ...atual]);
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Não consegui salvar a referência agora.");
     } finally {
       setEnviando(false);
+    }
+  }
+
+  const [analisando, setAnalisando] = useState<Set<string>>(new Set());
+
+  // Fase 3 do Gravyx (Rodada C) — dispara a análise de estilo real
+  // (ffmpeg + visão) via apps/agentes; nunca inventa o perfil no client.
+  async function analisarEstilo(itemId: string) {
+    setAnalisando((atual) => new Set(atual).add(itemId));
+    setErro(null);
+    try {
+      const res = await fetch(`/api/referencias/${itemId}/analisar`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error ?? "Falha ao analisar o estilo dessa referência.");
+
+      const p = data.perfil;
+      setItens((atual) =>
+        atual.map((item) =>
+          item.id === itemId
+            ? {
+                ...item,
+                perfilEstilo: {
+                  pacing: p.pacing,
+                  hookStructure: p.hookStructure,
+                  colorProfile: p.colorProfile,
+                  compositionNotes: p.compositionNotes,
+                  cutDensityPerMinute: p.cutDensityPerMinute,
+                  musicEnergy: p.musicEnergy,
+                },
+              }
+            : item,
+        ),
+      );
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : "Não consegui analisar essa referência agora.");
+    } finally {
+      setAnalisando((atual) => {
+        const novo = new Set(atual);
+        novo.delete(itemId);
+        return novo;
+      });
     }
   }
 
@@ -268,8 +322,10 @@ export default function ReferenciasPainel({
             item={item}
             clienteId={clienteId}
             colecoes={colecoes}
+            analisando={analisando.has(item.id)}
             onArquivar={arquivar}
             onAdicionarNaColecao={adicionarNaColecao}
+            onAnalisarEstilo={analisarEstilo}
           />
         ))}
       </div>
@@ -291,6 +347,8 @@ function mapearLinha(row: Record<string, unknown>): ItemReferencia {
     direitosUso: row.direitos_uso as string | null,
     createdAt: row.created_at as string,
     thumbnailUrl: null,
+    isVideo: false,
+    perfilEstilo: null,
   };
 }
 
@@ -479,14 +537,18 @@ function ReferenciaCard({
   item,
   clienteId,
   colecoes,
+  analisando,
   onArquivar,
   onAdicionarNaColecao,
+  onAnalisarEstilo,
 }: {
   item: ItemReferencia;
   clienteId: string;
   colecoes: Colecao[];
+  analisando: boolean;
   onArquivar: (id: string) => void;
   onAdicionarNaColecao: (itemId: string, collectionId: string) => void;
+  onAnalisarEstilo: (itemId: string) => void;
 }) {
   const editavel = item.clienteId === clienteId;
 
@@ -522,6 +584,33 @@ function ReferenciaCard({
           </div>
         )}
         {item.direitosUso && <p className="text-[10px] text-ambar/70">{item.direitosUso}</p>}
+
+        {item.isVideo && (
+          <div className="rounded-lg border border-menta/15 bg-petroleo-3/40 p-2">
+            {item.perfilEstilo ? (
+              <div className="space-y-1 text-[10px] text-areia/60">
+                <p>
+                  <span className="text-areia/40">Ritmo:</span> {item.perfilEstilo.pacing} ({item.perfilEstilo.cutDensityPerMinute} cortes/min)
+                </p>
+                <p>
+                  <span className="text-areia/40">Cor:</span> {item.perfilEstilo.colorProfile}
+                </p>
+                <p>
+                  <span className="text-areia/40">Abertura:</span> {item.perfilEstilo.hookStructure}
+                </p>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onAnalisarEstilo(item.id)}
+                disabled={analisando}
+                className="mono-label w-full text-center text-menta hover:text-menta/70 disabled:opacity-40"
+              >
+                {analisando ? "Analisando..." : "Analisar estilo"}
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="mt-auto flex items-center gap-2 pt-2">
           <select
