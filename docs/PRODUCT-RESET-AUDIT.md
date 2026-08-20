@@ -178,7 +178,9 @@ pedido do cliente
 | 4 — Campanhas e Geração Controlada | **Feita (escopo real, 7/8 rótulos)** — ver detalhamento abaixo |
 | 5 — Resultado Visual Real | **Bloqueada por conta externa** — código pronto (multi-provider, seção 8), sem provider com cota disponível hoje |
 | 6 — Entregas como Área de Cliente | **Feita** — ver detalhamento abaixo |
-| 7–10 | Não iniciadas |
+| 7 — Videomaker como Departamento | **Feita (escopo real)** — ver detalhamento abaixo |
+| 8 — Dados de Demonstração e Cliente Novo | **Feita (escopo parcial, ver limitação)** — ver detalhamento abaixo |
+| 9–10 | Não iniciadas |
 
 ### Fase 1 — Design Command Center (feita, testada ao vivo em produção)
 
@@ -250,6 +252,27 @@ Implementado: `imageProvider.ts` reescrito pra rotear via `ProviderRouter` (mesm
 
 Build/lint de `apps/painel` passando, suíte de testes sem regressão (59/59).
 
+### Fase 7 — Videomaker como Departamento (feita, escopo real)
+
+Preservado 100% o pipeline existente (nenhuma linha de `apps/render`/`videoPipeline.ts` tocada). Duas melhorias reais e honestas:
+
+1. **Link direto pro editor assim que o projeto existe** — `video_projects.mission_step_id` já existia (migration `0023`); `/missoes/[id]` agora resolve isso (mesmo padrão do `design_project` da Fase 4) e mostra "Abrir editor de vídeo" na etapa, com o texto certo conforme já tem render final ou não. Fecha exatamente o "não pode ficar só como documento textual" — o cliente entra no editor real desde a primeira etapa, nunca preso numa frase técnica esperando o `final_render`.
+2. **Progresso real por projeto em `/videomaker`** — novo `pipelineProgress.ts` (4 testes) conta só os **5 estágios que têm código de verdade** (`proxy`, `timeline_draft`, `captions`, `preview`, `final_render`) a partir de `video_pipeline_stages`; nunca mostra progresso nos outros 13 estágios schema-only (`scene_detection`, `sound_effects_mix`, `transitions_effects`, etc. — motion/lower-thirds/trilha continuam sem nenhum código por trás, não fabricado aqui).
+
+Build/lint passando, suíte sem regressão.
+
+### Fase 8 — Dados de Demonstração e Cliente Novo (feita, escopo parcial e documentado)
+
+**Achado que resolveu o problema de arquitetura antes de escrever código**: `current_papel() = 'admin_vetor'` já ignora `cliente_id` em toda policy RLS do banco (confirmado lendo `pg_get_functiondef` das duas funções) — o único usuário real hoje (Igor Briano) já é `admin_vetor`. Isso significa que um "workspace switcher" **não precisa mudar nenhuma RLS**: é só uma decisão de qual `cliente_id` a aplicação usa nas próprias queries. Implementado `resolverClienteAtivo.ts` (lê o papel real do banco, nunca confia em cookie sozinho) + `/api/workspace` (recusa a troca server-side pra qualquer papel que não seja admin_vetor) + `WorkspaceSwitcher.tsx` na sidebar (só aparece pra admin_vetor).
+
+**Achado real corrigido de passagem**: várias páginas (dashboard, design, videomaker, entregas) nunca filtravam explicitamente por `cliente_id` — dependiam só da RLS implícita, que pra um cliente comum funciona (RLS já isola), mas pra admin_vetor **misturava dado de qualquer tenant silenciosamente**. Adicionado filtro explícito (`buscarArtefatos` ganhou parâmetro `clienteId`, `design_projects`/`video_projects`/`missions`/`approvals`/`demandas` ganharam `.eq("cliente_id", ...)`) nessas 4 páginas.
+
+**Testado ao vivo em produção**: trocado pra "Cantina da Ana" (cliente real já existente, 0 missões) — dashboard mostrou o estado limpo de verdade (sem missão em andamento, só a saudação), `/design` mostrou todos os estados vazios corretos ("Nenhuma campanha de Design ainda...", "Você ainda não tem referências salvas...", "Nenhuma peça de design entregue ainda") sem nenhum dado da Dog King vazando. Trocado de volta pra "Vetor (conta de teste)" — os dados reais voltaram exatamente como estavam.
+
+**Limitação real, documentada**: só 4 páginas (dashboard/design/videomaker/entregas) foram migradas pra `resolverClienteAtivo()` — outras ~7 (`referencias`, `templates`, `planejamento`, `trafego`, `configuracoes`, `conexoes`) continuam resolvendo `cliente_id` do jeito antigo (funcionam normalmente pra qualquer cliente comum, só não respeitam a troca de workspace pro admin ainda). "Estado vazio útil" com o texto exato sugerido pelo prompt não foi replicado literalmente — os estados vazios já existentes (Fases 1-4) já eram honestos e acionáveis, mantidos como estavam.
+
+Build/lint passando, suíte sem regressão (63/63).
+
 ---
 
-**Fase 5 segue bloqueada por conta externa (nenhum provider de imagem com cota disponível hoje) — seguindo para as Fases 7, 8 e 10, que não dependem de geração de imagem real, em modo automático conforme instrução vigente da sessão.**
+**Fase 5 segue bloqueada por conta externa (nenhum provider de imagem com cota disponível hoje). Fases 0-4 e 6-8 concluídas nesta sessão. Restam: Fase 9 (qualidade visual/ArtDirectionSpec — também depende de geração real) e Fase 10 (testes E2E formais).**
