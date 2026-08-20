@@ -230,4 +230,16 @@ Build/lint de `apps/painel` passando, suíte de testes sem regressão (53/53).
 
 ---
 
-**Seguindo para a Fase 5 (Resultado Visual Real) em modo automático, conforme instrução vigente da sessão.**
+## 8. Multi-provider de geração de imagem (pedido fora da sequência de fases, entre a Fase 4 e a Fase 5)
+
+A conta OpenAI ficou sem crédito (achado da Fase 1), travando toda geração de imagem real de Design. O dono do produto pediu 3 providers (OpenAI, Anthropic, Gemini/"Nano Banana") com "opções na criação" e forneceu credencial real do Gemini.
+
+**Anthropic não foi incluído** — Claude não tem API de geração de imagem (só entende/analisa imagem, já usado em DesignCritic e na análise de referências desta sessão). Sinalizado claramente em vez de fingir uma integração que não existe.
+
+Implementado: `imageProvider.ts` reescrito pra rotear via `ProviderRouter` (mesmo padrão já usado em `tts.ts`, `apps/agentes/src/providers/router.ts`) — dois providers reais (OpenAI, Google Gemini `gemini-2.5-flash-image`, direto via `generativelanguage.googleapis.com` com API key, sem OAuth). O provider preferido (vindo do briefing, campo opcional `provider` em `criar_peca_de_design`/`gerar_imagem`, preenchido pelo especialista só quando a tarefa mencionar um explicitamente) entra primeiro, o outro entra como fallback automático. Corrigido de passagem um bug latente: a dimensão do canvas usava uma tabela de tamanhos fixa da OpenAI mesmo quando outro provider gerou a imagem — agora decodifica a dimensão real dos bytes (`lerDimensaoDeImagem`, padrão já usado pra logos). 12 testes (era 9), todos mockados. `GEMINI_API_KEY` configurada como secret em produção (service + worker do `vetor-agentes`, nunca commitada no repo).
+
+**Testado ao vivo em produção, ponta a ponta**: criada uma missão real declarando "Provider de imagem preferido: Gemini" no briefing — o log real confirma que o ProviderRouter funcionou exatamente como projetado: tentou o Gemini primeiro (recebeu `429 RESOURCE_EXHAUSTED` — erro real da API do Google, prova que a chave é válida e a chamada está formatada corretamente, só a cota gratuita do projeto está esgotada), caiu pro fallback OpenAI (falhou por falta de crédito, já conhecido), e falhou fechado entregando um briefing completo como artefato real — nunca fingiu sucesso. **Achado operacional, não de código**: os dois providers estão bloqueados por conta/cota hoje — Gemini precisa de billing habilitado no projeto `5631340003` (ou um tier pago) pra sair do limite gratuito, OpenAI precisa de recarga de crédito. O código está pronto e provado; falta decisão financeira do usuário em pelo menos um dos dois pra a Fase 5 ser testável com imagem real de novo.
+
+---
+
+**Fase 5 segue bloqueada por conta externa (nenhum provider de imagem com cota disponível hoje) — seguindo para as Fases 6-8 e 10, que não dependem de geração de imagem real, em modo automático conforme instrução vigente da sessão.**
