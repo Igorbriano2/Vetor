@@ -53,6 +53,14 @@ export default function VetorCockpit({ missaoAtual, contagemPendentes, contagemA
   const [overlayAtivo, setOverlayAtivo] = useState(false);
   const [saudacaoTexto, setSaudacaoTexto] = useState<string | null>(null);
   const [mostrarBotaoOuvir, setMostrarBotaoOuvir] = useState(false);
+  // Fase 6 do Vetor Manager, inspirado no aviso da Gravyx antes do primeiro
+  // uso de voz ("Voice Link"): STT/TTS têm credencial real configurada mas
+  // nunca foram provados em produção (docs/STATUS-REAL-ATUAL.md, item 9b)
+  // — mostra um aviso claro na primeira vez, não apresenta como recurso
+  // maduro antes da hora. Guardado em localStorage: uma vez visto, não
+  // interrompe de novo (o aviso é sobre a primeira impressão, não sobre
+  // toda gravação).
+  const [avisoVozAberto, setAvisoVozAberto] = useState(false);
 
   const conversationIdRef = useRef<string | undefined>(undefined);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -225,6 +233,27 @@ export default function VetorCockpit({ missaoAtual, contagemPendentes, contagemA
     }
   }
 
+  const CHAVE_AVISO_VOZ_VISTO = "vetor:avisoVozVisto";
+
+  function handleCliqueMicrofone() {
+    if (gravando) {
+      pararGravacao();
+      return;
+    }
+    const jaViu = typeof window !== "undefined" && window.localStorage.getItem(CHAVE_AVISO_VOZ_VISTO) === "1";
+    if (jaViu) {
+      iniciarGravacao();
+    } else {
+      setAvisoVozAberto(true);
+    }
+  }
+
+  function confirmarAvisoVozEGravar() {
+    window.localStorage.setItem(CHAVE_AVISO_VOZ_VISTO, "1");
+    setAvisoVozAberto(false);
+    iniciarGravacao();
+  }
+
   async function iniciarGravacao() {
     setErro(null);
     try {
@@ -373,6 +402,29 @@ export default function VetorCockpit({ missaoAtual, contagemPendentes, contagemA
 
         {erro && <p className="mt-2 text-xs text-coral">{erro}</p>}
 
+        {avisoVozAberto && (
+          <div className="mt-2 rounded-xl border border-ambar/40 bg-ambar/10 p-3 text-xs text-areia/80">
+            <p>
+              <span className="font-semibold text-ambar">Recurso em desenvolvimento.</span> A conversa por voz pode
+              falhar ou demorar mais que o esperado — se isso acontecer, digite normalmente.
+            </p>
+            <div className="mt-2 flex gap-2">
+              <button
+                onClick={confirmarAvisoVozEGravar}
+                className="rounded-full bg-ambar px-3 py-1.5 text-[11px] font-semibold text-petroleo hover:bg-ambar-forte"
+              >
+                Entendi, continuar
+              </button>
+              <button
+                onClick={() => setAvisoVozAberto(false)}
+                className="rounded-full border border-areia/15 px-3 py-1.5 text-[11px] text-areia/60 hover:text-areia"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="mt-4 flex items-center gap-2">
           <input
             value={texto}
@@ -383,7 +435,7 @@ export default function VetorCockpit({ missaoAtual, contagemPendentes, contagemA
             className="flex-1 rounded-xl border border-areia/15 bg-petroleo px-4 py-2.5 text-sm text-areia placeholder:text-areia/30 focus:border-menta focus:outline-none disabled:opacity-50"
           />
           <button
-            onClick={gravando ? pararGravacao : iniciarGravacao}
+            onClick={handleCliqueMicrofone}
             disabled={enviando}
             aria-label={gravando ? "Parar gravação" : "Gravar áudio"}
             className={`flex size-10 shrink-0 items-center justify-center rounded-full border transition ${
