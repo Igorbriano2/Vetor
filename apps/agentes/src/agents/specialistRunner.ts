@@ -1630,7 +1630,7 @@ export async function executarEspecialista(
     ];
     const rascunho = await anthropic.messages.create({
       model: "claude-sonnet-4-5",
-      max_tokens: 2048,
+      max_tokens: 4096,
       system: systemPrompt,
       messages: mensagensRascunho,
     });
@@ -1659,14 +1659,25 @@ export async function executarEspecialista(
             "texto acima). Se esta etapa é só uma análise/decisão sem documento pra salvar, use entregar_resultado diretamente.",
       },
     ];
+    // max_tokens generoso (8192) — achado real (prova em produção, missão
+    // Dog King Cambé 19/08): com 2048 aqui, um documento real (calendário +
+    // KPIs + briefings de 5 ações) estourava o limite ANTES do campo
+    // `content` de entregar_documento terminar de ser gerado — o tool_use
+    // truncado saía sem `content` (ou vazio), o item era descartado
+    // silenciosamente pelo filtro `!item.content?.trim()` mais abaixo, e a
+    // etapa terminal fechava sem nenhum artifact real mesmo com o
+    // tool_choice forçado funcionando exatamente como esperado.
     const escolha = await anthropic.messages.create({
       model: "claude-sonnet-4-5",
-      max_tokens: 2048,
+      max_tokens: 8192,
       system: systemPrompt,
       messages: mensagensEscolha,
       tools: contexto.exigeDocumento ? [ENTREGAR_DOCUMENTO_TOOL] : [ENTREGAR_RESULTADO_TOOL, ENTREGAR_DOCUMENTO_TOOL],
       tool_choice: contexto.exigeDocumento ? { type: "tool", name: "entregar_documento" } : { type: "any" },
     });
+    if (escolha.stop_reason === "max_tokens") {
+      console.warn(`[specialistRunner] turno de entregar_documento truncado por max_tokens (etapa ${missionStepId}) — documento pode ter saído incompleto.`);
+    }
 
     const chamadaDocumento = escolha.content.find(
       (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === "entregar_documento",
@@ -1697,7 +1708,7 @@ export async function executarEspecialista(
       }
       response = await anthropic.messages.create({
         model: "claude-sonnet-4-5",
-        max_tokens: 2048,
+        max_tokens: 4096,
         system: systemPrompt,
         messages: [...mensagensEscolha, { role: "assistant", content: escolha.content }, { role: "user", content: resultadosPendentes }],
         tools: [ENTREGAR_RESULTADO_TOOL],
@@ -1709,7 +1720,7 @@ export async function executarEspecialista(
       // verificar) — força o fechamento normal.
       response = await anthropic.messages.create({
         model: "claude-sonnet-4-5",
-        max_tokens: 2048,
+        max_tokens: 4096,
         system: systemPrompt,
         messages: [...mensagensEscolha, { role: "assistant", content: escolha.content }],
         tools: [ENTREGAR_RESULTADO_TOOL],
@@ -1814,7 +1825,17 @@ export async function executarEspecialista(
   // chegam aqui, mas revalida no código mesmo assim (nunca confiar só no
   // schema da API de tool use).
   for (const item of artefatosBrutos) {
-    if (!(TIPOS_ARTEFATO_TEXTO as readonly string[]).includes(item.type) || !item.content?.trim()) continue;
+    if (!(TIPOS_ARTEFATO_TEXTO as readonly string[]).includes(item.type) || !item.content?.trim()) {
+      // Descarte silencioso demais no passado (etapa fechava sem artifact e
+      // sem nenhum rastro do motivo) — acontecia sobretudo quando o turno
+      // de entregar_documento truncava por max_tokens antes do campo
+      // `content` sair completo. Loga pra nunca mais precisar investigar
+      // isso só via SQL direto em produção.
+      console.warn(
+        `[specialistRunner] artefato descartado na etapa ${missionStepId}: type="${item?.type}" title="${item?.title}" content vazio/tipo inválido.`,
+      );
+      continue;
+    }
     try {
       artefatosPersistidos.push(
         await persistirArtefato({
