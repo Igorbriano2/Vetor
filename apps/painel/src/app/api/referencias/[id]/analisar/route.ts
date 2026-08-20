@@ -25,7 +25,7 @@ export async function POST(_request: NextRequest, context: { params: Promise<{ i
   }
 
   try {
-    const upstream = await fetch(`${agentesUrl}/referencias/${id}/analisar-video`, {
+    const upstream = await fetch(`${agentesUrl}/referencias/${encodeURIComponent(id)}/analisar-video`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-internal-token": internalToken },
       body: JSON.stringify({ cliente_id: usuario.cliente_id }),
