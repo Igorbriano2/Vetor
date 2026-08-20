@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import LogoutButton from "@/components/LogoutButton";
+import WorkspaceSwitcher from "./WorkspaceSwitcher";
 
 // Agrupado como departamentos de uma agência (auditoria de arquitetura) —
 // o cliente nunca precisa entender que por trás disso são agentes de IA.
@@ -97,9 +98,15 @@ function ListaNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
 export default function SidebarNav({
   orgNome,
   userNome,
+  ehAdmin = false,
+  workspaceAtivoId = null,
+  workspaces = [],
 }: {
   orgNome?: string | null;
   userNome?: string | null;
+  ehAdmin?: boolean;
+  workspaceAtivoId?: string | null;
+  workspaces?: Array<{ id: string; nome: string }>;
 }) {
   const pathname = usePathname();
   const [aberto, setAberto] = useState(false);
@@ -110,7 +117,11 @@ export default function SidebarNav({
       <aside className="panel fixed inset-y-0 left-0 z-30 hidden w-64 flex-col gap-6 overflow-y-auto p-5 lg:flex">
         <div>
           <VetorMark />
-          <p className="mono-label mt-2 truncate">{orgNome ?? "sua empresa"}</p>
+          {ehAdmin && workspaces.length > 0 ? (
+            <WorkspaceSwitcher workspaceAtivoId={workspaceAtivoId} workspaces={workspaces} />
+          ) : (
+            <p className="mono-label mt-2 truncate">{orgNome ?? "sua empresa"}</p>
+          )}
           <div className="mt-3 flex items-center gap-2">
             <span className="relative flex size-2 items-center justify-center">
               <span className="absolute inset-0 rounded-full bg-menta animate-core-pulse" />
@@ -160,7 +171,11 @@ export default function SidebarNav({
                 </svg>
               </button>
             </div>
-            <p className="mono-label -mt-4 truncate">{orgNome ?? "sua empresa"}</p>
+            {ehAdmin && workspaces.length > 0 ? (
+              <WorkspaceSwitcher workspaceAtivoId={workspaceAtivoId} workspaces={workspaces} />
+            ) : (
+              <p className="mono-label -mt-4 truncate">{orgNome ?? "sua empresa"}</p>
+            )}
             <ListaNav pathname={pathname} onNavigate={() => setAberto(false)} />
             <div className="mt-auto space-y-3">
               <div className="space-y-3 border-t border-areia/10 pt-4">

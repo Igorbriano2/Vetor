@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buscarArtefatos, buscarVideosFinalizados } from "@/lib/artifacts/fetchArtifacts";
 import { agruparPorCampanha } from "@/lib/artifacts/agruparPorCampanha";
+import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 import StatusBadge from "@/components/StatusBadge";
 import EntregasPainel from "./EntregasPainel";
 
@@ -10,10 +11,11 @@ import EntregasPainel from "./EntregasPainel";
 // à parte — não tem mission_id, não é uma "campanha" no sentido novo.
 export default async function EntregasPage() {
   const supabase = await createSupabaseServerClient();
+  const ativo = await resolverClienteAtivo(supabase);
 
   const [{ data: entregas }, artefatos, videosFinalizados] = await Promise.all([
     supabase.from("entregas").select("id, tipo, status, arquivo_url, created_at").order("created_at", { ascending: false }),
-    buscarArtefatos(supabase),
+    buscarArtefatos(supabase, { clienteId: ativo.clienteId ?? undefined }),
     buscarVideosFinalizados(supabase),
   ]);
   const todosArtefatos = [...artefatos, ...videosFinalizados];

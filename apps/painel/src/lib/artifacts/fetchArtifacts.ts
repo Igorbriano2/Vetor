@@ -21,7 +21,7 @@ export interface ArtefatoBiblioteca {
 export async function buscarArtefatos(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any, any, any>,
-  opcoes: { departamentos?: string[] } = {},
+  opcoes: { departamentos?: string[]; clienteId?: string } = {},
 ): Promise<ArtefatoBiblioteca[]> {
   let query = supabase
     .from("artifacts")
@@ -30,6 +30,12 @@ export async function buscarArtefatos(
 
   if (opcoes.departamentos?.length) {
     query = query.in("department", opcoes.departamentos);
+  }
+  // Fase 8 do reset de produto — filtro explícito, não só RLS implícito
+  // (admin_vetor passa por toda policy, sem isso a lista mistura qualquer
+  // cliente quando o workspace switcher existe, ver resolverClienteAtivo.ts).
+  if (opcoes.clienteId) {
+    query = query.eq("cliente_id", opcoes.clienteId);
   }
 
   const { data, error } = await query;

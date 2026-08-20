@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 import VetorCockpit from "@/components/VetorCockpit";
 
 const STATUS_MISSAO_TERMINAL = ["completed", "completed_with_caveats", "failed", "cancelled", "archived"];
@@ -10,24 +11,39 @@ const STATUS_MISSAO_TERMINAL = ["completed", "completed_with_caveats", "failed",
 // conteúdo central desta página muda, por instrução explícita do comando.
 export default async function DashboardPage() {
   const supabase = await createSupabaseServerClient();
+  const ativo = await resolverClienteAtivo(supabase);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  if (!ativo.clienteId) {
+    return (
+      <div className="px-6 py-10 text-center text-areia/60">
+        Seu usuário ainda não está vinculado a um cliente Vetor. Fale com o time de suporte para concluir o
+        cadastro.
+      </div>
+    );
+  }
 
-  const { data: usuario } = await supabase.from("usuarios").select("cliente_id").eq("id", user?.id ?? "").maybeSingle();
-
+  // Fase 8 do reset de produto — filtro explícito por cliente_id, não só
+  // RLS implícito: admin_vetor passa por toda policy (current_papel() =
+  // 'admin_vetor'), então sem este filtro o dashboard misturava missões de
+  // QUALQUER cliente. Com o workspace switcher (resolverClienteAtivo.ts),
+  // isso precisa refletir o workspace escolhido de verdade.
   const { data: missoes } = await supabase
     .from("missions")
     .select("id, titulo, status, created_at")
+    .eq("cliente_id", ativo.clienteId)
     .order("created_at", { ascending: false })
     .limit(20);
 
-  const { data: aprovacoesPendentes } = await supabase.from("approvals").select("id").eq("status", "pending");
+  const { data: aprovacoesPendentes } = await supabase
+    .from("approvals")
+    .select("id")
+    .eq("cliente_id", ativo.clienteId)
+    .eq("status", "pending");
 
   const { data: demandasPendentes } = await supabase
     .from("demandas")
     .select("id")
+    .eq("cliente_id", ativo.clienteId)
     .in("status", ["aguardando_aprovacao", "pendente_aprovacao"]);
 
   const missoesAtivas = (missoes ?? []).filter((m) => !STATUS_MISSAO_TERMINAL.includes(m.status));
@@ -38,15 +54,6 @@ export default async function DashboardPage() {
     null;
 
   const contagemPendentes = (aprovacoesPendentes?.length ?? 0) + (demandasPendentes?.length ?? 0);
-
-  if (!usuario) {
-    return (
-      <div className="px-6 py-10 text-center text-areia/60">
-        Seu usuário ainda não está vinculado a um cliente Vetor. Fale com o time de suporte para concluir o
-        cadastro.
-      </div>
-    );
-  }
 
   return (
     <VetorCockpit

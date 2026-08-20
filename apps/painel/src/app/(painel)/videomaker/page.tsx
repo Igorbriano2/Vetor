@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buscarArtefatos } from "@/lib/artifacts/fetchArtifacts";
+import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 import ArtifactLibrary from "@/components/ArtifactLibrary";
 import VideomakerUpload from "./VideomakerUpload";
 import { calcularProgresso, LABEL_ETAPA_REAL } from "@/lib/video/pipelineProgress";
@@ -22,15 +23,13 @@ const STATUS_LABEL: Record<string, string> = {
 // destrutiva (Parte 2) — os dois convivem, nada do fluxo antigo quebrou.
 export default async function VideomakerPage() {
   const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: usuario } = await supabase.from("usuarios").select("cliente_id").eq("id", user?.id ?? "").maybeSingle();
-  const artefatos = await buscarArtefatos(supabase, { departamentos: ["videomaker"] });
+  const ativo = await resolverClienteAtivo(supabase);
+  const artefatos = await buscarArtefatos(supabase, { departamentos: ["videomaker"], clienteId: ativo.clienteId ?? undefined });
 
   const { data: projetos } = await supabase
     .from("video_projects")
     .select("id, title, timeline_version, status, duration_ms, updated_at, mission_id, missions(titulo)")
+    .eq("cliente_id", ativo.clienteId ?? "")
     .order("updated_at", { ascending: false })
     .limit(30);
 
@@ -104,9 +103,9 @@ export default async function VideomakerPage() {
           </div>
         )}
 
-        {usuario?.cliente_id && (
+        {ativo.clienteId && (
           <div className="mt-8">
-            <VideomakerUpload clienteId={usuario.cliente_id} />
+            <VideomakerUpload clienteId={ativo.clienteId} />
           </div>
         )}
 

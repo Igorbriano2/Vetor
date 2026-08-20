@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buscarArtefatos } from "@/lib/artifacts/fetchArtifacts";
+import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 import DesignCommandCenter from "./DesignCommandCenter";
 
 // Fase 1 do reset de produto (docs/PRODUCT-RESET-AUDIT.md) — /design deixa de
@@ -10,12 +11,8 @@ import DesignCommandCenter from "./DesignCommandCenter";
 // criarMissaoDeIntencao via /api/missoes, igual ao VetorIntentCard.
 export default async function DesignPage() {
   const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data: usuario } = await supabase.from("usuarios").select("cliente_id").eq("id", user?.id ?? "").maybeSingle();
-  const clienteId = usuario?.cliente_id as string | undefined;
+  const ativo = await resolverClienteAtivo(supabase);
+  const clienteId = ativo.clienteId ?? undefined;
 
   if (!clienteId) {
     return <div className="px-6 py-10 text-sm text-coral">Seu usuário ainda não está vinculado a um cliente.</div>;
@@ -29,10 +26,11 @@ export default async function DesignPage() {
     { data: referenciasPreview },
     { data: assetsDrive },
   ] = await Promise.all([
-    buscarArtefatos(supabase, { departamentos: ["design"] }),
+    buscarArtefatos(supabase, { departamentos: ["design"], clienteId }),
     supabase
       .from("design_projects")
       .select("id, title, version, status, thumbnail_url, updated_at, mission_id, missions(titulo)")
+      .eq("cliente_id", clienteId)
       .order("updated_at", { ascending: false })
       .limit(12),
     supabase
