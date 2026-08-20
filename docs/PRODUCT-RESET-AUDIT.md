@@ -176,7 +176,9 @@ pedido do cliente
 | 2 — Galeria de Referências | **Feita** — ver detalhamento abaixo |
 | 3 — Templates como receitas de agência | **Feita** — ver detalhamento abaixo |
 | 4 — Campanhas e Geração Controlada | **Feita (escopo real, 7/8 rótulos)** — ver detalhamento abaixo |
-| 5–10 | Não iniciadas |
+| 5 — Resultado Visual Real | **Bloqueada por conta externa** — código pronto (multi-provider, seção 8), sem provider com cota disponível hoje |
+| 6 — Entregas como Área de Cliente | **Feita** — ver detalhamento abaixo |
+| 7–10 | Não iniciadas |
 
 ### Fase 1 — Design Command Center (feita, testada ao vivo em produção)
 
@@ -240,6 +242,14 @@ Implementado: `imageProvider.ts` reescrito pra rotear via `ProviderRouter` (mesm
 
 **Testado ao vivo em produção, ponta a ponta**: criada uma missão real declarando "Provider de imagem preferido: Gemini" no briefing — o log real confirma que o ProviderRouter funcionou exatamente como projetado: tentou o Gemini primeiro (recebeu `429 RESOURCE_EXHAUSTED` — erro real da API do Google, prova que a chave é válida e a chamada está formatada corretamente, só a cota gratuita do projeto está esgotada), caiu pro fallback OpenAI (falhou por falta de crédito, já conhecido), e falhou fechado entregando um briefing completo como artefato real — nunca fingiu sucesso. **Achado operacional, não de código**: os dois providers estão bloqueados por conta/cota hoje — Gemini precisa de billing habilitado no projeto `5631340003` (ou um tier pago) pra sair do limite gratuito, OpenAI precisa de recarga de crédito. O código está pronto e provado; falta decisão financeira do usuário em pelo menos um dos dois pra a Fase 5 ser testável com imagem real de novo.
 
+### Fase 6 — Entregas como Área de Cliente (feita, testada ao vivo em produção)
+
+`/entregas` reorganizado: nova `apps/painel/src/lib/artifacts/agruparPorCampanha.ts` (pura, 6 testes) agrupa os artefatos já existentes por `missionId` — cada campanha mostra capa (primeiro artefato visual real com URL, nunca inventada — "sem capa" honesto quando não há), objetivo (`missions.objetivo`), status, contagem de peças, link "ver missão", e expande em abas por departamento (Tudo/Design/Vídeo/Copy/Planejamento/Resultados). Dentro de cada campanha, artefatos visuais (image/video) sempre vêm antes de documento/copy. Artefatos sem `mission_id` (canal legado) caem numa campanha "Sem campanha" separada, nunca escondidos. Zero escrita nova — Entregas continua espelho de `artifacts`/`video_projects`, mesmo princípio de sempre.
+
+**Testado ao vivo em produção**: a campanha de teste da Fase 5 (multi-provider de imagem) apareceu corretamente agrupada, com o briefing real (fallback do Gemini+OpenAI falhando) mostrado como documento dentro da aba certa, status "Aguardando aprovação" traduzido, link "ver missão" funcionando.
+
+Build/lint de `apps/painel` passando, suíte de testes sem regressão (59/59).
+
 ---
 
-**Fase 5 segue bloqueada por conta externa (nenhum provider de imagem com cota disponível hoje) — seguindo para as Fases 6-8 e 10, que não dependem de geração de imagem real, em modo automático conforme instrução vigente da sessão.**
+**Fase 5 segue bloqueada por conta externa (nenhum provider de imagem com cota disponível hoje) — seguindo para as Fases 7, 8 e 10, que não dependem de geração de imagem real, em modo automático conforme instrução vigente da sessão.**
