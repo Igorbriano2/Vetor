@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { readApiResponse } from "@/lib/api/readApiResponse";
+import { traduzirStatusDePeca, GRUPO_STATUS_PECA } from "@/lib/campanha/pecaStatus";
 
 interface MissionStep {
   id: string;
@@ -91,14 +92,20 @@ const COR_STATUS: Record<string, string> = {
 
 export default function VetorMissionTimeline({
   missionId,
+  missaoStatus,
   etapas: etapasIniciais,
   approvals: approvalsIniciais,
   artefatos = [],
+  designProjectPorEtapa = {},
 }: {
   missionId: string;
+  // Opcional por compatibilidade — telas que não passam isso (nenhuma hoje)
+  // simplesmente não mostram o rótulo amigável de peça (Fase 4).
+  missaoStatus?: string;
   etapas: MissionStep[];
   approvals: Approval[];
   artefatos?: Artefato[];
+  designProjectPorEtapa?: Record<string, { status: string; version: number }>;
 }) {
   const [etapas, setEtapas] = useState(etapasIniciais);
   const [approvals, setApprovals] = useState(approvalsIniciais);
@@ -176,12 +183,38 @@ export default function VetorMissionTimeline({
         const aprovacao = aprovacaoPorEtapa.get(etapa.id);
         const pendente = aprovacao?.status === "pending" && !decididas.has(aprovacao.id);
         const artefatosDaEtapa = artefatosPorEtapa.get(etapa.id) ?? [];
+        const designProject = designProjectPorEtapa[etapa.id];
+        // Fase 4 do reset de produto — só design/vídeo têm o conceito de
+        // "peça" com direção/aprovação criativa; outros agentes (copy,
+        // estratégia...) continuam só com a frase técnica de sempre.
+        const statusPeca =
+          missaoStatus && (etapa.agente === "design" || etapa.agente === "video")
+            ? traduzirStatusDePeca({
+                stepStatus: etapa.status,
+                missaoStatus,
+                designProjectStatus: designProject?.status as "draft" | "awaiting_approval" | "approved" | "archived" | undefined,
+                designProjectVersion: designProject?.version,
+              })
+            : null;
 
         return (
           <div key={etapa.id} className="relative rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur">
             <span
               className={`absolute top-5 -left-[25px] size-2 rounded-full ${COR_STATUS[etapa.status] ?? "bg-areia/20"}`}
             />
+            {statusPeca && (
+              <span
+                className={`mb-1.5 inline-block rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wide ${
+                  GRUPO_STATUS_PECA[statusPeca] === "sucesso"
+                    ? "border-menta/30 bg-menta/10 text-menta"
+                    : GRUPO_STATUS_PECA[statusPeca] === "decisao"
+                      ? "border-ambar/40 bg-ambar/10 text-ambar"
+                      : "border-areia/20 bg-areia/5 text-areia/60"
+                }`}
+              >
+                {statusPeca}
+              </span>
+            )}
             <p className="text-sm text-areia">{frasePorEtapa(etapa)}</p>
 
             {artefatosDaEtapa.length > 0 && (

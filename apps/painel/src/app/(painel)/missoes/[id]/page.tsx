@@ -33,6 +33,18 @@ export default async function MissaoDetalhePage({ params }: { params: Promise<{ 
     .select("id, mission_step_id, type, title, status, storage_provider, storage_path, metadata")
     .eq("mission_id", id);
 
+  // Fase 4 do reset de produto — status amigável de peça (docs/PRODUCT-RESET-AUDIT.md)
+  // precisa saber se existe um design_project ligado à etapa e em que status
+  // (draft/approved) ele está. mission_step_id é real (migration 0021),
+  // nunca inferido.
+  const etapaIds = (etapas ?? []).map((e) => e.id as string);
+  const { data: designProjectsBrutos } = etapaIds.length
+    ? await supabase.from("design_projects").select("mission_step_id, status, version").in("mission_step_id", etapaIds)
+    : { data: [] };
+  const designProjectPorEtapa = new Map(
+    (designProjectsBrutos ?? []).map((d) => [d.mission_step_id as string, { status: d.status as string, version: d.version as number }]),
+  );
+
   // URL assinada (bucket próprio) ou URL externa direta (ex: Higgsfield) —
   // nunca expõe o bucket publicamente. Resolvido aqui (server) porque
   // storage.objects exige a policy de select scoped por cliente_id, mais
@@ -90,7 +102,14 @@ export default async function MissaoDetalhePage({ params }: { params: Promise<{ 
         <section className="mt-10">
           <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-areia/40">Andamento</h2>
           <div className="mt-3">
-            <VetorMissionTimeline missionId={missao.id} etapas={etapas ?? []} approvals={aprovacoes ?? []} artefatos={artefatos} />
+            <VetorMissionTimeline
+              missionId={missao.id}
+              missaoStatus={missao.status}
+              etapas={etapas ?? []}
+              approvals={aprovacoes ?? []}
+              artefatos={artefatos}
+              designProjectPorEtapa={Object.fromEntries(designProjectPorEtapa)}
+            />
           </div>
         </section>
 

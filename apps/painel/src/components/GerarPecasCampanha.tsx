@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { readApiResponse } from "@/lib/api/readApiResponse";
 
@@ -40,6 +40,10 @@ function ehConteudoDeVideo(tipo?: string): boolean {
   const t = tipo.toLowerCase();
   return t.includes("video") || t.includes("vídeo") || t.includes("reels") || t.includes("reel");
 }
+
+// Fase 4 do reset de produto (docs/PRODUCT-RESET-AUDIT.md) — o botão precisa
+// mostrar quantas peças serão criadas, separadas por departamento, e o que
+// será gerado agora vs. o que aguarda aprovação, ANTES de criar a missão.
 export default function GerarPecasCampanha({
   tituloPlano,
   periodo,
@@ -49,9 +53,16 @@ export default function GerarPecasCampanha({
   periodo?: string;
   calendario: CalendarioItem[];
 }) {
-  const [status, setStatus] = useState<"pendente" | "enviando" | "confirmada" | "erro">("pendente");
+  const [status, setStatus] = useState<"pendente" | "resumo" | "enviando" | "confirmada" | "erro">("pendente");
   const [erro, setErro] = useState<string | null>(null);
   const [missionId, setMissionId] = useState<string | null>(null);
+
+  const resumo = useMemo(() => {
+    const itens = [...calendario].sort((a, b) => a.data.localeCompare(b.data));
+    const design = itens.filter((i) => !ehConteudoDeVideo(i.tipo)).length;
+    const video = itens.length - design;
+    return { total: itens.length, design, video, copy: itens.length };
+  }, [calendario]);
 
   async function gerarPecas() {
     setStatus("enviando");
@@ -129,16 +140,50 @@ export default function GerarPecasCampanha({
     );
   }
 
+  if (status === "resumo" || status === "enviando" || status === "erro") {
+    return (
+      <div className="mt-4 rounded-2xl border border-ambar/30 bg-petroleo-2/60 p-4">
+        <p className="text-sm text-areia">
+          Vou criar <strong>{resumo.total}</strong> peças pra essa campanha:
+        </p>
+        <ul className="mt-2 space-y-1 text-xs text-areia/70">
+          {resumo.design > 0 && <li>• {resumo.design} briefing(s) de Design</li>}
+          {resumo.video > 0 && <li>• {resumo.video} briefing(s) de Vídeo</li>}
+          <li>• {resumo.copy} copy(s), alinhadas a cada peça visual</li>
+        </ul>
+        <p className="mt-2 text-xs text-areia/50">
+          Tudo será gerado agora (briefings, baixo custo) — nenhuma etapa precisa de aprovação nesta fase. A imagem/vídeo
+          final de cada peça continua um passo manual separado, feito no Design/Videomaker.
+        </p>
+        {erro && (
+          <p className="mt-2 text-xs text-coral">{erro}</p>
+        )}
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            onClick={gerarPecas}
+            disabled={status === "enviando"}
+            className="rounded-full bg-ambar px-4 py-2 text-xs font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
+          >
+            {status === "enviando" ? "Gerando..." : status === "erro" ? "Tentar novamente" : "Confirmar e gerar"}
+          </button>
+          {status !== "enviando" && (
+            <button onClick={() => setStatus("pendente")} className="text-xs text-areia/50 hover:text-areia">
+              cancelar
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-4">
       <button
-        onClick={gerarPecas}
-        disabled={status === "enviando"}
+        onClick={() => setStatus("resumo")}
         className="rounded-full bg-ambar px-4 py-2 text-xs font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
       >
-        {status === "enviando" ? "Gerando..." : `Gerar peças da campanha (${calendario.length})`}
+        {`Gerar peças da campanha (${calendario.length})`}
       </button>
-      {erro && <p className="mt-2 text-xs text-coral">{erro}</p>}
     </div>
   );
 }
