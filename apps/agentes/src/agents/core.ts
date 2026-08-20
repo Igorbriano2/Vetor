@@ -85,10 +85,22 @@ export async function processarComAgente(params: {
   const tools = params.tools ?? [REGISTRAR_TICKET_TOOL, TRANSFERIR_HUMANO_TOOL];
   const nomesConhecidos = new Set(["registrar_ticket", "transferir_humano"]);
 
+  // max_tokens generoso (4096) — achado real (prova em produção, 19-20/08,
+  // 7 reproduções seguidas de 100%): com 1024 aqui, a plataforma web
+  // (propor_missao, que precisa preencher titulo+objetivo+hipotese+
+  // criterio_sucesso+perguntas+etapas[], cada etapa com chave/agente/
+  // tarefa/depende_de/ferramentas) truncava ANTES do array `etapas`
+  // terminar de ser gerado. Como o schema só exige o campo presente (não
+  // não-vazio), o tool_use truncado saía com etapas:[] — o chamador então
+  // descartava a intenção inteira ("etapas vazio — ignorando intent") e o
+  // cliente nunca via a proposta de missão, mesmo o modelo tendo "decidido"
+  // corretamente propor uma. WhatsApp (registrar_ticket, respostas curtas)
+  // não é afetado por esse aumento — para turnos simples o modelo já para
+  // sozinho bem antes do teto via stop_reason "end_turn".
   const criarResposta = () =>
     anthropic.messages.create({
       model: "claude-sonnet-4-5",
-      max_tokens: 1024,
+      max_tokens: 4096,
       system: params.systemPrompt,
       messages: params.historico,
       tools,
