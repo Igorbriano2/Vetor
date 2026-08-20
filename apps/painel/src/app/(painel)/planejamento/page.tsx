@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 import GerarPecasCampanha from "@/components/GerarPecasCampanha";
+import TrafegoPainel from "../trafego/TrafegoPainel";
 
 interface CalendarioItem {
   data: string;
@@ -9,20 +11,57 @@ interface CalendarioItem {
   tipo?: string;
 }
 
-export default async function PlanejamentoPage() {
-  const supabase = await createSupabaseServerClient();
+// Fase 4 do Vetor Manager — Tráfego passou a viver aqui como segunda aba
+// (?aba=trafego), reaproveitando TrafegoPainel tal como era em /trafego
+// (agora um redirect); nenhuma lógica de campanha foi duplicada ou reescrita.
+export default async function PlanejamentoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ aba?: string }>;
+}) {
+  const { aba } = await searchParams;
+  const abaAtiva = aba === "trafego" ? "trafego" : "planejamento";
 
-  const [{ data: planos }, { data: missoes }] = await Promise.all([
-    supabase
-      .from("artifacts")
-      .select("id, title, description, mission_id, metadata, created_by_agent, created_at")
-      .eq("type", "plan")
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("missions")
-      .select("id, titulo, objetivo, hipotese, criterio_sucesso, status, created_at")
-      .order("created_at", { ascending: false }),
-  ]);
+  const supabase = await createSupabaseServerClient();
+  const ativo = await resolverClienteAtivo(supabase);
+
+  if (!ativo.clienteId) {
+    return <div className="px-6 py-10 text-sm text-coral">Seu usuário ainda não está vinculado a um cliente.</div>;
+  }
+  const clienteId = ativo.clienteId;
+
+  const [{ data: planos }, { data: missoes }, { data: campanhasTrafego }, { data: analisesTrafego }, { data: conexaoMeta }] =
+    await Promise.all([
+      supabase
+        .from("artifacts")
+        .select("id, title, description, mission_id, metadata, created_by_agent, created_at")
+        .eq("type", "plan")
+        .eq("cliente_id", clienteId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("missions")
+        .select("id, titulo, objetivo, hipotese, criterio_sucesso, status, created_at")
+        .eq("cliente_id", clienteId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("campanhas_trafego")
+        .select("id, nome, status, orcamento_centavos, metricas, updated_at")
+        .eq("cliente_id", clienteId)
+        .order("updated_at", { ascending: false }),
+      supabase
+        .from("trafego_analises")
+        .select("id, diagnostico, metricas_usadas, created_at")
+        .eq("cliente_id", clienteId)
+        .order("created_at", { ascending: false })
+        .limit(1),
+      supabase
+        .from("connections")
+        .select("status")
+        .eq("cliente_id", clienteId)
+        .eq("provider", "meta_ads")
+        .eq("status", "connected")
+        .maybeSingle(),
+    ]);
 
   const comHipotese = (missoes ?? []).filter((m) => m.hipotese);
 
@@ -32,10 +71,39 @@ export default async function PlanejamentoPage() {
         <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
         <h1 className="mt-1 text-2xl font-bold text-areia">Planejamento</h1>
         <p className="mt-2 text-sm text-areia/60">
-          Documentos de planejamento mensal (peça pelo chat: &ldquo;monte o planejamento de agosto&rdquo;) e as
-          hipóteses por trás de cada missão já proposta.
+          Documentos de planejamento mensal (peça pelo chat: &ldquo;monte o planejamento de agosto&rdquo;), as
+          hipóteses por trás de cada missão já proposta, e o Gestor de Tráfego.
         </p>
 
+        <div className="mb-2 mt-6 flex gap-2 border-b border-areia/10">
+          <Link
+            href="/planejamento"
+            className={`px-3 py-2 font-mono text-xs uppercase tracking-widest transition ${
+              abaAtiva === "planejamento" ? "border-b-2 border-menta text-menta" : "text-areia/40 hover:text-areia/70"
+            }`}
+          >
+            Planejamento
+          </Link>
+          <Link
+            href="/planejamento?aba=trafego"
+            className={`px-3 py-2 font-mono text-xs uppercase tracking-widest transition ${
+              abaAtiva === "trafego" ? "border-b-2 border-menta text-menta" : "text-areia/40 hover:text-areia/70"
+            }`}
+          >
+            Tráfego
+          </Link>
+        </div>
+
+        {abaAtiva === "trafego" ? (
+          <div className="mt-6">
+            <TrafegoPainel
+              campanhasIniciais={campanhasTrafego ?? []}
+              analiseInicial={analisesTrafego?.[0] ?? null}
+              contaConectada={!!conexaoMeta}
+            />
+          </div>
+        ) : (
+        <>
         <section className="mt-8">
           <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-areia/40">
             Planejamentos mensais
@@ -139,6 +207,8 @@ export default async function PlanejamentoPage() {
             )}
           </div>
         </section>
+        </>
+        )}
       </div>
     </div>
   );

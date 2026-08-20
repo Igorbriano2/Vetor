@@ -1,17 +1,15 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 import ReferenciasPainel from "./ReferenciasPainel";
 
 export default async function ReferenciasPage() {
   const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const ativo = await resolverClienteAtivo(supabase);
 
-  const { data: usuario } = await supabase.from("usuarios").select("cliente_id").eq("id", user?.id ?? "").maybeSingle();
-  if (!usuario?.cliente_id) {
+  if (!ativo.clienteId) {
     return <div className="px-6 py-10 text-sm text-coral">Seu usuário ainda não está vinculado a um cliente.</div>;
   }
-  const clienteId = usuario.cliente_id;
+  const clienteId = ativo.clienteId;
 
   const [{ data: itens }, { data: colecoes }, { data: itensDeColecao }, { data: assetsDrive }, { data: perfis }, { data: perfisImagem }] = await Promise.all([
     supabase
