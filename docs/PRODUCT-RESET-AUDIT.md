@@ -173,7 +173,8 @@ pedido do cliente
 |---|---|
 | 0 — Inventário e fluxo principal | **Feita** — este documento |
 | 1 — Design Command Center | **Feita** — ver detalhamento abaixo |
-| 2–10 | Não iniciadas |
+| 2 — Galeria de Referências | **Feita** — ver detalhamento abaixo |
+| 3–10 | Não iniciadas |
 
 ### Fase 1 — Design Command Center (feita, testada ao vivo em produção)
 
@@ -187,6 +188,22 @@ O wizard "Criar uma nova peça" tem os 4 passos pedidos (objetivo → formato �
 
 Build (`apps/painel`) e lint passando, suíte de testes (53/53) sem regressão.
 
+### Fase 2 — Galeria de Referências (feita, testada ao vivo em produção)
+
+`/referencias` deixou de ser um formulário-primeiro e virou galeria em duas áreas, exatamente como pedido:
+
+**A. Biblioteca curada do Vetor** — as 10 categorias exigidas pelo prompt (Post editorial, Oferta, Produto, Serviço, Depoimento, Carrossel, Story, Capa de Reel, Identidade visual, Anúncio), cada uma como tile de gradiente (composição própria do Vetor, nunca uma imagem inventada) com nome, descrição curta e "Usar como inspiração". Decisão registrada: como não existe hoje NENHUM asset visual real curado em produção (0 linhas com `cliente_id is null` em `reference_library_items` — confirmado na Fase 0), semear linhas de banco fake violaria tanto a constraint real da tabela (`reference_library_items_tem_origem`, exige `asset_id` ou `external_url` — nunca uma linha só de metadado) quanto o princípio de nunca inventar dado; os tiles resolvem exatamente o caso que o próprio prompt previu ("se não houver asset visual permitido... usar miniatura abstrata... própria do Vetor"). Itens curados REAIS (`cliente_id is null`) — se algum dia existirem — aparecem junto, como card de verdade, sem trabalho extra.
+
+**B. Minhas referências** — a lógica já provada (upload do Drive / URL externa, coleções, arquivar) preservada e reorganizada em grid, com buscas prontas (5 botões: elegante/promoção forte/premium/divertido/reel dinâmico, filtram por texto/tag) e formulário de adicionar agora colapsável em vez de sempre visível.
+
+Cada card tem thumbnail real (ou link/estado honesto quando não há), título, origem, departamento, tags, direitos de uso, e as 3 ações pedidas: **Usar como inspiração** (novo — navega pra `/design?referencia=<id>&nome=<...>` ou `/design?categoria=<nome>`, que abre o wizard da Fase 1 já com a referência/categoria pré-selecionada), **Salvar na coleção** (já existia) e **Ver análise visual** (generalizada nesta fase pra funcionar em imagem, não só vídeo).
+
+**"Ver análise visual" pra imagem — capacidade nova real**: nova tabela `reference_image_profiles` (migration `0032`, mesmo padrão RLS de `reference_video_profiles`) + `apps/agentes/src/negocio/referenceImageAnalysis.ts` (Claude vision sobre a imagem real, nunca inventado — campos composição/grid/hierarquia/paleta/ritmo/densidade/tipografia descritiva/tratamento de imagem, exatamente os pedidos pelo prompt) + rota `POST /referencias/:id/analisar-imagem`, restrita a `source_type='upload'` (nunca baixa/analisa uma URL externa — mesma regra já aplicada à análise de vídeo, "proibido scraping").
+
+**Testado ao vivo em produção, ponta a ponta**: criada uma referência real (upload do Drive, `DOG-BACON.png`, uma peça de produto real do cliente) — "Ver análise visual" rodou de verdade e devolveu leitura real e específica da imagem (ex: "Composição centrada e simétrica... enquadramento frontal, plano, com profundidade mínima", "Paleta quente dominada por amarelo saturado..."), persistida em `reference_image_profiles`. "Usar como inspiração" testado nos dois caminhos: a partir de um item real (abriu o wizard em `/design` com "Selecionada: Logo oficial Dog King" já marcado) e a partir de um tile de categoria curada (`?categoria=Oferta` — abriu o wizard com "Categoria escolhida: Oferta" e o placeholder do passo 1 ajustado).
+
+Build/lint de `apps/painel` e `apps/agentes` passando, suítes de teste sem regressão (233 + 53), advisors de segurança sem achados novos.
+
 ---
 
-**Aguardando indicação de prioridade pra Fase 2 (Galeria de Referências) — seguindo em modo automático conforme instrução vigente da sessão, salvo objeção.**
+**Seguindo para a Fase 3 (Templates como receitas de agência) em modo automático, conforme instrução vigente da sessão.**
