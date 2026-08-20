@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { readApiResponse } from "@/lib/api/readApiResponse";
 import { traduzirStatusDePeca, GRUPO_STATUS_PECA } from "@/lib/campanha/pecaStatus";
@@ -97,6 +98,7 @@ export default function VetorMissionTimeline({
   approvals: approvalsIniciais,
   artefatos = [],
   designProjectPorEtapa = {},
+  videoProjectPorEtapa = {},
 }: {
   missionId: string;
   // Opcional por compatibilidade — telas que não passam isso (nenhuma hoje)
@@ -106,6 +108,9 @@ export default function VetorMissionTimeline({
   approvals: Approval[];
   artefatos?: Artefato[];
   designProjectPorEtapa?: Record<string, { status: string; version: number }>;
+  // Fase 7 — link direto pro editor de vídeo assim que o projeto existir,
+  // nunca só depois do final_render (ver video_projects.mission_step_id).
+  videoProjectPorEtapa?: Record<string, { id: string; status: string; temRenderFinal: boolean }>;
 }) {
   const [etapas, setEtapas] = useState(etapasIniciais);
   const [approvals, setApprovals] = useState(approvalsIniciais);
@@ -184,6 +189,7 @@ export default function VetorMissionTimeline({
         const pendente = aprovacao?.status === "pending" && !decididas.has(aprovacao.id);
         const artefatosDaEtapa = artefatosPorEtapa.get(etapa.id) ?? [];
         const designProject = designProjectPorEtapa[etapa.id];
+        const videoProject = videoProjectPorEtapa[etapa.id];
         // Fase 4 do reset de produto — só design/vídeo têm o conceito de
         // "peça" com direção/aprovação criativa; outros agentes (copy,
         // estratégia...) continuam só com a frase técnica de sempre.
@@ -216,6 +222,15 @@ export default function VetorMissionTimeline({
               </span>
             )}
             <p className="text-sm text-areia">{frasePorEtapa(etapa)}</p>
+
+            {videoProject && (
+              <Link
+                href={`/videomaker/editor/${videoProject.id}`}
+                className="mt-2 inline-block rounded-lg border border-menta/30 px-3 py-1.5 font-mono text-[11px] text-menta hover:bg-menta/10"
+              >
+                {videoProject.temRenderFinal ? "Abrir editor de vídeo (render pronto)" : "Abrir editor de vídeo (em edição, render final pendente)"}
+              </Link>
+            )}
 
             {artefatosDaEtapa.length > 0 && (
               <div className="mt-3 space-y-2">

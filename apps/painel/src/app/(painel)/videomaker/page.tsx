@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buscarArtefatos } from "@/lib/artifacts/fetchArtifacts";
 import ArtifactLibrary from "@/components/ArtifactLibrary";
 import VideomakerUpload from "./VideomakerUpload";
+import { calcularProgresso, LABEL_ETAPA_REAL } from "@/lib/video/pipelineProgress";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "rascunho",
@@ -33,6 +34,19 @@ export default async function VideomakerPage() {
     .order("updated_at", { ascending: false })
     .limit(30);
 
+  // Fase 7 do reset de produto — progresso real por projeto (só os 5
+  // estágios que têm código de verdade, ver pipelineProgress.ts).
+  const projetoIds = (projetos ?? []).map((p) => p.id as string);
+  const { data: estagiosBrutos } = projetoIds.length
+    ? await supabase.from("video_pipeline_stages").select("video_project_id, stage, status").in("video_project_id", projetoIds)
+    : { data: [] };
+  const estagiosPorProjeto = new Map<string, Array<{ stage: string; status: string }>>();
+  for (const e of estagiosBrutos ?? []) {
+    const lista = estagiosPorProjeto.get(e.video_project_id as string) ?? [];
+    lista.push({ stage: e.stage as string, status: e.status as string });
+    estagiosPorProjeto.set(e.video_project_id as string, lista);
+  }
+
   return (
     <div className="px-6 py-10">
       <div className="mx-auto max-w-6xl">
@@ -57,24 +71,35 @@ export default async function VideomakerPage() {
           <div className="mt-8">
             <p className="mono-label mb-3 text-areia/50">Projetos editáveis</p>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-              {projetos.map((p) => (
-                <Link
-                  key={p.id as string}
-                  href={`/videomaker/editor/${p.id}`}
-                  className="group overflow-hidden rounded-xl border border-areia/10 bg-petroleo-2/60 p-3 transition hover:border-menta/40"
-                >
-                  <p className="truncate text-sm text-areia">{p.title as string}</p>
-                  <p className="mt-1 text-[11px] text-areia/40">
-                    v{p.timeline_version as number} · {STATUS_LABEL[p.status as string] ?? (p.status as string)} ·{" "}
-                    {(((p.duration_ms as number) ?? 0) / 1000).toFixed(1)}s
-                  </p>
-                  {p.mission_id && (
-                    <p className="mt-0.5 truncate font-mono text-[10px] text-areia/30">
-                      campanha: {(p.missions as unknown as { titulo?: string } | null)?.titulo ?? "missão"}
+              {projetos.map((p) => {
+                const progresso = calcularProgresso(estagiosPorProjeto.get(p.id as string) ?? []);
+                return (
+                  <Link
+                    key={p.id as string}
+                    href={`/videomaker/editor/${p.id}`}
+                    className="group overflow-hidden rounded-xl border border-areia/10 bg-petroleo-2/60 p-3 transition hover:border-menta/40"
+                  >
+                    <p className="truncate text-sm text-areia">{p.title as string}</p>
+                    <p className="mt-1 text-[11px] text-areia/40">
+                      v{p.timeline_version as number} · {STATUS_LABEL[p.status as string] ?? (p.status as string)} ·{" "}
+                      {(((p.duration_ms as number) ?? 0) / 1000).toFixed(1)}s
                     </p>
-                  )}
-                </Link>
-              ))}
+                    <div className="mt-2 flex items-center gap-1">
+                      {Array.from({ length: progresso.total }).map((_, i) => (
+                        <span key={i} className={`h-1 flex-1 rounded-full ${i < progresso.concluidas ? "bg-menta" : "bg-areia/15"}`} />
+                      ))}
+                    </div>
+                    <p className="mt-1 font-mono text-[10px] text-areia/30">
+                      {progresso.etapaAtual ? `Próxima: ${LABEL_ETAPA_REAL[progresso.etapaAtual]}` : "Pipeline completo"}
+                    </p>
+                    {p.mission_id && (
+                      <p className="mt-0.5 truncate font-mono text-[10px] text-areia/30">
+                        campanha: {(p.missions as unknown as { titulo?: string } | null)?.titulo ?? "missão"}
+                      </p>
+                    )}
+                  </Link>
+                );
+              })}
             </div>
           </div>
         )}

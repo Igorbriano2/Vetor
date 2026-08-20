@@ -45,6 +45,21 @@ export default async function MissaoDetalhePage({ params }: { params: Promise<{ 
     (designProjectsBrutos ?? []).map((d) => [d.mission_step_id as string, { status: d.status as string, version: d.version as number }]),
   );
 
+  // Fase 7 do reset de produto — o projeto de vídeo (editável desde a
+  // primeira etapa, não só depois do render final) precisa de um link
+  // direto assim que existir, nunca deixar o cliente preso numa frase
+  // técnica até o final_render acontecer. video_projects.mission_step_id
+  // é real (migration 0023), mesmo padrão do design_project acima.
+  const { data: videoProjectsBrutos } = etapaIds.length
+    ? await supabase.from("video_projects").select("id, mission_step_id, status, output_storage_path").in("mission_step_id", etapaIds)
+    : { data: [] };
+  const videoProjectPorEtapa = new Map(
+    (videoProjectsBrutos ?? []).map((v) => [
+      v.mission_step_id as string,
+      { id: v.id as string, status: v.status as string, temRenderFinal: !!v.output_storage_path },
+    ]),
+  );
+
   // URL assinada (bucket próprio) ou URL externa direta (ex: Higgsfield) —
   // nunca expõe o bucket publicamente. Resolvido aqui (server) porque
   // storage.objects exige a policy de select scoped por cliente_id, mais
@@ -109,6 +124,7 @@ export default async function MissaoDetalhePage({ params }: { params: Promise<{ 
               approvals={aprovacoes ?? []}
               artefatos={artefatos}
               designProjectPorEtapa={Object.fromEntries(designProjectPorEtapa)}
+              videoProjectPorEtapa={Object.fromEntries(videoProjectPorEtapa)}
             />
           </div>
         </section>
