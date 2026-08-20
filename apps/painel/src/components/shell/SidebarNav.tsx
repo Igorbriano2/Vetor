@@ -33,7 +33,13 @@ const GRUPOS_NAV: Array<{ titulo: string | null; itens: Array<{ href: string; la
       { href: "/planejamento", label: "Planejamento" },
     ],
   },
-  { titulo: "Biblioteca", itens: [{ href: "/entregas", label: "Entregas" }] },
+  {
+    titulo: "Biblioteca",
+    itens: [
+      { href: "/entregas", label: "Entregas" },
+      { href: "/referencias", label: "Referências" },
+    ],
+  },
   { titulo: "Contexto", itens: [{ href: "/configuracoes/negocio", label: "Negócio" }] },
   { titulo: "Sistema", itens: [{ href: "/conexoes", label: "Conexões" }] },
 ];
