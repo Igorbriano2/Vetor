@@ -30,7 +30,13 @@ export async function resolverUrlsDoCanvas(supabase: SupabaseClient, canvasJson:
       const { data } = await supabase.storage.from(bucket).createSignedUrl(storagePath, TTL_SEGUNDOS);
       if (!data?.signedUrl) return objeto;
 
-      return { ...objeto, src: data.signedUrl };
+      // Sem isso, o Fabric.js carrega a imagem sem o atributo crossOrigin
+      // do elemento <img>, o canvas fica "tainted" (mesmo com o Storage
+      // permitindo CORS) e qualquer toDataURL()/toBlob() depois lança
+      // SecurityError — bug real encontrado testando "Baixar PNG" ao vivo,
+      // que também já afetava silenciosamente os botões pré-existentes
+      // "Exportar PNG"/"Exportar JPG" do spike do canvas.
+      return { ...objeto, src: data.signedUrl, crossOrigin: "anonymous" };
     }),
   );
 
