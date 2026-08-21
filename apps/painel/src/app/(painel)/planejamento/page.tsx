@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 import GerarPecasCampanha from "@/components/GerarPecasCampanha";
+import CalendarioEditorial from "@/components/CalendarioEditorial";
 import TrafegoPainel from "../trafego/TrafegoPainel";
 
 interface CalendarioItem {
@@ -67,12 +68,12 @@ export default async function PlanejamentoPage({
 
   return (
     <div className="px-6 py-10">
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-6xl">
         <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
         <h1 className="mt-1 text-2xl font-bold text-areia">Planejamento</h1>
         <p className="mt-2 text-sm text-areia/60">
-          Documentos de planejamento mensal (peça pelo chat: &ldquo;monte o planejamento de agosto&rdquo;), as
-          hipóteses por trás de cada missão já proposta, e o Gestor de Tráfego.
+          Calendário editorial mensal operacional, documentos de planejamento gerados pelo Vetor, as hipóteses por
+          trás de cada missão já proposta, e o Gestor de Tráfego.
         </p>
 
         <div className="mb-2 mt-6 flex gap-2 border-b border-areia/10">
@@ -106,7 +107,16 @@ export default async function PlanejamentoPage({
         <>
         <section className="mt-8">
           <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-areia/40">
-            Planejamentos mensais
+            Calendário editorial
+          </h2>
+          <div className="mt-3">
+            <CalendarioEditorial clienteId={clienteId} />
+          </div>
+        </section>
+
+        <section className="mt-8">
+          <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-areia/40">
+            Documentos de planejamento
           </h2>
           <div className="mt-3 space-y-4">
             {planos?.length ? (
@@ -123,46 +133,14 @@ export default async function PlanejamentoPage({
                     </div>
                     {meta.content && <p className="mt-2 whitespace-pre-wrap text-sm text-areia/70">{meta.content}</p>}
 
-                    {calendario.length > 0 && (
-                      <div className="mt-4">
-                        <p className="mono-label">Calendário editorial</p>
-                        {/* Fase 5 do Vetor Manager UX (docs/VETOR-MANAGER-UX-AUDIT.md) —
-                            grid de cards por dia em vez de lista plana de texto;
-                            mesmo dado (calendario), só apresentação. */}
-                        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                          {calendario
-                            .slice()
-                            .sort((a, b) => a.data.localeCompare(b.data))
-                            .map((item, i) => {
-                              const dataObj = new Date(`${item.data}T00:00:00`);
-                              const diaValido = !Number.isNaN(dataObj.getTime());
-                              return (
-                                <div key={i} className="rounded-xl border border-areia/10 bg-petroleo/50 p-3">
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div>
-                                      <p className="font-mono text-lg font-bold leading-none text-areia">
-                                        {diaValido ? dataObj.getDate() : "—"}
-                                      </p>
-                                      <p className="font-mono text-[10px] uppercase tracking-wide text-areia/40">
-                                        {diaValido ? dataObj.toLocaleDateString("pt-BR", { weekday: "short", month: "short" }) : item.data}
-                                      </p>
-                                    </div>
-                                    {item.tipo && (
-                                      <span className="rounded-full border border-areia/15 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-areia/50">
-                                        {item.tipo}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="mt-2 text-xs text-areia/80">{item.titulo}</p>
-                                  {item.canal && (
-                                    <p className="mt-1.5 font-mono text-[10px] uppercase tracking-wide text-menta">{item.canal}</p>
-                                  )}
-                                </div>
-                              );
-                            })}
-                        </div>
-                      </div>
-                    )}
+                    {/* Fase 5 do VETOR Manager V2 — o grid de dias que existia
+                        aqui (extraído deste jsonb solto) foi substituído pelo
+                        Calendário editorial real acima, com dado consultável
+                        de verdade (calendario_itens). Este documento continua
+                        existindo como o relatório textual que o Vetor gerou,
+                        e "gerar peças" abaixo ainda funciona sobre o mesmo
+                        array — não reescrevi esse fluxo, só a apresentação
+                        duplicada. */}
 
                     {calendario.length > 0 && (
                       <GerarPecasCampanha tituloPlano={p.title} periodo={meta.periodo} calendario={calendario} />
