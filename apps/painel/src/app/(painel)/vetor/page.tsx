@@ -64,12 +64,61 @@ export default async function DashboardPage() {
     await buscarArtefatos(supabase, { departamentos: ["design", "videomaker"], clienteId: ativo.clienteId })
   ).slice(0, 4);
 
+  // Fase 1 do VETOR Manager V2 (docs/IMPLEMENTATION-AUDIT-V2.md) — dado real
+  // pros painéis de telemetria do cockpit fullscreen. Nunca um percentual
+  // inventado: cada painel só mostra o que existe de verdade, ou um estado
+  // "aguardando"/"indisponível" honesto quando o dado não existe ainda.
+  const [{ data: conexoes }, { data: brandKitAtual }, { count: contagemReferencias }, { data: artefatosRecentes }] =
+    await Promise.all([
+      supabase.from("connections").select("provider, status").eq("cliente_id", ativo.clienteId),
+      supabase.from("brand_kits").select("id").eq("cliente_id", ativo.clienteId).eq("is_atual", true).maybeSingle(),
+      supabase
+        .from("reference_library_items")
+        .select("id", { count: "exact", head: true })
+        .eq("cliente_id", ativo.clienteId)
+        .eq("status", "ativo"),
+      // Últimos 7 dias de artifacts — sparkline real de atividade
+      // (ANALYTICS), nunca uma série de números fabricada.
+      supabase
+        .from("artifacts")
+        .select("created_at")
+        .eq("cliente_id", ativo.clienteId)
+        .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
+    ]);
+
+  const statusPorProvider = new Map((conexoes ?? []).map((c) => [c.provider as string, c.status as string]));
+
+  // Agrupa created_at real em 7 baldes diários (hoje - 6 até hoje) — nunca
+  // preenche um dia sem artefato com um valor fabricado, só com 0 real.
+  const atividadeDiaria: number[] = Array.from({ length: 7 }, () => 0);
+  const hojeUTC = new Date();
+  hojeUTC.setUTCHours(0, 0, 0, 0);
+  for (const a of artefatosRecentes ?? []) {
+    const data = new Date(a.created_at as string);
+    data.setUTCHours(0, 0, 0, 0);
+    const diffDias = Math.round((hojeUTC.getTime() - data.getTime()) / (24 * 60 * 60 * 1000));
+    const indice = 6 - diffDias;
+    if (indice >= 0 && indice < 7) atividadeDiaria[indice]!++;
+  }
+
   return (
     <VetorCockpit
       missaoAtual={missaoAtual ? { id: missaoAtual.id, titulo: missaoAtual.titulo, status: missaoAtual.status } : null}
       contagemPendentes={contagemPendentes}
       contagemAtivas={missoesAtivas.length}
       criacoesRecentes={criacoesRecentes}
+      contextoNegocio={{
+        workspaceNome: ativo.clienteNome,
+        temBrandKit: !!brandKitAtual,
+        contagemReferencias: contagemReferencias ?? 0,
+      }}
+      conexoes={{
+        supabase: true,
+        metaAds: statusPorProvider.get("meta_ads") === "connected",
+        instagram: statusPorProvider.get("instagram") === "connected",
+        whatsapp: statusPorProvider.get("whatsapp") === "connected",
+      }}
+      atividadeDiaria={atividadeDiaria}
       // A pedido explícito do dono do produto: a saudação toca toda vez que
       // o usuário entra ou atualiza a página, não só na primeira vez — ver
       // apps/agentes/src/routes/perfil.ts (não é mais idempotente por

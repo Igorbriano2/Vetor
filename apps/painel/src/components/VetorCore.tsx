@@ -25,7 +25,7 @@ const COR_ESTADO: Record<EstadoCore, string> = {
   error: "var(--color-coral)",
 };
 
-const LABEL_ESTADO: Record<EstadoCore, string> = {
+export const LABEL_ESTADO: Record<EstadoCore, string> = {
   idle: "EM ESPERA",
   welcoming: "SAUDANDO",
   listening: "OUVINDO",
