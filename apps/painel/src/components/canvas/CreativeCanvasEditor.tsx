@@ -18,6 +18,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import VetorFlowNode from "./VetorFlowNode";
+import { ICONE_TIPO } from "./nodeIcons";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { criarNode, RÓTULO_TIPO, COR_TIPO, type GraphJson, type TipoNode, type VetorNodeData } from "@/lib/canvas/types";
 
@@ -410,19 +411,6 @@ export default function CreativeCanvasEditor({ projectId, clienteId, tituloInici
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1.5 border-b border-areia/10 px-4 py-2">
-        {TIPOS_TOOLBAR.map((tipo) => (
-          <button
-            key={tipo}
-            onClick={() => adicionarNode(tipo)}
-            className="rounded-full border px-2.5 py-1 text-[11px] transition hover:opacity-80"
-            style={{ borderColor: `color-mix(in oklab, ${COR_TIPO[tipo]} 35%, transparent)`, color: COR_TIPO[tipo] }}
-          >
-            + {RÓTULO_TIPO[tipo]}
-          </button>
-        ))}
-      </div>
-
       <div className="relative flex flex-1">
         <div className="flex-1">
           <ReactFlow
@@ -442,6 +430,33 @@ export default function CreativeCanvasEditor({ projectId, clienteId, tituloInici
             <Controls />
             <MiniMap pannable zoomable style={{ background: "var(--color-petroleo-2)" }} />
           </ReactFlow>
+
+          {/* Design V2 (auditoria Gravyx) — barra flutuante de adicionar node,
+              posição e formato de cápsula inspirados no toolbar deles, mas com
+              rótulo de texto (não só ícone): os 12 tipos do Vetor são
+              conceitos específicos do pipeline de criação, não genéricos
+              como os deles — ícone sozinho ficaria ambíguo aqui. */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-4">
+            <div className="pointer-events-auto flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-areia/10 bg-petroleo-2/90 px-2 py-1.5 shadow-2xl backdrop-blur-xl">
+              {TIPOS_TOOLBAR.map((tipo) => (
+                <button
+                  key={tipo}
+                  onClick={() => adicionarNode(tipo)}
+                  title={`Adicionar ${RÓTULO_TIPO[tipo]}`}
+                  className="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] transition hover:bg-areia/5"
+                  style={{ color: COR_TIPO[tipo] }}
+                >
+                  <span
+                    className="flex size-5 shrink-0 items-center justify-center rounded-md"
+                    style={{ background: `color-mix(in oklab, ${COR_TIPO[tipo]} 18%, transparent)` }}
+                  >
+                    <span className="size-3">{ICONE_TIPO[tipo]}</span>
+                  </span>
+                  <span className="hidden sm:inline">{RÓTULO_TIPO[tipo]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {nodeSelecionado && (
