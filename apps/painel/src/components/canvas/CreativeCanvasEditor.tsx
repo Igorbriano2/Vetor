@@ -43,19 +43,22 @@ const DEBOUNCE_AUTOSAVE_MS = 800;
 
 interface Props {
   projectId: string;
+  clienteId: string;
   tituloInicial: string;
   graphInicial: GraphJson;
 }
 
 type NodeV = Node<VetorNodeData>;
 
-export default function CreativeCanvasEditor({ projectId, tituloInicial, graphInicial }: Props) {
+export default function CreativeCanvasEditor({ projectId, clienteId, tituloInicial, graphInicial }: Props) {
   const [nodes, setNodesState] = useState<NodeV[]>(graphInicial.nodes as unknown as NodeV[]);
   const [edges, setEdgesState] = useState<Edge[]>(graphInicial.edges as unknown as Edge[]);
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [ultimoSalvamento, setUltimoSalvamento] = useState<string | null>(null);
   const [titulo, setTitulo] = useState(tituloInicial);
+  const [salvandoReceita, setSalvandoReceita] = useState(false);
+  const [receitaSalva, setReceitaSalva] = useState(false);
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const historicoRef = useRef<GraphJson[]>([{ nodes: graphInicial.nodes, edges: graphInicial.edges }]);
@@ -340,6 +343,41 @@ export default function CreativeCanvasEditor({ projectId, tituloInicial, graphIn
     await supabase.from("creative_canvas_projects").update({ title: titulo }).eq("id", projectId);
   }
 
+  // Design V2 (auditoria Gravyx) — Gravyx deixa qualquer projeto de canvas
+  // virar um "template" reutilizável com um clique; o Vetor já tinha o
+  // equivalente pro cliente (design_flows, usado em /templates), mas só era
+  // alimentado pelo formulário manual — nunca a partir de um canvas
+  // desenhado de verdade. Reaproveita a tabela e o fluxo já existentes
+  // (nenhuma tabela nova, nenhum caminho de geração paralelo): salva o
+  // resumo dos nodes como `tarefa_template` em texto natural — quando
+  // aplicado depois em /templates, cai no mesmo caminho de sempre
+  // (prefill no chat), nunca recria o grafo.
+  function montarResumoDoCanvas(): string {
+    const partes = nodes
+      .filter((n) => n.data.titulo.trim() || n.data.descricao.trim())
+      .map((n) => `${RÓTULO_TIPO[n.data.tipo]}: ${[n.data.titulo, n.data.descricao].filter(Boolean).join(" — ")}`);
+    return partes.length > 0 ? `Fluxo criado no Creative Canvas "${titulo}":\n${partes.join("\n")}` : "";
+  }
+
+  async function salvarComoReceita() {
+    const tarefaTemplate = montarResumoDoCanvas();
+    if (!tarefaTemplate) return;
+    setSalvandoReceita(true);
+    const { error } = await supabase.from("design_flows").insert({
+      cliente_id: clienteId,
+      nome: titulo,
+      descricao: "Receita salva a partir de um fluxo do Creative Canvas.",
+      department: "design",
+      tarefa_template: tarefaTemplate,
+      tags: ["creative-canvas"],
+    });
+    setSalvandoReceita(false);
+    if (!error) {
+      setReceitaSalva(true);
+      setTimeout(() => setReceitaSalva(false), 3000);
+    }
+  }
+
   return (
     <div className="flex h-[calc(100vh-2.5rem)] flex-col">
       <div className="flex items-center justify-between gap-3 border-b border-areia/10 px-4 py-2.5">
@@ -361,6 +399,13 @@ export default function CreativeCanvasEditor({ projectId, tituloInicial, graphIn
           </button>
           <button onClick={refazer} className="rounded-lg border border-areia/15 px-2.5 py-1 text-xs text-areia/60 hover:text-areia">
             Refazer
+          </button>
+          <button
+            onClick={salvarComoReceita}
+            disabled={salvandoReceita || nodes.length === 0}
+            className="rounded-lg border border-menta/30 px-2.5 py-1 text-xs text-menta hover:bg-menta/10 disabled:opacity-40"
+          >
+            {receitaSalva ? "Receita salva ✓" : salvandoReceita ? "Salvando..." : "Salvar como receita"}
           </button>
         </div>
       </div>

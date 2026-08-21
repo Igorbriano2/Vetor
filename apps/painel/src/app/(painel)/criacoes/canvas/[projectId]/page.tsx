@@ -9,7 +9,7 @@ export default async function CreativeCanvasProjectPage({ params }: { params: Pr
 
   const { data: projeto } = await supabase
     .from("creative_canvas_projects")
-    .select("id, title, graph_json")
+    .select("id, cliente_id, title, graph_json")
     .eq("id", projectId)
     .maybeSingle();
 
@@ -17,5 +17,12 @@ export default async function CreativeCanvasProjectPage({ params }: { params: Pr
 
   const graph = (projeto.graph_json as GraphJson | null) ?? grafoVazio();
 
-  return <CreativeCanvasEditor projectId={projeto.id as string} tituloInicial={projeto.title as string} graphInicial={graph} />;
+  return (
+    <CreativeCanvasEditor
+      projectId={projeto.id as string}
+      clienteId={projeto.cliente_id as string}
+      tituloInicial={projeto.title as string}
+      graphInicial={graph}
+    />
+  );
 }
