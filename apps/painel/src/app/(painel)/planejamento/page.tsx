@@ -126,17 +126,40 @@ export default async function PlanejamentoPage({
                     {calendario.length > 0 && (
                       <div className="mt-4">
                         <p className="mono-label">Calendário editorial</p>
-                        <div className="mt-2 space-y-1.5">
+                        {/* Fase 5 do Vetor Manager UX (docs/VETOR-MANAGER-UX-AUDIT.md) —
+                            grid de cards por dia em vez de lista plana de texto;
+                            mesmo dado (calendario), só apresentação. */}
+                        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                           {calendario
                             .slice()
                             .sort((a, b) => a.data.localeCompare(b.data))
-                            .map((item, i) => (
-                              <div key={i} className="flex items-center gap-3 rounded-lg border border-areia/10 bg-petroleo/50 px-3 py-2 text-xs">
-                                <span className="font-mono text-areia/40">{item.data}</span>
-                                <span className="flex-1 text-areia/80">{item.titulo}</span>
-                                {item.canal && <span className="text-areia/40">{item.canal}</span>}
-                              </div>
-                            ))}
+                            .map((item, i) => {
+                              const dataObj = new Date(`${item.data}T00:00:00`);
+                              const diaValido = !Number.isNaN(dataObj.getTime());
+                              return (
+                                <div key={i} className="rounded-xl border border-areia/10 bg-petroleo/50 p-3">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                      <p className="font-mono text-lg font-bold leading-none text-areia">
+                                        {diaValido ? dataObj.getDate() : "—"}
+                                      </p>
+                                      <p className="font-mono text-[10px] uppercase tracking-wide text-areia/40">
+                                        {diaValido ? dataObj.toLocaleDateString("pt-BR", { weekday: "short", month: "short" }) : item.data}
+                                      </p>
+                                    </div>
+                                    {item.tipo && (
+                                      <span className="rounded-full border border-areia/15 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-areia/50">
+                                        {item.tipo}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="mt-2 text-xs text-areia/80">{item.titulo}</p>
+                                  {item.canal && (
+                                    <p className="mt-1.5 font-mono text-[10px] uppercase tracking-wide text-menta">{item.canal}</p>
+                                  )}
+                                </div>
+                              );
+                            })}
                         </div>
                       </div>
                     )}
