@@ -32,6 +32,9 @@ export default function VetorFlowNode({ data, selected }: NodeProps & { data: Ve
         <span className="mono-label" style={{ color: cor }}>
           {RÓTULO_TIPO[data.tipo]}
         </span>
+        {data.tipo === "resultado" && data.resultado && !data.resultado.mock && data.resultado.variacoes.length > 1 && (
+          <span className="text-[10px] text-areia/40">{data.resultado.variacoes.length} variações</span>
+        )}
         {data.tipo === "resultado" && data.resultado && !data.resultado.mock && (data.resultado.custoCentavos ?? 0) > 0 && (
           <span className="text-[10px] text-ambar/70">R$ {(data.resultado.custoCentavos! / 100).toFixed(2)}</span>
         )}

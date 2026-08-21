@@ -21,6 +21,19 @@ export type TipoNode =
 
 export type EstadoNode = "idle" | "processando" | "pronto" | "erro" | "aguardando_aprovacao" | "aprovado";
 
+// Design V2 Fase 3 — uma missão pode gerar mais de um design_project (o
+// cliente pediu variações no texto, ex: "me dá 2 opções") — o node de
+// Resultado precisa mostrar TODAS, nunca só a mais recente, cada uma com
+// sua própria ação (abrir/aprovar). Sem tabela nova: design_projects já
+// suporta N linhas por mission_id.
+export interface VariacaoResultado {
+  designProjectId: string;
+  thumbnailUrl: string | null;
+  aspectRatio: string | null;
+  resolucao: string | null;
+  status: string;
+}
+
 export interface ResultadoNodeInfo {
   // Fase 3: sempre null/mock — nunca uma URL de imagem fictícia (spec:
   // "Se não houver imagem, mostrar placeholder de processamento; nunca uma
@@ -38,6 +51,10 @@ export interface ResultadoNodeInfo {
   // aprovação manual que o chat já usa).
   missionId: string | null;
   mock: boolean;
+  // Design V2 Fase 3 — todas as saídas reais da missão (pode ter 1 ou N).
+  // Sempre populado junto de thumbnailUrl/designProjectId (que continuam
+  // sendo "a primeira/mais recente", pro card compacto do canvas).
+  variacoes: VariacaoResultado[];
 }
 
 export interface VetorNodeData {
@@ -70,13 +87,13 @@ export interface GraphJson {
 
 export const RÓTULO_TIPO: Record<TipoNode, string> = {
   briefing: "Briefing",
-  arquivo: "Arquivo/Mídia",
+  arquivo: "Mídia/Upload",
   referencia: "Referência",
   brandkit: "BrandKit",
   prompt_visual: "Prompt visual",
   direcao_arte: "Direção de arte",
   provider: "Provider/Modelo",
-  resultado: "Resultado",
+  resultado: "Variações/Resultados",
   scene_graph: "Scene Graph",
   critica: "Crítica",
   aprovacao: "Aprovação",
@@ -122,7 +139,7 @@ export function criarNode(tipo: TipoNode, posicao: { x: number; y: number }): Gr
       estado: "idle",
       erro: null,
       ...(tipo === "resultado"
-        ? { resultado: { thumbnailUrl: null, aspectRatio: null, resolucao: null, provider: null, custoCentavos: null, designProjectId: null, missionId: null, mock: true } }
+        ? { resultado: { thumbnailUrl: null, aspectRatio: null, resolucao: null, provider: null, custoCentavos: null, designProjectId: null, missionId: null, mock: true, variacoes: [] } }
         : {}),
     },
   };

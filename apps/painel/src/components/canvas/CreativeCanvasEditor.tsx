@@ -200,6 +200,7 @@ export default function CreativeCanvasEditor({ projectId, tituloInicial, graphIn
             designProjectId: null,
             missionId: null,
             mock: true,
+            variacoes: [],
           },
         });
       } else {
@@ -271,6 +272,7 @@ export default function CreativeCanvasEditor({ projectId, tituloInicial, graphIn
           designProjectId: null,
           missionId: dataMissao.missionId,
           mock: false,
+          variacoes: [],
         },
       });
     } catch (err) {
@@ -286,30 +288,41 @@ export default function CreativeCanvasEditor({ projectId, tituloInicial, graphIn
     const missionId = node?.data.resultado?.missionId;
     if (!missionId) return;
 
-    const { data: projeto } = await supabase
+    // Design V2 Fase 3 — busca TODOS os design_projects da missão, não só
+    // o mais recente: uma missão pode ter mais de uma variação real (o
+    // cliente pediu mais de uma opção no texto do briefing).
+    const { data: projetos } = await supabase
       .from("design_projects")
       .select("id, status, width, height, thumbnail_url")
       .eq("mission_id", missionId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .order("created_at", { ascending: false });
 
-    if (!projeto) return;
+    if (!projetos || projetos.length === 0) return;
 
     const { data: custos } = await supabase.from("agent_runs").select("custo_estimado_centavos").eq("mission_id", missionId);
     const custoTotal = (custos ?? []).reduce((soma, c) => soma + (c.custo_estimado_centavos as number | null ?? 0), 0);
 
+    const variacoes = projetos.map((p) => ({
+      designProjectId: p.id as string,
+      thumbnailUrl: (p.thumbnail_url as string | null) ?? null,
+      aspectRatio: p.width && p.height ? `${p.width}:${p.height}` : null,
+      resolucao: p.width && p.height ? `${p.width}×${p.height}` : null,
+      status: p.status as string,
+    }));
+    const principal = projetos[0];
+
     atualizarDadosNode(resultadoId, {
-      estado: projeto.status === "approved" ? "aprovado" : "pronto",
+      estado: variacoes.every((v) => v.status === "approved") ? "aprovado" : "pronto",
       resultado: {
-        thumbnailUrl: (projeto.thumbnail_url as string | null) ?? null,
-        aspectRatio: projeto.width && projeto.height ? `${projeto.width}:${projeto.height}` : null,
-        resolucao: projeto.width && projeto.height ? `${projeto.width}×${projeto.height}` : null,
+        thumbnailUrl: (principal.thumbnail_url as string | null) ?? null,
+        aspectRatio: principal.width && principal.height ? `${principal.width}:${principal.height}` : null,
+        resolucao: principal.width && principal.height ? `${principal.width}×${principal.height}` : null,
         provider: null,
         custoCentavos: custoTotal,
-        designProjectId: projeto.id as string,
+        designProjectId: principal.id as string,
         missionId,
         mock: false,
+        variacoes,
       },
     });
   }
@@ -435,6 +448,7 @@ export default function CreativeCanvasEditor({ projectId, tituloInicial, graphIn
                 >
                   {nodeSelecionado.data.estado === "processando" ? "Enviando ao Vetor..." : "Gerar peça real"}
                 </button>
+
                 {nodeSelecionado.data.resultado?.missionId && (
                   <div className="flex items-center justify-between gap-2">
                     <Link href={`/missoes/${nodeSelecionado.data.resultado.missionId}`} className="text-[11px] text-menta hover:underline">
@@ -444,6 +458,54 @@ export default function CreativeCanvasEditor({ projectId, tituloInicial, graphIn
                       Atualizar
                     </button>
                   </div>
+                )}
+
+                {/* Design V2 Fase 3 — grid de saídas reais (uma missão pode ter
+                    N variações). Nunca mostra card vazio como se fosse uma
+                    saída pronta: "Aguardando geração" explica o motivo real. */}
+                {nodeSelecionado.data.resultado && !nodeSelecionado.data.resultado.mock && nodeSelecionado.data.resultado.variacoes.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    {nodeSelecionado.data.resultado.variacoes.map((v, i) => (
+                      <div key={v.designProjectId} className="overflow-hidden rounded-lg border border-areia/10 bg-petroleo/60">
+                        <div className="flex aspect-square items-center justify-center bg-petroleo overflow-hidden">
+                          {v.thumbnailUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={v.thumbnailUrl} alt={`Variação ${i + 1}`} className="size-full object-cover" />
+                          ) : (
+                            <span className="text-[10px] text-areia/30">sem preview</span>
+                          )}
+                        </div>
+                        <div className="space-y-0.5 p-1.5">
+                          <p className="text-[10px] text-areia/40">
+                            {v.resolucao ?? "resolução indefinida"} {v.aspectRatio ? `· ${v.aspectRatio}` : ""}
+                          </p>
+                          <p className={`text-[10px] ${v.status === "approved" ? "text-menta" : "text-areia/50"}`}>
+                            {v.status === "approved" ? "aprovado" : v.status}
+                          </p>
+                          <div className="flex items-center justify-between pt-0.5">
+                            <Link href={`/design/editor/${v.designProjectId}`} className="text-[10px] text-menta hover:underline">
+                              abrir no editor
+                            </Link>
+                            {v.status !== "approved" && (
+                              <Link href={`/missoes/${nodeSelecionado.data.resultado?.missionId}`} className="text-[10px] text-ambar hover:underline">
+                                aprovar
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : nodeSelecionado.data.resultado && !nodeSelecionado.data.resultado.mock ? (
+                  <p className="rounded-lg bg-petroleo-3/40 p-2 text-[11px] text-areia/40">
+                    Aguardando geração — {nodeSelecionado.data.estado === "erro" ? "a geração falhou, veja abaixo" : "esperando a etapa de Design da missão ser aprovada e concluída"}.
+                  </p>
+                ) : null}
+
+                {nodeSelecionado.data.estado === "erro" && nodeSelecionado.data.resultado?.missionId && (
+                  <Link href={`/missoes/${nodeSelecionado.data.resultado.missionId}`} className="text-[11px] text-coral hover:underline">
+                    Tentar de novo na missão →
+                  </Link>
                 )}
               </div>
             )}
