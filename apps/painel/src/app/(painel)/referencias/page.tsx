@@ -39,14 +39,14 @@ export default async function ReferenciasPage() {
     // no card em vez de só o botão "analisar" de novo a cada visita.
     supabase
       .from("reference_video_profiles")
-      .select("reference_library_item_id, pacing, hook_structure, color_profile, composition_notes, cut_density_per_minute, music_energy")
+      .select("reference_library_item_id, pacing, hook_structure, color_profile, composition_notes, cut_density_per_minute, music_energy, resumo_simples")
       .eq("cliente_id", clienteId)
       .not("reference_library_item_id", "is", null),
     // Fase 2 do reset de produto — perfil visual de imagem, mesmo padrão do
     // de vídeo acima (ver migration 0032).
     supabase
       .from("reference_image_profiles")
-      .select("reference_library_item_id, composicao, grid, hierarquia, paleta, ritmo_visual, densidade, tipografia_descricao, tratamento_imagem")
+      .select("reference_library_item_id, composicao, grid, hierarquia, paleta, ritmo_visual, densidade, tipografia_descricao, tratamento_imagem, resumo_simples")
       .eq("cliente_id", clienteId)
       .not("reference_library_item_id", "is", null),
   ]);
@@ -105,6 +105,7 @@ export default async function ReferenciasPage() {
                 compositionNotes: p.composition_notes as string,
                 cutDensityPerMinute: p.cut_density_per_minute as number,
                 musicEnergy: p.music_energy as string,
+                resumoSimples: p.resumo_simples as string | null,
               };
             })(),
             perfilVisual: (() => {
@@ -119,6 +120,7 @@ export default async function ReferenciasPage() {
                 densidade: p.densidade as string,
                 tipografiaDescricao: p.tipografia_descricao as string,
                 tratamentoImagem: p.tratamento_imagem as string,
+                resumoSimples: p.resumo_simples as string | null,
               };
             })(),
           }))}

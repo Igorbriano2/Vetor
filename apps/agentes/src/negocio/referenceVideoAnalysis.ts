@@ -68,6 +68,11 @@ export interface PerfilVisual {
   captionStyle: { position: "top" | "center" | "bottom" | "none"; detected: boolean };
   colorProfile: string;
   compositionNotes: string;
+  // Fase 3 do Vetor Manager UX — mesma chamada, campo a mais: uma frase
+  // curta em linguagem de cliente, considerando também o ritmo/energia
+  // musical já calculados mecanicamente (passados no prompt, ver
+  // avaliarVisualDoVideo) — nunca uma heurística de texto depois do fato.
+  resumoSimples: string;
 }
 
 const AVALIAR_ESTILO_TOOL: Anthropic.Tool = {
@@ -90,8 +95,13 @@ const AVALIAR_ESTILO_TOOL: Anthropic.Tool = {
       },
       colorProfile: { type: "string", description: "Descrição objetiva da paleta/tratamento de cor observado (tons, saturação, contraste)." },
       compositionNotes: { type: "string", description: "Observações de enquadramento/composição (plano, ângulo, uso do quadro) baseadas nos frames." },
+      resumoSimples: {
+        type: "string",
+        description:
+          "Uma frase curta (máx. 20 palavras), em português simples pra um pequeno empresário sem vocabulário de vídeo entender — considere também o ritmo e a energia musical informados no texto acima. Nunca jargão técnico nesta frase.",
+      },
     },
-    required: ["hookStructure", "captionStyle", "colorProfile", "compositionNotes"],
+    required: ["hookStructure", "captionStyle", "colorProfile", "compositionNotes", "resumoSimples"],
   },
 };
 
@@ -105,7 +115,10 @@ específico, como uma nota técnica pra outro editor de vídeo replicar o estilo
 // (mesma postura fail-closed do DesignCritic, adaptada: lá "falha = reprovado",
 // aqui "falha = sem perfil", porque não existe fallback honesto pra uma
 // leitura visual que não aconteceu).
-export async function avaliarVisualDoVideo(frames: Array<{ atMs: number; dataUrl: string }>): Promise<PerfilVisual> {
+export async function avaliarVisualDoVideo(
+  frames: Array<{ atMs: number; dataUrl: string }>,
+  sinalMecanico?: { pacing: "slow" | "medium" | "fast"; musicEnergy: "low" | "medium" | "high" },
+): Promise<PerfilVisual> {
   if (frames.length === 0) {
     throw new Error("Nenhum frame de amostra disponível pra análise visual.");
   }
@@ -131,7 +144,12 @@ export async function avaliarVisualDoVideo(frames: Array<{ atMs: number; dataUrl
           ...blocosDeImagem,
           {
             type: "text",
-            text: `Os ${frames.length} frames acima foram extraídos nos instantes (ms, em ordem): ${frames.map((f) => f.atMs).join(", ")}. Avalie e registre com a ferramenta avaliar_estilo_visual.`,
+            text:
+              `Os ${frames.length} frames acima foram extraídos nos instantes (ms, em ordem): ${frames.map((f) => f.atMs).join(", ")}.` +
+              (sinalMecanico
+                ? ` Dado técnico já calculado (use isso pra escrever resumoSimples, não repita como se tivesse visto): ritmo de corte ${sinalMecanico.pacing}, energia musical ${sinalMecanico.musicEnergy}.`
+                : "") +
+              " Avalie e registre com a ferramenta avaliar_estilo_visual.",
           },
         ],
       },
@@ -164,6 +182,7 @@ export interface ReferenceVideoProfileCriado {
   soundEffectsUsed: string[];
   colorProfile: string;
   compositionNotes: string;
+  resumoSimples: string;
 }
 
 // Orquestra a análise completa de um asset de vídeo já enviado pelo
@@ -192,7 +211,7 @@ export async function gerarPerfilDeVideoDeReferencia(params: {
   const metricas = calcularMetricasDeCorte(sinal.cutsMs, sinal.durationMs);
   const aspectRatio = calcularAspectRatio(sinal.width, sinal.height);
   const musicEnergy = classificarEnergiaMusical(sinal.meanVolumeDb);
-  const visual = await avaliarVisualDoVideo(sinal.frames);
+  const visual = await avaliarVisualDoVideo(sinal.frames, { pacing: metricas.pacing, musicEnergy });
 
   // Só "cut" é reportado — a técnica de scene-detect (ver apps/render)
   // nunca diferencia fade/wipe/dissolve, então nunca inventa esses tipos
@@ -220,6 +239,7 @@ export async function gerarPerfilDeVideoDeReferencia(params: {
       sound_effects_used: [],
       color_profile: visual.colorProfile,
       composition_notes: visual.compositionNotes,
+      resumo_simples: visual.resumoSimples,
     })
     .select("id")
     .single();
@@ -242,5 +262,6 @@ export async function gerarPerfilDeVideoDeReferencia(params: {
     soundEffectsUsed: [],
     colorProfile: visual.colorProfile,
     compositionNotes: visual.compositionNotes,
+    resumoSimples: visual.resumoSimples,
   };
 }

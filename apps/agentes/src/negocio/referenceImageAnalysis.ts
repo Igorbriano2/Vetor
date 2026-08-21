@@ -24,6 +24,12 @@ export interface PerfilVisualDeImagem {
   densidade: string;
   tipografiaDescricao: string;
   tratamentoImagem: string;
+  // Fase 3 do Vetor Manager UX — mesma chamada, campo a mais: uma frase
+  // curta em linguagem de cliente (não de designer), pro tipo "Você
+  // escolheu uma estética editorial, escura e premium". Gerado pelo mesmo
+  // Claude que já olhou a imagem, nunca uma heurística de texto sobre os
+  // campos técnicos acima.
+  resumoSimples: string;
 }
 
 const AVALIAR_PERFIL_TOOL: Anthropic.Tool = {
@@ -43,8 +49,13 @@ const AVALIAR_PERFIL_TOOL: Anthropic.Tool = {
         description: "Descrição do estilo tipográfico visível (peso, forma, estilo) — nunca o texto literal escrito na peça.",
       },
       tratamentoImagem: { type: "string", description: "Tratamento fotográfico/gráfico observado (ex: filtro, textura, iluminação, ilustração vs. foto)." },
+      resumoSimples: {
+        type: "string",
+        description:
+          "Uma frase curta (máx. 20 palavras), em português simples pra um pequeno empresário sem vocabulário de design entender — ex: 'Uma estética editorial, escura e premium.' Nunca jargão técnico (nada de 'grid', 'hierarquia visual', etc. nesta frase).",
+      },
     },
-    required: ["composicao", "grid", "hierarquia", "paleta", "ritmoVisual", "densidade", "tipografiaDescricao", "tratamentoImagem"],
+    required: ["composicao", "grid", "hierarquia", "paleta", "ritmoVisual", "densidade", "tipografiaDescricao", "tratamentoImagem", "resumoSimples"],
   },
 };
 
@@ -120,6 +131,7 @@ export async function gerarPerfilVisualDeReferencia(params: {
       densidade: perfil.densidade,
       tipografia_descricao: perfil.tipografiaDescricao,
       tratamento_imagem: perfil.tratamentoImagem,
+      resumo_simples: perfil.resumoSimples,
     })
     .select("id")
     .single();

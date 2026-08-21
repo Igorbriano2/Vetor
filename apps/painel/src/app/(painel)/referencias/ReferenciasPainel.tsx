@@ -11,6 +11,7 @@ interface PerfilEstiloVideo {
   compositionNotes: string;
   cutDensityPerMinute: number;
   musicEnergy: string;
+  resumoSimples: string | null;
 }
 
 interface PerfilVisualImagem {
@@ -22,6 +23,7 @@ interface PerfilVisualImagem {
   densidade: string;
   tipografiaDescricao: string;
   tratamentoImagem: string;
+  resumoSimples: string | null;
 }
 
 interface ItemReferencia {
@@ -264,6 +266,7 @@ export default function ReferenciasPainel({
                 compositionNotes: p.compositionNotes,
                 cutDensityPerMinute: p.cutDensityPerMinute,
                 musicEnergy: p.musicEnergy,
+                resumoSimples: p.resumoSimples ?? null,
               },
             };
           }
@@ -278,6 +281,7 @@ export default function ReferenciasPainel({
               densidade: p.densidade,
               tipografiaDescricao: p.tipografiaDescricao,
               tratamentoImagem: p.tratamentoImagem,
+              resumoSimples: p.resumoSimples ?? null,
             },
           };
         }),
@@ -723,6 +727,9 @@ function ReferenciaCard({
           <div className="rounded-lg border border-menta/15 bg-petroleo-3/40 p-2">
             {item.perfilEstilo ? (
               <div className="space-y-1 text-[10px] text-areia/60">
+                {item.perfilEstilo.resumoSimples && (
+                  <p className="text-xs font-medium italic text-menta">“{item.perfilEstilo.resumoSimples}”</p>
+                )}
                 <p>
                   <span className="text-areia/40">Ritmo:</span> {item.perfilEstilo.pacing} ({item.perfilEstilo.cutDensityPerMinute} cortes/min)
                 </p>
@@ -735,6 +742,9 @@ function ReferenciaCard({
               </div>
             ) : item.perfilVisual ? (
               <div className="space-y-1 text-[10px] text-areia/60">
+                {item.perfilVisual.resumoSimples && (
+                  <p className="text-xs font-medium italic text-menta">“{item.perfilVisual.resumoSimples}”</p>
+                )}
                 <p>
                   <span className="text-areia/40">Composição:</span> {item.perfilVisual.composicao}
                 </p>
