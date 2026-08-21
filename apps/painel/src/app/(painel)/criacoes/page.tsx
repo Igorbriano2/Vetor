@@ -11,6 +11,9 @@ const ENTRADAS = [
   { href: "/referencias", titulo: "Usar uma referência", descricao: "Biblioteca curada + suas próprias referências." },
   { href: "/templates", titulo: "Usar uma receita", descricao: "Templates prontos de agência, já com os campos guiados." },
   { href: "/entregas", titulo: "Ver entregas", descricao: "Tudo já entregue, organizado por campanha." },
+  // Fase 3 do VETOR Manager V2 — modo avançado opcional, nunca obrigatório
+  // pro fluxo principal (o wizard/chat continuam sendo o caminho padrão).
+  { href: "/criacoes/canvas", titulo: "Creative Canvas", descricao: "Modo avançado — monte o fluxo de criação visualmente em nodes." },
 ] as const;
 
 // Fase 3 do Vetor Manager (área "Criações") — hub único de entrada pra
