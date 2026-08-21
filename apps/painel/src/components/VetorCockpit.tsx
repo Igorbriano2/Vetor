@@ -35,6 +35,21 @@ interface Mensagem {
   solicitacaoId?: string;
 }
 
+// Fase 2 do VETOR Manager V2 — anexo local antes/depois do upload real.
+// chaveLocal existe só pra reconciliar o item na UI (remover, mostrar
+// progresso) antes de existir um assetId real vindo do servidor.
+interface AnexoPendente {
+  chaveLocal: string;
+  nome: string;
+  mimeType: string;
+  status: "enviando" | "pronto" | "erro";
+  assetId?: string;
+  url?: string | null;
+  erro?: string;
+}
+
+const MIME_ACEITOS = "image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime,application/pdf,.doc,.docx,text/plain";
+
 const CHAVE_CONVERSATION_ID = "vetor:conversationId";
 // Templates (Fase 4 do upgrade Gravyx) — /templates grava aqui antes de
 // navegar de volta pro dashboard; ver TemplatesPainel.tsx.
@@ -171,6 +186,9 @@ export default function VetorCockpit({
   const [saudacaoTexto, setSaudacaoTexto] = useState<string | null>(null);
   const [mostrarBotaoOuvir, setMostrarBotaoOuvir] = useState(false);
   const [telemetriaMobileAberta, setTelemetriaMobileAberta] = useState(false);
+  const [anexos, setAnexos] = useState<AnexoPendente[]>([]);
+  const [arrastandoArquivo, setArrastandoArquivo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   // Fase 6 do Vetor Manager, inspirado no aviso da Gravyx antes do primeiro
   // uso de voz ("Voice Link"): STT/TTS têm credencial real configurada mas
   // nunca foram provados em produção (docs/STATUS-REAL-ATUAL.md, item 9b)
@@ -195,6 +213,42 @@ export default function VetorCockpit({
     inputRef.current?.focus();
   }
 
+  // Fase 2 do VETOR Manager V2 — upload acontece assim que o arquivo é
+  // escolhido/arrastado (não só no envio da mensagem), pra mostrar
+  // progresso e erro reais por arquivo antes do cliente decidir enviar.
+  async function anexarArquivos(arquivos: FileList | File[]) {
+    const lista = Array.from(arquivos).slice(0, 5 - anexos.length);
+    for (const arquivo of lista) {
+      const chaveLocal = crypto.randomUUID();
+      setAnexos((atual) => [...atual, { chaveLocal, nome: arquivo.name, mimeType: arquivo.type, status: "enviando" }]);
+
+      const formData = new FormData();
+      formData.append("arquivo", arquivo);
+      try {
+        const res = await fetch("/api/upload", { method: "POST", body: formData });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error ?? "Falha ao enviar o arquivo");
+        setAnexos((atual) =>
+          atual.map((a) => (a.chaveLocal === chaveLocal ? { ...a, status: "pronto", assetId: data.assetId, url: data.url } : a)),
+        );
+      } catch (err) {
+        setAnexos((atual) =>
+          atual.map((a) => (a.chaveLocal === chaveLocal ? { ...a, status: "erro", erro: err instanceof Error ? err.message : "Falha ao enviar" } : a)),
+        );
+      }
+    }
+  }
+
+  function removerAnexo(chaveLocal: string) {
+    setAnexos((atual) => atual.filter((a) => a.chaveLocal !== chaveLocal));
+  }
+
+  function handleDropArquivo(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setArrastandoArquivo(false);
+    if (e.dataTransfer.files.length > 0) void anexarArquivos(e.dataTransfer.files);
+  }
+
   // Recupera a conversa em aberto ao recarregar a página.
   useEffect(() => {
     const id = sessionStorage.getItem(CHAVE_CONVERSATION_ID);
@@ -215,7 +269,6 @@ export default function VetorCockpit({
     const prefill = sessionStorage.getItem(CHAVE_PREFILL_COMANDO);
     if (!prefill) return;
     sessionStorage.removeItem(CHAVE_PREFILL_COMANDO);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTexto(prefill);
   }, []);
 
@@ -333,19 +386,31 @@ export default function VetorCockpit({
 
   async function enviarTexto(conteudoForcado?: string) {
     const conteudo = (conteudoForcado ?? texto).trim();
-    if (!conteudo || enviando) return;
+    const anexosProntos = anexos.filter((a) => a.status === "pronto");
+    // Nunca envia com anexo ainda subindo — o assetId real ainda não
+    // existe, mandar a mensagem agora perderia o arquivo silenciosamente.
+    if ((!conteudo && anexosProntos.length === 0) || enviando || anexos.some((a) => a.status === "enviando")) return;
+
+    const assetIds = anexosProntos.map((a) => a.assetId!);
+    const rotuloAnexos = anexosProntos.length > 0 ? ` 📎 ${anexosProntos.map((a) => a.nome).join(", ")}` : "";
 
     setTexto("");
+    setAnexos([]);
     setErro(null);
     setEnviando(true);
     setEstado("understanding");
-    setMensagens((atual) => [...atual, { autor: "cliente", texto: conteudo }]);
+    setMensagens((atual) => [...atual, { autor: "cliente", texto: `${conteudo}${rotuloAnexos}` }]);
 
     try {
       const res = await fetch("/api/comando", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texto: conteudo, responder_em_voz: false, conversationId: conversationIdRef.current }),
+        body: JSON.stringify({
+          texto: conteudo || "Veja o(s) arquivo(s) que anexei.",
+          responder_em_voz: false,
+          conversationId: conversationIdRef.current,
+          assetIds,
+        }),
       });
       const data = await readApiResponse<RespostaComando>(res);
       guardarConversationId(data.conversationId);
@@ -694,7 +759,17 @@ export default function VetorCockpit({
             )}
           </div>
 
-          <div className="mt-8 w-full max-w-[720px] rounded-3xl border border-areia/10 bg-petroleo-2/60 p-5 backdrop-blur">
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setArrastandoArquivo(true);
+            }}
+            onDragLeave={() => setArrastandoArquivo(false)}
+            onDrop={handleDropArquivo}
+            className={`mt-8 w-full max-w-[720px] rounded-3xl border p-5 backdrop-blur transition ${
+              arrastandoArquivo ? "border-menta/50 bg-menta/5" : "border-areia/10 bg-petroleo-2/60"
+            }`}
+          >
             <div className="max-h-[26rem] space-y-2 overflow-y-auto">
               {mensagens.length === 0 && (
                 <p className="text-sm text-areia/40">
@@ -740,7 +815,54 @@ export default function VetorCockpit({
               </div>
             )}
 
+            {anexos.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {anexos.map((a) => (
+                  <div
+                    key={a.chaveLocal}
+                    className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] ${
+                      a.status === "erro" ? "border-coral/40 bg-coral/10 text-coral" : "border-areia/15 bg-petroleo/60 text-areia/70"
+                    }`}
+                  >
+                    <span className="max-w-[140px] truncate">{a.status === "erro" ? (a.erro ?? "Falha") : a.nome}</span>
+                    {a.status === "enviando" && <span className="animate-pulse text-areia/40">enviando...</span>}
+                    <button onClick={() => removerAnexo(a.chaveLocal)} aria-label="Remover anexo" className="text-areia/40 hover:text-coral">
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="mt-4 flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={MIME_ACEITOS}
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files.length > 0) void anexarArquivos(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={anexos.length >= 5}
+                aria-label="Anexar arquivo"
+                title="Anexar imagem, vídeo, PDF ou documento"
+                className="flex size-10 shrink-0 items-center justify-center rounded-full border border-areia/15 text-areia/60 transition hover:border-menta hover:text-menta disabled:opacity-30"
+              >
+                <svg viewBox="0 0 24 24" className="size-4" fill="none" aria-hidden="true">
+                  <path
+                    d="M17.5 8.5l-7.4 7.4a2.5 2.5 0 1 1-3.5-3.5l7.4-7.4a4 4 0 1 1 5.7 5.7l-7.4 7.4a5.5 5.5 0 1 1-7.8-7.8L12 3"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
               <input
                 ref={inputRef}
                 value={texto}
@@ -752,7 +874,7 @@ export default function VetorCockpit({
               />
               <button
                 onClick={() => enviarTexto()}
-                disabled={enviando || gravando || !texto.trim()}
+                disabled={enviando || gravando || (!texto.trim() && anexos.filter((a) => a.status === "pronto").length === 0) || anexos.some((a) => a.status === "enviando")}
                 className="rounded-full bg-ambar px-5 py-2.5 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
               >
                 Enviar

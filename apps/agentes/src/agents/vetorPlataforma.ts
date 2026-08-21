@@ -376,18 +376,45 @@ function inferirNextAction(intent: MissaoProposta | undefined, respostaTexto: st
 
 // Canal do Vetor dentro do painel: o cliente já está autenticado, então não há
 // qualificação de lead como no WhatsApp — ele fala direto com o agente geral.
+// Fase 2 do VETOR Manager V2 (docs/IMPLEMENTATION-AUDIT-V2.md) — anexos do
+// chat viram uma frase legível no próprio texto da mensagem, mesmo
+// mecanismo já usado pra "Provider de imagem preferido" e "Direção de arte
+// preferida" (ver specialistRunner.ts): o agente Vetor lê o id real no
+// texto e o repassa pra tarefa da etapa que propõe, e o especialista de
+// Design já sabe validar esse id contra o "Banco de ativos disponível"
+// (buscarAtivoPorId/validarAtivoParaUso) — nenhuma ferramenta nova, nenhum
+// campo estruturado novo no plano. Nunca confia cegamente: busca de novo no
+// banco, filtrado por cliente_id, e ignora silenciosamente qualquer id que
+// não pertença a este cliente (RLS já bloquearia, isto é só pra nunca
+// vazar "arquivo não encontrado" pro texto do Claude).
+async function descreverAnexos(clienteId: string, assetIds: string[]): Promise<string> {
+  if (assetIds.length === 0) return "";
+  const { data: assets } = await supabase
+    .from("business_assets")
+    .select("id, nome, tipo_ativo")
+    .eq("cliente_id", clienteId)
+    .in("id", assetIds);
+  if (!assets || assets.length === 0) return "";
+  const linhas = assets.map((a) => `- ${a.nome as string} (id: ${a.id as string}, tipo: ${a.tipo_ativo as string})`);
+  return `\n\n[Arquivos anexados nesta mensagem:\n${linhas.join("\n")}]`;
+}
+
 export async function processarMensagemPlataforma(
   clienteId: string,
-  texto: string,
+  textoOriginal: string,
   opcoes: {
     responderEmVoz?: boolean;
     conversationId?: string;
     usuarioId?: string;
     origem?: SolicitacaoOrigem;
+    assetIds?: string[];
   } = {},
 ): Promise<RespostaPlataforma> {
   const origem = opcoes.origem ?? "painel_texto";
   const requestId = randomUUID();
+
+  const descricaoAnexos = await descreverAnexos(clienteId, opcoes.assetIds ?? []);
+  const texto = `${textoOriginal}${descricaoAnexos}`;
 
   const cliente = await buscarCliente(clienteId);
   const conversationId = await resolverConversa(clienteId, opcoes.usuarioId, origem, opcoes.conversationId);

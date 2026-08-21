@@ -29,6 +29,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Mensagem vazia" }, { status: 400 });
   }
 
+  // Fase 2 do VETOR Manager V2 — assetIds é aditivo (Array.isArray falha
+  // silenciosamente pra undefined/formato antigo, nunca quebra uma chamada
+  // que não manda esse campo). Limite de 5 por mensagem: nunca uma missão
+  // paga em lote acidental por causa de um anexo de chat.
+  const assetIdsBrutos = Array.isArray(body?.assetIds) ? (body.assetIds as unknown[]) : [];
+  const assetIds = assetIdsBrutos.filter((id): id is string => typeof id === "string" && id.length > 0).slice(0, 5);
+
+  // Nunca confia cegamente nos ids vindos do navegador — confirma que cada
+  // um é um business_asset real, do MESMO cliente (RLS já bloquearia um id
+  // de outro tenant, isso aqui é só pra descartar silenciosamente um id
+  // inválido/apagado em vez de mandar lixo pro agente).
+  let assetIdsValidados: string[] = [];
+  if (assetIds.length > 0) {
+    const { data: assetsReais } = await supabase
+      .from("business_assets")
+      .select("id")
+      .eq("cliente_id", usuario.cliente_id)
+      .in("id", assetIds);
+    const idsReais = new Set((assetsReais ?? []).map((a) => a.id as string));
+    assetIdsValidados = assetIds.filter((id) => idsReais.has(id));
+  }
+
   const agentesUrl = process.env.AGENTES_API_URL;
   const internalToken = process.env.INTERNAL_API_TOKEN;
 
@@ -49,6 +71,7 @@ export async function POST(request: NextRequest) {
         responder_em_voz: !!body?.responder_em_voz,
         conversation_id: conversationId,
         usuario_id: user.id,
+        asset_ids: assetIdsValidados,
       }),
     });
 

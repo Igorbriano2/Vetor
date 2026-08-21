@@ -16,17 +16,24 @@ export const plataformaRouter = Router();
 plataformaRouter.use(exigirAuthInterna);
 
 plataformaRouter.post("/mensagem", async (req, res) => {
-  const { cliente_id, texto, responder_em_voz, conversation_id, usuario_id } = req.body ?? {};
+  const { cliente_id, texto, responder_em_voz, conversation_id, usuario_id, asset_ids } = req.body ?? {};
   if (!cliente_id || typeof texto !== "string" || !texto.trim()) {
     res.status(400).json({ error: "cliente_id e texto são obrigatórios" });
     return;
   }
+
+  // Fase 2 do VETOR Manager V2 — o painel já validou que cada id pertence
+  // a este cliente (ver apps/painel/src/app/api/comando/route.ts); aqui só
+  // filtra o formato, nunca confia de novo sem necessidade — mas também
+  // nunca assume que quem chamou já filtrou (defesa em profundidade barata).
+  const assetIds = Array.isArray(asset_ids) ? asset_ids.filter((id: unknown): id is string => typeof id === "string").slice(0, 5) : [];
 
   try {
     const resultado = await processarMensagemPlataforma(cliente_id, texto, {
       responderEmVoz: !!responder_em_voz,
       conversationId: typeof conversation_id === "string" ? conversation_id : undefined,
       usuarioId: typeof usuario_id === "string" ? usuario_id : undefined,
+      assetIds,
     });
     res.json(resultado);
   } catch (err) {
