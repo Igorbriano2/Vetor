@@ -33,10 +33,11 @@ export default function ArtifactLibrary({
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {artefatos.map((a) => (
+      {artefatos.map((a, i) => (
         <div
           key={a.id}
-          className="flex flex-col overflow-hidden rounded-2xl border border-areia/10 bg-petroleo-2/60 backdrop-blur transition hover:border-menta/30"
+          style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
+          className="card-lift fade-in-up flex flex-col overflow-hidden rounded-2xl border border-areia/10 bg-petroleo-2/60 backdrop-blur"
         >
           {a.type === "image" && a.url && (
             // eslint-disable-next-line @next/next/no-img-element

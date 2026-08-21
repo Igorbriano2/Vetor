@@ -82,7 +82,7 @@ export default function NovoProjetoModal({ clienteId, onFechar }: { clienteId: s
                   key={r.id}
                   type="button"
                   onClick={() => router.push(`/design?${queryDaReceita(r)}`)}
-                  className="flex flex-col gap-1 rounded-2xl border border-areia/10 bg-petroleo-3/50 p-4 text-left transition hover:border-menta/40 hover:bg-petroleo-3/80"
+                  className="flex flex-col gap-1 rounded-2xl border border-areia/10 bg-petroleo-3/50 p-4 text-left transition card-lift hover:bg-petroleo-3/80"
                 >
                   <p className="text-sm font-semibold text-areia">{r.nome}</p>
                   <p className="text-xs text-areia/50">{r.descricao}</p>
@@ -105,7 +105,7 @@ export default function NovoProjetoModal({ clienteId, onFechar }: { clienteId: s
                 type="button"
                 disabled={criando}
                 onClick={() => escolher(o.id)}
-                className="flex flex-col items-start gap-2 rounded-2xl border border-areia/10 bg-petroleo-3/50 p-5 text-left transition hover:border-menta/40 hover:bg-petroleo-3/80 disabled:opacity-40"
+                className="flex flex-col items-start gap-2 rounded-2xl border border-areia/10 bg-petroleo-3/50 p-5 text-left transition card-lift hover:bg-petroleo-3/80 disabled:opacity-40"
               >
                 <span className="flex size-10 items-center justify-center rounded-xl border border-menta/30 bg-menta/10 text-lg text-menta">
                   {o.emoji}

@@ -211,6 +211,86 @@ body {
   animation: vetor-blink 1.8s ease-in-out infinite;
 }
 
+/* Design V2 (auditoria Gravyx/21st.dev) — "ar de tecnologia" com efeitos
+   leves e 100% CSS (sem shader/WebGL, sem dependência nova): o painel é um
+   dashboard autenticado usado o dia inteiro, não uma landing page — os
+   efeitos precisam ser discretos e baratos de renderizar, nunca chamativos
+   ou pesados pra GPU/bateria. */
+
+@keyframes vetor-aurora-drift {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(8deg) scale(1.08);
+  }
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+@utility vetor-aurora {
+  position: absolute;
+  inset: -20%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    conic-gradient(
+      from 180deg at 30% 20%,
+      color-mix(in oklab, var(--color-electric) 14%, transparent),
+      transparent 25%,
+      color-mix(in oklab, var(--color-menta) 10%, transparent) 45%,
+      transparent 65%,
+      color-mix(in oklab, var(--color-electric) 8%, transparent) 85%,
+      transparent
+    );
+  filter: blur(60px);
+  animation: vetor-aurora-drift 30s ease-in-out infinite;
+}
+
+@utility card-lift {
+  transition:
+    transform 200ms ease,
+    border-color 200ms ease,
+    background-color 200ms ease,
+    box-shadow 200ms ease;
+
+  &:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in oklab, var(--color-menta) 35%, transparent);
+    box-shadow: 0 20px 40px -24px oklch(0 0 0 / 0.7);
+  }
+}
+
+@keyframes vetor-glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-ambar) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 8px color-mix(in oklab, var(--color-ambar) 0%, transparent);
+  }
+}
+
+@utility btn-glow {
+  animation: vetor-glow-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes vetor-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@utility fade-in-up {
+  animation: vetor-fade-in-up 400ms ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

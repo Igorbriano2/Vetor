@@ -659,6 +659,7 @@ export default function VetorCockpit({
 
   return (
     <div className="vetor-starfield relative flex min-h-screen flex-col overflow-x-hidden">
+      <div className="vetor-aurora" aria-hidden="true" />
       <VetorVoiceOverlay ativo={overlayAtivo} estado={estado} amplitude={amplitude} onParar={cancelarModoVoz} />
 
       {/* Barra fina de topo */}
