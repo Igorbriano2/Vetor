@@ -42,9 +42,12 @@
   /* Direção JARVIS (ADR-001 em docs/manus-jarvis-spec) — o painel é o cockpit
      de verdade. Valores alinhados 1:1 com apps/landing/src/app/globals.css
      (mesma paleta oklch), mantendo os nomes de token já usados no painel
-     (petroleo/menta/ambar/coral/areia) pra não quebrar componentes existentes. */
-  --color-petroleo: oklch(0.135 0.014 250); /* void — #05070B */
-  --color-petroleo-2: oklch(0.185 0.016 248); /* surface — #0B1118 */
+     (petroleo/menta/ambar/coral/areia) pra não quebrar componentes existentes.
+     Design V2 Fase 5 — petroleo/petroleo-2 ajustados pro hex exato pedido
+     no redesign Apple/Gravyx (#050A12 base, #0B1422 superfície elevada);
+     diferença imperceptível do valor anterior, mas honra o spec literal. */
+  --color-petroleo: #050a12; /* void */
+  --color-petroleo-2: #0b1422; /* surface */
   --color-petroleo-3: oklch(0.225 0.02 245); /* surface-2 — #101923 */
   --color-menta: oklch(0.86 0.11 205); /* cyan — #6EE7F9 */
   --color-menta-forte: oklch(0.68 0.13 205); /* variante mais escura do cyan */

@@ -85,11 +85,11 @@ interface Props {
 // mão); "href" navega pra um hub que já existe. Nenhuma missão é criada
 // direto por um clique aqui.
 const ACOES_RAPIDAS: Array<{ label: string; prompt?: string; href?: string }> = [
-  { label: "Criar uma peça", prompt: "Quero criar uma peça de design." },
-  { label: "Criar um vídeo", prompt: "Quero criar um vídeo." },
-  { label: "Planejar meu mês", prompt: "Monte o planejamento deste mês pra mim." },
+  { label: "Criar peça", prompt: "Quero criar uma peça de design." },
+  { label: "Criar vídeo", prompt: "Quero criar um vídeo." },
+  { label: "Planejar mês", prompt: "Monte o planejamento deste mês pra mim." },
   { label: "Analisar campanhas", prompt: "Como estão minhas campanhas de tráfego agora?" },
-  { label: "Usar uma referência", href: "/referencias" },
+  { label: "Usar referência", href: "/referencias" },
 ];
 
 const MODULOS_DISPONIVEIS = ["Copy", "Design", "Vídeo", "Estratégia", "Tráfego", "Social"];
