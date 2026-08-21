@@ -479,6 +479,18 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
   const trafego =
     etapa.agente === "trafego" || etapa.agente === "analitico" ? await buscarContextoTrafego(etapa.cliente_id) : undefined;
 
+  // Fase 4 do Vetor Manager UX (docs/VETOR-MANAGER-UX-AUDIT.md) — achado
+  // real: só o agente de chat (vetorPlataforma.ts) lia memoria_operacional
+  // de volta; um especialista de execução nunca via o que já foi registrado
+  // sobre o cliente em conversas anteriores. Mesma query/limite (10 mais
+  // recentes), nunca inventado.
+  const { data: memorias } = await supabase
+    .from("memoria_operacional")
+    .select("tipo, conteudo, confianca, origem, created_at")
+    .eq("cliente_id", etapa.cliente_id)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
   // Calculado ANTES de chamar o especialista (não só depois, como guard-rail
   // pós-hoc) — achado real: oferecer a ferramenta entregar_documento como
   // ESCOLHA (junto de entregar_resultado) não bastou, o modelo repetidamente
@@ -510,6 +522,12 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
       assetsDisponiveis,
     },
     trafego,
+    memoriasRecentes: (memorias ?? []).map((m) => ({
+      tipo: m.tipo as string,
+      conteudo: m.conteudo as string,
+      confianca: m.confianca as string,
+      origem: m.origem as string,
+    })),
     etapasAnteriores,
     exigeDocumento,
     ferramentasDeclaradas: etapa.ferramentas as string[],

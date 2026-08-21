@@ -474,6 +474,12 @@ export interface ContextoMissaoParaEspecialista {
   // repetidamente escolhia só entregar_resultado mesmo sabendo que a
   // tarefa pedia um documento).
   exigeDocumento?: boolean;
+  // Fase 4 do Vetor Manager UX (docs/VETOR-MANAGER-UX-AUDIT.md) — achado real
+  // da auditoria: especialistas de execução nunca liam memoria_operacional de
+  // volta, só o agente de chat (vetorPlataforma.ts) lia. Mesmo formato/limite
+  // (10 mais recentes do cliente) — nunca inventado, lista vazia quando não
+  // há memória registrada ainda.
+  memoriasRecentes?: Array<{ tipo: string; conteudo: string; confianca: string; origem: string }>;
   // Nomes de ferramenta que a etapa declarou no plano (mission_steps.ferramentas)
   // — já passaram pelo Policy Engine (avaliarRisco/aprovação) no orchestrator.
   // Achado real: ferramentasGeracao (abaixo) é indexado só por agenteId, sem
@@ -1469,6 +1475,14 @@ function montarContexto(ctx: ContextoMissaoParaEspecialista): string {
     ctx.negocio.perfil?.descricao ? `Perfil de negócio: ${ctx.negocio.perfil.descricao}` : null,
     ctx.negocio.perfil?.tom ? `Tom de voz: ${ctx.negocio.perfil.tom}` : null,
     ctx.negocio.brandKit ? `Brand kit atual: ${JSON.stringify(ctx.negocio.brandKit)}` : null,
+    // Fase 4 do Vetor Manager UX — mesmo dado que o agente de chat já lia
+    // (memoria_operacional), agora também disponível pro especialista que
+    // de fato executa a etapa. Confiança baixa/média não vira instrução
+    // implícita — só informa, o especialista decide se usa.
+    ctx.memoriasRecentes?.length
+      ? `MEMÓRIA REGISTRADA SOBRE ESTE CLIENTE (fatos/preferências/decisões de conversas anteriores — considere, mas não trate como regra absoluta quando a confiança for baixa):\n` +
+        ctx.memoriasRecentes.map((m) => `- [${m.tipo}, confiança ${m.confianca}, origem ${m.origem}] ${m.conteudo}`).join("\n")
+      : null,
     ctx.negocio.assetsDisponiveis?.length
       ? `Banco de ativos disponível (Drive real do negócio — SEMPRE consulte antes de gerar; passe os ids relevantes ` +
         `em asset_ids do gerar_imagem, nunca invente que usou um ativo que não está aqui):\n` +
