@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import StatusBadge from "@/components/StatusBadge";
 import { readApiResponse } from "@/lib/api/readApiResponse";
+import { salvarPrefillComando } from "@/lib/conversation";
 
 interface Campanha {
   id: string;
@@ -14,38 +16,111 @@ interface Campanha {
   updated_at: string;
 }
 
-type Analise = {
+interface Recomendacao {
+  titulo: string;
+  impacto_esperado: string;
+  confianca: "alta" | "media" | "baixa";
+  tarefa: string;
+}
+
+interface Analise {
   id: string;
   diagnostico: string | null;
   metricas_usadas: Record<string, unknown>;
+  oportunidades: string[] | null;
+  riscos: string[] | null;
+  recomendacoes: Recomendacao[] | null;
   created_at: string;
-} | null;
+}
 
 function centavosParaReais(centavos: number | null): string {
   if (centavos == null) return "—";
   return (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-const ABAS = ["dashboard", "gestor", "conexoes"] as const;
+const ABAS = ["visao_geral", "campanhas", "gestor", "conexoes"] as const;
 type Aba = (typeof ABAS)[number];
-const LABEL_ABA: Record<Aba, string> = { dashboard: "Dashboard", gestor: "Gestor de Tráfego", conexoes: "Conexões" };
+const LABEL_ABA: Record<Aba, string> = { visao_geral: "Visão geral", campanhas: "Campanhas", gestor: "Análise do Gestor", conexoes: "Conexões" };
+
+const COR_CONFIANCA: Record<Recomendacao["confianca"], string> = {
+  alta: "border-menta/30 text-menta",
+  media: "border-ambar/30 text-ambar",
+  baixa: "border-areia/20 text-areia/50",
+};
+
+// Fase 6 do VETOR Manager V2 (docs/IMPLEMENTATION-AUDIT-V2.md, decisão #3)
+// — dataset DEMO fixo NO CÓDIGO, nunca no banco: impossível de vazar como
+// dado real por engano (uma seed no banco poderia). Usado só quando não
+// há conta conectada E nenhuma campanha real já sincronizada. Todo card
+// que usa este dado mostra um selo "DEMO" visível — nunca se apresenta
+// como número real.
+const CAMPANHAS_DEMO: Campanha[] = [
+  {
+    id: "demo-1",
+    nome: "[DEMO] Combo Sexta — Feed + Stories",
+    status: "ativa",
+    orcamento_centavos: 5000,
+    metricas: { spend: "142.30", impressions: "18420", clicks: "612", ctr: "3.32", cpc: "0.23", cpm: "7.72" },
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "demo-2",
+    nome: "[DEMO] Retargeting — Carrinho abandonado",
+    status: "ativa",
+    orcamento_centavos: 3000,
+    metricas: { spend: "88.10", impressions: "9310", clicks: "301", ctr: "3.23", cpc: "0.29", cpm: "9.46" },
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "demo-3",
+    nome: "[DEMO] Lançamento produto novo",
+    status: "pausada",
+    orcamento_centavos: 8000,
+    metricas: { spend: "0.00", impressions: "0", clicks: "0", ctr: "0", cpc: "0", cpm: "0" },
+    updated_at: new Date().toISOString(),
+  },
+];
+
+const ANALISE_DEMO: Analise = {
+  id: "demo",
+  diagnostico:
+    "[DEMO] As campanhas de Sexta e Retargeting estão performando dentro do esperado (CTR acima de 3%). A campanha de Lançamento está pausada com verba reservada sem gasto.",
+  metricas_usadas: { spend: 230.4, impressions: 27730, clicks: 913 },
+  oportunidades: ["[DEMO] CTR consistente acima de 3% sugere criativo com boa aceitação — espaço pra testar aumento de orçamento."],
+  riscos: ["[DEMO] Campanha de Lançamento pausada há dias com orçamento reservado sem gerar resultado."],
+  recomendacoes: [
+    {
+      titulo: "[DEMO] Reativar campanha de Lançamento com criativo atualizado",
+      impacto_esperado: "Pode gerar ~300 impressões/dia adicionais",
+      confianca: "media",
+      tarefa: "Reativar a campanha de Lançamento com um criativo novo",
+    },
+  ],
+  created_at: new Date().toISOString(),
+};
 
 export default function TrafegoPainel({
   campanhasIniciais,
-  analiseInicial,
+  historicoAnalises,
   contaConectada,
 }: {
   campanhasIniciais: Campanha[];
-  analiseInicial: Analise;
+  historicoAnalises: Analise[];
   contaConectada: boolean;
 }) {
-  const [aba, setAba] = useState<Aba>("dashboard");
-  // Sincronizar recarrega a página inteira (idempotente, sem reconciliar
-  // estado local) — campanhas/análise só precisam do valor inicial do server.
-  const campanhas = campanhasIniciais;
-  const analise = analiseInicial;
+  const [aba, setAba] = useState<Aba>("visao_geral");
   const [sincronizando, setSincronizando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [campanhaExpandida, setCampanhaExpandida] = useState<string | null>(null);
+  const router = useRouter();
+
+  // Dataset DEMO só entra em jogo quando não há nada real ainda — assim
+  // que existir 1 campanha real sincronizada, os dados reais tomam conta,
+  // mesmo sem conexão ativa no momento (histórico já sincronizado antes).
+  const usandoDemo = !contaConectada && campanhasIniciais.length === 0;
+  const campanhas = usandoDemo ? CAMPANHAS_DEMO : campanhasIniciais;
+  const analise = usandoDemo ? ANALISE_DEMO : (historicoAnalises[0] ?? null);
+  const historico = usandoDemo ? [ANALISE_DEMO] : historicoAnalises;
 
   async function sincronizar() {
     setSincronizando(true);
@@ -57,7 +132,6 @@ export default function TrafegoPainel({
         return;
       }
       await readApiResponse(res);
-      // Idempotente: refaz a leitura em vez de tentar reconciliar estado local.
       window.location.reload();
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Não consegui sincronizar agora.");
@@ -66,9 +140,34 @@ export default function TrafegoPainel({
     }
   }
 
+  function pedirAoVetor(texto: string) {
+    salvarPrefillComando(texto);
+    router.push("/vetor");
+  }
+
+  // KPIs agregados reais — só soma o que existe de verdade na métrica de
+  // cada campanha (Graph API), nunca preenche um campo ausente com 0
+  // fingindo que foi medido.
+  const totalSpend = campanhas.reduce((s, c) => s + Number(c.metricas?.spend ?? 0), 0);
+  const totalImpressions = campanhas.reduce((s, c) => s + Number(c.metricas?.impressions ?? 0), 0);
+  const totalClicks = campanhas.reduce((s, c) => s + Number(c.metricas?.clicks ?? 0), 0);
+  const ctrMedio = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) : null;
+  const cpcMedio = totalClicks > 0 ? (totalSpend / totalClicks).toFixed(2) : null;
+  const cpmMedio = totalImpressions > 0 ? ((totalSpend / totalImpressions) * 1000).toFixed(2) : null;
+
+  // Alertas derivados de dado real (nunca uma meta/threshold fabricada
+  // sem base) — campanha pausada com orçamento reservado é um sinal
+  // objetivo de verba parada.
+  const alertas = campanhas.filter((c) => c.status === "pausada" && (c.orcamento_centavos ?? 0) > 0);
+
+  const serieGasto = historico
+    .slice()
+    .reverse()
+    .map((a) => Number(a.metricas_usadas?.spend ?? 0));
+
   return (
     <div className="mt-6">
-      <div className="flex gap-2 border-b border-areia/10 pb-3">
+      <div className="flex flex-wrap gap-2 border-b border-areia/10 pb-3">
         {ABAS.map((a) => (
           <button
             key={a}
@@ -82,78 +181,175 @@ export default function TrafegoPainel({
         ))}
       </div>
 
-      {aba === "dashboard" && (
+      {usandoDemo && (
+        <div className="mt-4 flex items-center gap-2 rounded-xl border border-ambar/30 bg-ambar/10 px-3 py-2 text-xs text-ambar">
+          <span className="rounded border border-ambar/40 px-1.5 py-0.5 font-mono text-[10px]">DEMO</span>
+          Nenhuma conta de anúncios conectada ainda — mostrando dados de demonstração pra você conhecer o painel.
+          Conecte em <button onClick={() => setAba("conexoes")} className="underline underline-offset-2">Conexões</button> pra ver seus números reais.
+        </div>
+      )}
+
+      {aba === "visao_geral" && (
         <div className="mt-6">
-          {!contaConectada ? (
-            <div className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/50">
-              Nenhuma conta de anúncios conectada — conecte na aba{" "}
-              <button onClick={() => setAba("conexoes")} className="text-menta underline underline-offset-2">
-                Conexões
-              </button>{" "}
-              pra ver dados reais aqui.
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-areia/50">
-                  {analise ? `Última sincronização: ${new Date(analise.created_at).toLocaleString("pt-BR")}` : "Ainda não sincronizado."}
-                </p>
-                <button
-                  onClick={sincronizar}
-                  disabled={sincronizando}
-                  className="rounded-full bg-ambar px-4 py-1.5 text-xs font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
-                >
-                  {sincronizando ? "Sincronizando..." : "Sincronizar agora"}
-                </button>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-areia/50">
+              {analise && !usandoDemo ? `Última sincronização: ${new Date(analise.created_at).toLocaleString("pt-BR")}` : usandoDemo ? "Dados de demonstração" : "Ainda não sincronizado."}
+            </p>
+            {contaConectada && (
+              <button
+                onClick={sincronizar}
+                disabled={sincronizando}
+                className="rounded-full bg-ambar px-4 py-1.5 text-xs font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
+              >
+                {sincronizando ? "Sincronizando..." : "Sincronizar agora"}
+              </button>
+            )}
+          </div>
+          {erro && <p className="mt-2 text-xs text-coral">{erro}</p>}
+
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {[
+              { label: "Investimento", valor: `R$ ${totalSpend.toFixed(2)}` },
+              { label: "Impressões", valor: totalImpressions.toLocaleString("pt-BR") },
+              { label: "Cliques", valor: totalClicks.toLocaleString("pt-BR") },
+              { label: "CTR médio", valor: ctrMedio ? `${ctrMedio}%` : "—" },
+              { label: "CPC médio", valor: cpcMedio ? `R$ ${cpcMedio}` : "—" },
+              { label: "CPM médio", valor: cpmMedio ? `R$ ${cpmMedio}` : "—" },
+            ].map((kpi) => (
+              <div key={kpi.label} className="rounded-xl border border-areia/10 bg-petroleo-2/60 p-3">
+                <p className="font-mono text-[10px] uppercase tracking-wide text-areia/40">{kpi.label}</p>
+                <p className="mt-1 text-lg font-semibold text-areia">{kpi.valor}</p>
               </div>
-              {erro && <p className="mt-2 text-xs text-coral">{erro}</p>}
-              {analise?.diagnostico && (
-                <p className="mt-4 rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/70">
-                  {analise.diagnostico}
-                </p>
-              )}
-            </>
+            ))}
+          </div>
+
+          {serieGasto.length > 1 && (
+            <div className="mt-4 rounded-xl border border-areia/10 bg-petroleo-2/60 p-3">
+              <p className="font-mono text-[10px] uppercase tracking-wide text-areia/40">Evolução do investimento</p>
+              <svg viewBox="0 0 100 28" className="mt-2 h-10 w-full" preserveAspectRatio="none">
+                <polyline
+                  points={serieGasto.map((v, i) => `${(i / (serieGasto.length - 1)) * 100},${28 - (v / Math.max(1, ...serieGasto)) * 24 - 2}`).join(" ")}
+                  fill="none"
+                  stroke="var(--color-menta)"
+                  strokeWidth="1.5"
+                />
+              </svg>
+            </div>
           )}
 
-          <section className="mt-6">
-            <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-areia/40">Campanhas</h2>
-            <div className="mt-3 space-y-3">
-              {campanhas.length ? (
-                campanhas.map((c) => (
-                  <div key={c.id} className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur">
-                    <div className="flex items-center justify-between gap-4">
-                      <p className="font-medium text-areia">{c.nome}</p>
-                      <StatusBadge status={c.status} />
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-4 text-xs text-areia/50">
+          {alertas.length > 0 && (
+            <div className="mt-4 rounded-xl border border-coral/30 bg-coral/5 p-3">
+              <p className="font-mono text-[10px] uppercase tracking-wide text-coral">Alertas</p>
+              <ul className="mt-1 space-y-1 text-xs text-areia/70">
+                {alertas.map((c) => (
+                  <li key={c.id}>• &ldquo;{c.nome}&rdquo; está pausada com {centavosParaReais(c.orcamento_centavos)} de orçamento reservado.</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {aba === "campanhas" && (
+        <div className="mt-6 space-y-3">
+          {campanhas.length ? (
+            campanhas.map((c) => (
+              <div key={c.id} className="rounded-2xl border border-areia/10 bg-petroleo-2/60 backdrop-blur">
+                <button onClick={() => setCampanhaExpandida((atual) => (atual === c.id ? null : c.id))} className="flex w-full items-center justify-between gap-4 p-4 text-left">
+                  <p className="font-medium text-areia">{c.nome}</p>
+                  <StatusBadge status={c.status} />
+                </button>
+                {campanhaExpandida === c.id && (
+                  <div className="border-t border-areia/10 px-4 py-3">
+                    <div className="grid grid-cols-2 gap-3 text-xs text-areia/60 sm:grid-cols-3">
                       <span>Orçamento: {centavosParaReais(c.orcamento_centavos)}</span>
                       {typeof c.metricas?.spend === "string" && <span>Gasto (30d): R$ {c.metricas.spend}</span>}
                       {typeof c.metricas?.impressions === "string" && <span>Impressões: {c.metricas.impressions}</span>}
                       {typeof c.metricas?.clicks === "string" && <span>Cliques: {c.metricas.clicks}</span>}
                       {typeof c.metricas?.ctr === "string" && <span>CTR: {c.metricas.ctr}%</span>}
+                      {typeof c.metricas?.cpc === "string" && <span>CPC: R$ {c.metricas.cpc}</span>}
+                      {typeof c.metricas?.cpm === "string" && <span>CPM: R$ {c.metricas.cpm}</span>}
                     </div>
+                    <p className="mt-3 text-[11px] text-areia/30">
+                      Drill-down por conjunto/anúncio ainda não disponível — a sincronização atual só traz métricas no
+                      nível de campanha (ver docs/IMPLEMENTATION-AUDIT-V2.md).
+                    </p>
                   </div>
-                ))
-              ) : (
-                <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
-                  Nenhuma campanha registrada ainda.
-                </p>
-              )}
-            </div>
-          </section>
+                )}
+              </div>
+            ))
+          ) : (
+            <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">Nenhuma campanha registrada ainda.</p>
+          )}
         </div>
       )}
 
       {aba === "gestor" && (
-        <div className="mt-6 rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4">
-          <p className="text-sm text-areia/60">
-            O Gestor de Tráfego é o Vetor — peça pelo{" "}
+        <div className="mt-6 space-y-4">
+          {!analise ? (
+            <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+              Nenhuma análise ainda — sincronize suas campanhas na Visão geral pra gerar a primeira.
+            </p>
+          ) : (
+            <>
+              <div className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4">
+                <p className="mono-label text-areia/40">Resumo executivo</p>
+                <p className="mt-1.5 text-sm text-areia/80">{analise.diagnostico}</p>
+              </div>
+
+              {(analise.oportunidades ?? []).length > 0 && (
+                <div className="rounded-2xl border border-menta/20 bg-menta/5 p-4">
+                  <p className="mono-label text-menta">Hipóteses / oportunidades</p>
+                  <ul className="mt-1.5 space-y-1 text-sm text-areia/70">
+                    {(analise.oportunidades ?? []).map((o, i) => (
+                      <li key={i}>• {o}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {(analise.riscos ?? []).length > 0 && (
+                <div className="rounded-2xl border border-coral/20 bg-coral/5 p-4">
+                  <p className="mono-label text-coral">Problemas</p>
+                  <ul className="mt-1.5 space-y-1 text-sm text-areia/70">
+                    {(analise.riscos ?? []).map((r, i) => (
+                      <li key={i}>• {r}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {(analise.recomendacoes ?? []).length > 0 && (
+                <div>
+                  <p className="mono-label text-areia/40">Recomendações priorizadas</p>
+                  <div className="mt-2 space-y-2">
+                    {(analise.recomendacoes ?? []).map((r, i) => (
+                      <div key={i} className="rounded-xl border border-areia/10 bg-petroleo-2/60 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium text-areia">{r.titulo}</p>
+                          <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] ${COR_CONFIANCA[r.confianca]}`}>{r.confianca}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-areia/50">{r.impacto_esperado}</p>
+                        <button
+                          onClick={() => pedirAoVetor(r.tarefa)}
+                          disabled={usandoDemo}
+                          className="mt-2 rounded-full border border-ambar/30 px-3 py-1 text-[11px] text-ambar hover:bg-ambar/10 disabled:opacity-30"
+                        >
+                          Pedir ao Vetor para executar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+          <p className="text-xs text-areia/50">
+            Qualquer alteração real de orçamento, publicação ou pausa passa pela aprovação normal do Vetor — peça pelo{" "}
             <Link href="/vetor" className="text-menta underline underline-offset-2">
               chat principal
-            </Link>{" "}
-            coisas como &ldquo;crie uma campanha pro combo de sexta com R$50/dia&rdquo; ou &ldquo;o que os números
-            de ontem estão dizendo?&rdquo; — o Vetor monta o plano, passa pelo Policy Engine e pede sua aprovação
-            antes de qualquer ação real na conta.
+            </Link>
+            .
           </p>
         </div>
       )}

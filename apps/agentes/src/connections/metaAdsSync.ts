@@ -1,6 +1,9 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "../db/supabase.js";
 import { descriptografarToken } from "../security/tokenCrypto.js";
 import { graphApiUrl } from "./providers.js";
+
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // Sincronização real de campanhas + métricas do Meta Ads (Tráfego →
 // Dashboard). Nunca inventa dado: se não há conexão conectada, retorna
@@ -112,6 +115,91 @@ export async function buscarContextoTrafego(clienteId: string): Promise<Contexto
   };
 }
 
+// Fase 6 do VETOR Manager V2 (docs/IMPLEMENTATION-AUDIT-V2.md) — antes
+// desta rodada trafego_analises.oportunidades/riscos/recomendacoes
+// existiam no schema desde a migration 0016 mas nunca eram escritas por
+// nenhum código (confirmado na Fase 0) — diagnostico era sempre um
+// template hardcoded. Esta função é a "Análise do Gestor" de verdade:
+// mesmo modelo (claude-sonnet-4-5) e mesmo padrão de tool-use já usado no
+// resto do produto (ver core.ts), nunca inventando métrica — só analisa o
+// que já foi sincronizado de verdade da Graph API.
+interface AnaliseGestor {
+  resumoExecutivo: string;
+  hipoteses: string[];
+  problemas: string[];
+  recomendacoes: Array<{ titulo: string; impactoEsperado: string; confianca: "alta" | "media" | "baixa"; tarefa: string }>;
+}
+
+const ANALISAR_TRAFEGO_TOOL: Anthropic.Tool = {
+  name: "registrar_analise_trafego",
+  description: "Registra a análise executiva de tráfego pago a partir das campanhas reais sincronizadas.",
+  input_schema: {
+    type: "object",
+    properties: {
+      resumo_executivo: { type: "string", description: "2-4 frases sobre o que aconteceu nas campanhas — direto, sem jargão." },
+      hipoteses: { type: "array", items: { type: "string" }, description: "Hipóteses do que está funcionando ou não, baseadas só nos números reais fornecidos." },
+      problemas: { type: "array", items: { type: "string" }, description: "Problemas/riscos reais identificados (nunca inventados) — ex: CTR baixo, orçamento sem gasto, campanha pausada com verba parada." },
+      recomendacoes: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            titulo: { type: "string" },
+            impacto_esperado: { type: "string", description: "Impacto esperado em termos concretos, ex: 'pode reduzir CPC em ~15%'." },
+            confianca: { type: "string", enum: ["alta", "media", "baixa"] },
+            tarefa: { type: "string", description: "Ação prática que o cliente pode pedir ao Vetor pra executar." },
+          },
+          required: ["titulo", "impacto_esperado", "confianca", "tarefa"],
+        },
+      },
+    },
+    required: ["resumo_executivo", "hipoteses", "problemas", "recomendacoes"],
+  },
+};
+
+async function gerarAnaliseDoGestor(campanhas: CampanhaGraph[], metricasPorCampanha: Array<{ nome: string; insight: InsightGraph | undefined }>): Promise<AnaliseGestor | null> {
+  if (campanhas.length === 0) return null;
+
+  try {
+    const resumoCampanhas = metricasPorCampanha
+      .map((c) => `- ${c.nome}: gasto R$ ${c.insight?.spend ?? "0"}, impressões ${c.insight?.impressions ?? "0"}, cliques ${c.insight?.clicks ?? "0"}, CTR ${c.insight?.ctr ?? "—"}, CPC ${c.insight?.cpc ?? "—"}, CPM ${c.insight?.cpm ?? "—"}`)
+      .join("\n");
+
+    const resposta = await anthropic.messages.create({
+      model: "claude-sonnet-4-5",
+      max_tokens: 1500,
+      system:
+        "Você é o Gestor de Tráfego do VETOR, analisando campanhas reais de Meta Ads de um cliente de marketing. " +
+        "Nunca invente número — use só os dados fornecidos. Seja direto, prático, e priorize recomendações por impacto real.",
+      messages: [{ role: "user", content: `Analise estas campanhas dos últimos 30 dias:\n${resumoCampanhas}` }],
+      tools: [ANALISAR_TRAFEGO_TOOL],
+      tool_choice: { type: "tool", name: "registrar_analise_trafego" },
+    });
+
+    const toolUse = resposta.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+    if (!toolUse) return null;
+    const input = toolUse.input as {
+      resumo_executivo: string;
+      hipoteses: string[];
+      problemas: string[];
+      recomendacoes: Array<{ titulo: string; impacto_esperado: string; confianca: "alta" | "media" | "baixa"; tarefa: string }>;
+    };
+
+    return {
+      resumoExecutivo: input.resumo_executivo,
+      hipoteses: input.hipoteses ?? [],
+      problemas: input.problemas ?? [],
+      recomendacoes: (input.recomendacoes ?? []).map((r) => ({ titulo: r.titulo, impactoEsperado: r.impacto_esperado, confianca: r.confianca, tarefa: r.tarefa })),
+    };
+  } catch (err) {
+    // Fail-closed honesto: se a análise por IA falhar, a sincronização de
+    // campanhas (o dado real) continua valendo — só a análise fica
+    // ausente, nunca fabricada como fallback.
+    console.error("Falha ao gerar análise do Gestor de Tráfego:", err);
+    return null;
+  }
+}
+
 export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSincronizacao> {
   const conexao = await tokenAtivoDoCliente(clienteId);
   if (!conexao) throw new ContaDeAnuncioNaoConectadaError("Nenhuma conta de anúncios Meta conectada.");
@@ -127,6 +215,7 @@ export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSi
 
   let sincronizadas = 0;
   const metricasAgregadas = { spend: 0, impressions: 0, clicks: 0 };
+  const metricasPorCampanha: Array<{ nome: string; insight: InsightGraph | undefined }> = [];
 
   for (const campanha of campanhas) {
     const resInsights = await fetch(
@@ -135,6 +224,7 @@ export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSi
     );
     const insightsBody = resInsights.ok ? ((await resInsights.json()) as { data: InsightGraph[] }) : { data: [] };
     const insight = insightsBody.data?.[0];
+    metricasPorCampanha.push({ nome: campanha.name, insight });
 
     if (insight) {
       metricasAgregadas.spend += Number(insight.spend ?? 0);
@@ -163,18 +253,21 @@ export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSi
     if (!error) sincronizadas++;
   }
 
+  const analiseGestor = await gerarAnaliseDoGestor(campanhas, metricasPorCampanha);
+
   const { data: analise, error: erroAnalise } = await supabase
     .from("trafego_analises")
     .insert({
       cliente_id: clienteId,
       metricas_usadas: metricasAgregadas,
       diagnostico:
-        campanhas.length === 0
+        analiseGestor?.resumoExecutivo ??
+        (campanhas.length === 0
           ? "Nenhuma campanha ativa encontrada na conta conectada."
-          : `${campanhas.length} campanha(s) sincronizada(s), gasto total últimos 30 dias: R$ ${(metricasAgregadas.spend).toFixed(2)}.`,
-      oportunidades: [],
-      riscos: [],
-      recomendacoes: [],
+          : `${campanhas.length} campanha(s) sincronizada(s), gasto total últimos 30 dias: R$ ${(metricasAgregadas.spend).toFixed(2)}.`),
+      oportunidades: analiseGestor?.hipoteses ?? [],
+      riscos: analiseGestor?.problemas ?? [],
+      recomendacoes: analiseGestor?.recomendacoes ?? [],
     })
     .select("id")
     .single();

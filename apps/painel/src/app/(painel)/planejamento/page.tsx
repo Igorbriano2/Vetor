@@ -49,12 +49,16 @@ export default async function PlanejamentoPage({
         .select("id, nome, status, orcamento_centavos, metricas, updated_at")
         .eq("cliente_id", clienteId)
         .order("updated_at", { ascending: false }),
+      // Fase 6 do VETOR Manager V2 — histórico de 8 análises (não só a
+      // última) pra alimentar o gráfico de evolução real da Visão geral;
+      // oportunidades/riscos/recomendacoes agora são populados de verdade
+      // por gerarAnaliseDoGestor() em apps/agentes/src/connections/metaAdsSync.ts.
       supabase
         .from("trafego_analises")
-        .select("id, diagnostico, metricas_usadas, created_at")
+        .select("id, diagnostico, metricas_usadas, oportunidades, riscos, recomendacoes, created_at")
         .eq("cliente_id", clienteId)
         .order("created_at", { ascending: false })
-        .limit(1),
+        .limit(8),
       supabase
         .from("connections")
         .select("status")
@@ -99,7 +103,7 @@ export default async function PlanejamentoPage({
           <div className="mt-6">
             <TrafegoPainel
               campanhasIniciais={campanhasTrafego ?? []}
-              analiseInicial={analisesTrafego?.[0] ?? null}
+              historicoAnalises={analisesTrafego ?? []}
               contaConectada={!!conexaoMeta}
             />
           </div>
