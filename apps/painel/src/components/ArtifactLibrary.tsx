@@ -37,7 +37,15 @@ export default function ArtifactLibrary({
           {a.type === "video" && a.url && <video src={a.url} className="h-36 w-full object-cover" muted />}
           {!(a.url && (a.type === "image" || a.type === "video")) && (
             <div className="flex h-36 w-full items-center justify-center bg-petroleo/60 font-mono text-[10px] uppercase tracking-wide text-areia/30">
-              {LABEL_TIPO[a.type] ?? a.type}
+              {/* Fase 2 do Vetor Manager UX — nunca finge um preview que não
+                  existe, mas também nunca deixa um estado em andamento
+                  parecer indistinguível de "nunca foi gerado" — texto muda
+                  conforme o status real da peça. */}
+              {a.status?.toLowerCase().includes("fail")
+                ? "Falhou na geração"
+                : (a.type === "image" || a.type === "video") && ["draft", "pending", "ready", "running", "processing", "awaiting_approval"].includes(a.status)
+                  ? "Aguardando geração"
+                  : (LABEL_TIPO[a.type] ?? a.type)}
             </div>
           )}
 
@@ -54,6 +62,14 @@ export default function ArtifactLibrary({
                 {a.missionId && (
                   <Link href={`/missoes/${a.missionId}`} className="font-mono text-[11px] text-areia/50 hover:text-menta">
                     missão
+                  </Link>
+                )}
+                {a.designProjectId && (
+                  <Link
+                    href={`/design/editor/${a.designProjectId}`}
+                    className="font-mono text-[11px] text-menta underline underline-offset-2 hover:text-menta-forte"
+                  >
+                    editar
                   </Link>
                 )}
                 {a.url && (

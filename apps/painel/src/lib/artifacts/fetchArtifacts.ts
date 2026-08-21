@@ -16,6 +16,11 @@ export interface ArtefatoBiblioteca {
   url: string | null;
   content: string | null;
   createdAt: string;
+  // Fase 2 do Vetor Manager UX (docs/VETOR-MANAGER-UX-AUDIT.md) — quando o
+  // artefato tem um design_project real vinculado (design_projects.artifact_id),
+  // o card pode oferecer "Editar" apontando pro editor de verdade. Nulo é o
+  // caso comum (nem todo artefato é uma peça de Design editável).
+  designProjectId: string | null;
 }
 
 export async function buscarArtefatos(
@@ -41,6 +46,24 @@ export async function buscarArtefatos(
   const { data, error } = await query;
   if (error || !data) return [];
 
+  // Fase 2 do Vetor Manager UX — resolve design_project_id em lote (uma
+  // query só, nunca N+1) pra habilitar a ação "Editar" nos cards que têm um
+  // projeto de Design real por trás. Múltiplas versões podem existir com o
+  // mesmo artifact_id (parent_design_project_id) — pega a mais recente.
+  const idsDeArtefato = data.map((a) => a.id as string);
+  const designProjectPorArtefato = new Map<string, string>();
+  if (idsDeArtefato.length > 0) {
+    const { data: projetos } = await supabase
+      .from("design_projects")
+      .select("id, artifact_id, version")
+      .in("artifact_id", idsDeArtefato)
+      .order("version", { ascending: false });
+    for (const p of projetos ?? []) {
+      const artifactId = p.artifact_id as string;
+      if (!designProjectPorArtefato.has(artifactId)) designProjectPorArtefato.set(artifactId, p.id as string);
+    }
+  }
+
   return Promise.all(
     data.map(async (a) => {
       let url: string | null = null;
@@ -62,6 +85,7 @@ export async function buscarArtefatos(
         url,
         content: (a.metadata as { content?: string } | null)?.content ?? null,
         createdAt: a.created_at as string,
+        designProjectId: designProjectPorArtefato.get(a.id as string) ?? null,
       };
     }),
   );
@@ -100,6 +124,7 @@ export async function buscarVideosFinalizados(
         url: signed?.signedUrl ?? null,
         content: null,
         createdAt: v.created_at as string,
+        designProjectId: null,
       };
     }),
   );
