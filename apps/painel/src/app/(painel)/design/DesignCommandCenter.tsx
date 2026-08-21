@@ -97,6 +97,7 @@ export default function DesignCommandCenter({
         produtoOuPessoa: searchParams.get("produtoOuPessoa") ?? undefined,
         cta: searchParams.get("cta") ?? undefined,
         restricoes: searchParams.get("restricoes") ?? undefined,
+        estiloVisual: searchParams.get("estiloVisual") ?? undefined,
         numeroVariacoes: Number.isFinite(numeroVariacoes) && numeroVariacoes > 0 ? numeroVariacoes : undefined,
       });
       setWizardAberto(true);

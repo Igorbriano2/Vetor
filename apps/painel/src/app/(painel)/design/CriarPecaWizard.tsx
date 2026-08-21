@@ -35,6 +35,18 @@ const NUMERO_DE_DIRECOES_PADRAO = 3;
 
 type OrigemReferencia = "biblioteca" | "url" | "drive" | "nenhuma";
 
+// Mesmos 6 estilos de apps/agentes/src/negocio/artDirection.ts (Fase 9) —
+// rótulo em português só pra exibição, o valor enviado no briefing é
+// sempre a chave em inglês que o schema da ferramenta espera.
+const ESTILOS_VISUAIS: Array<{ valor: string; label: string }> = [
+  { valor: "editorial", label: "Editorial" },
+  { valor: "product_hero", label: "Produto em destaque" },
+  { valor: "split_screen", label: "Tela dividida" },
+  { valor: "collage", label: "Colagem" },
+  { valor: "testimonial", label: "Depoimento" },
+  { valor: "minimal_authority", label: "Minimalista" },
+];
+
 export interface TemplatePreFill {
   nome: string;
   objetivo?: string;
@@ -44,6 +56,7 @@ export interface TemplatePreFill {
   produtoOuPessoa?: string;
   cta?: string;
   restricoes?: string;
+  estiloVisual?: string;
   numeroVariacoes?: number;
 }
 
@@ -94,6 +107,7 @@ export default function CriarPecaWizard({
   const [produtoOuPessoa, setProdutoOuPessoa] = useState(templatePreFill?.produtoOuPessoa ?? "");
   const [cta, setCta] = useState(templatePreFill?.cta ?? "");
   const [restricoes, setRestricoes] = useState(templatePreFill?.restricoes ?? "");
+  const [estiloVisual, setEstiloVisual] = useState(templatePreFill?.estiloVisual ?? "");
   const numeroDeDirecoes = templatePreFill?.numeroVariacoes ?? NUMERO_DE_DIRECOES_PADRAO;
 
   const [status, setStatus] = useState<"formulario" | "enviando" | "confirmada" | "erro">("formulario");
@@ -128,6 +142,12 @@ export default function CriarPecaWizard({
     if (produtoOuPessoa.trim()) partes.push(`Produto/pessoa em destaque: ${produtoOuPessoa.trim()}.`);
     if (cta.trim()) partes.push(`CTA: ${cta.trim()}.`);
     if (restricoes.trim()) partes.push(`Restrições: ${restricoes.trim()}.`);
+    // Mesmo padrão real já usado pro provider de imagem preferido — uma
+    // frase no briefing que o agente de Design lê e usa pra preencher o
+    // campo opcional `estilo_visual` de criar_peca_de_design (ver
+    // apps/agentes/src/agents/prompts/design.md). Nunca um campo
+    // estrutural novo no plano da missão.
+    if (estiloVisual) partes.push(`Direção de arte preferida: ${estiloVisual}.`);
     return partes.length ? ` ${partes.join(" ")}` : "";
   }
 
@@ -352,6 +372,32 @@ export default function CriarPecaWizard({
                 <CampoCurto label="Produto ou pessoa" value={produtoOuPessoa} onChange={setProdutoOuPessoa} placeholder="Ex: hot dog especial, foto da equipe..." />
                 <CampoCurto label="CTA" value={cta} onChange={setCta} placeholder='Ex: "Peça já pelo WhatsApp"' />
                 <CampoCurto label="Restrições" value={restricoes} onChange={setRestricoes} placeholder="Ex: sem preço na arte, sem pessoas..." />
+                <div>
+                  <span className="mono-label text-areia/40">Estilo visual</span>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEstiloVisual("")}
+                      className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                        estiloVisual === "" ? "border-menta bg-menta/10 text-menta" : "border-areia/15 text-areia/70 hover:border-menta/40"
+                      }`}
+                    >
+                      Deixar o Vetor decidir
+                    </button>
+                    {ESTILOS_VISUAIS.map((e) => (
+                      <button
+                        key={e.valor}
+                        type="button"
+                        onClick={() => setEstiloVisual(e.valor)}
+                        className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                          estiloVisual === e.valor ? "border-menta bg-menta/10 text-menta" : "border-areia/15 text-areia/70 hover:border-menta/40"
+                        }`}
+                      >
+                        {e.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 

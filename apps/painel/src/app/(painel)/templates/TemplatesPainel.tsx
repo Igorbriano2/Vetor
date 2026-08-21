@@ -15,6 +15,11 @@ interface Receita {
   produtoOuPessoa?: string;
   cta?: string;
   restricoes?: string;
+  // Direção de arte sugerida (Fase 9 do Design V2) — uma das 6 chaves de
+  // EstiloArteDirecao (ver apps/agentes/src/negocio/artDirection.ts).
+  // Opcional: templates antigos sem este campo continuam funcionando
+  // normalmente (o sistema usa "editorial" por padrão).
+  estiloVisual?: string;
   assetsNecessarios?: string;
   numeroVariacoes?: number;
   etapasExecucao?: string[];
@@ -132,6 +137,7 @@ export default function TemplatesPainel({ clienteId, templatesIniciais }: { clie
     if (template.receita.produtoOuPessoa) params.set("produtoOuPessoa", template.receita.produtoOuPessoa);
     if (template.receita.cta) params.set("cta", template.receita.cta);
     if (template.receita.restricoes) params.set("restricoes", template.receita.restricoes);
+    if (template.receita.estiloVisual) params.set("estiloVisual", template.receita.estiloVisual);
     if (template.receita.numeroVariacoes) params.set("variacoes", String(template.receita.numeroVariacoes));
     router.push(`/design?${params.toString()}`);
   }
@@ -216,6 +222,11 @@ export default function TemplatesPainel({ clienteId, templatesIniciais }: { clie
                     {t.receita.exemploResultado && (
                       <p>
                         <span className="text-areia/40">Exemplo:</span> {t.receita.exemploResultado}
+                      </p>
+                    )}
+                    {t.receita.estiloVisual && (
+                      <p>
+                        <span className="text-areia/40">Direção de arte:</span> {t.receita.estiloVisual}
                       </p>
                     )}
                     {t.receita.assetsNecessarios && (

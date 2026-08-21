@@ -37,6 +37,7 @@ import {
   type FormatoPeca,
 } from "../negocio/designLayout.js";
 import { renderizarPecaComposta, amostrarLuminanciaMedia } from "../negocio/designComposer.js";
+import { montarLayoutPorDirecao, ESTILOS_ARTE_DIRECAO, type EstiloArteDirecao } from "../negocio/artDirection.js";
 import {
   buscarOuCriarVideoProjectRascunho,
   montarTimelineInicial,
@@ -340,6 +341,17 @@ const CRIAR_PECA_DESIGN_TOOL: Anthropic.Tool = {
           "Provider de geração de imagem preferido, SÓ quando a tarefa mencionar explicitamente um (ex: 'Provider de " +
           "imagem preferido: Gemini'). Omita este campo se a tarefa não mencionar — o sistema usa o padrão e cai pro " +
           "outro provider automaticamente se o preferido falhar.",
+      },
+      estilo_visual: {
+        type: "string",
+        enum: ["editorial", "product_hero", "split_screen", "collage", "testimonial", "minimal_authority"],
+        description:
+          "Direção de arte preferida, SÓ quando a tarefa mencionar explicitamente uma (ex: 'Direção de arte " +
+          "preferida: product_hero'). Omita se a tarefa não mencionar — o sistema usa 'editorial' por padrão. Guia: " +
+          "product_hero pra produto em destaque absoluto; split_screen pra comparação ou duas mensagens lado a lado; " +
+          "collage quando há 2+ ativos reais do Drive pra combinar (cai pro editorial com menos de 2); testimonial " +
+          "pra depoimento/prova social com citação; minimal_authority pra marca premium/institucional com pouco " +
+          "texto; editorial (padrão) pra oferta/promoção com headline forte no topo.",
       },
     },
     required: ["visual_prompt", "formato"],
@@ -1201,112 +1213,46 @@ async function executarCriarPecaDeDesign(input: Record<string, unknown>, ctx: Co
     });
   }
 
-  // 4) Layout determinístico — margem de segurança sobre a menor dimensão,
-  // headline no topo, ativo de Drive centralizado, CTA embaixo à esquerda
-  // com uma forma de contraste atrás, logo no canto inferior direito
-  // (mesma posição do fluxo antigo, nunca colide com o CTA).
+  // 4) Direção de arte (ArtDirectionSpec, Fase 9) — o estilo escolhido
+  // decide o arranjo geométrico inteiro via montarLayoutPorDirecao()
+  // (apps/agentes/src/negocio/artDirection.ts). Estilo ausente ou inválido
+  // cai pro "editorial" — o layout já provado em produção, comportamento
+  // idêntico ao fluxo antigo de layout único.
   const { fontFamilyTitulo, fontFamilyApoio, fallbackUsado: fonteFallbackUsada } = resolverFonteDoBrandKit(ctx.brandKit);
   const corPrimaria = resolverCorPrimariaDoBrandKit(ctx.brandKit);
-  const corTextoPadrao = corDeTextoPadrao(luminanciaGeralDoFundo);
   const margem = Math.round(Math.min(width, height) * 0.07);
+  const estiloPedido = typeof input.estilo_visual === "string" ? input.estilo_visual : undefined;
+  const estiloEscolhido: EstiloArteDirecao = (ESTILOS_ARTE_DIRECAO as readonly string[]).includes(estiloPedido ?? "")
+    ? (estiloPedido as EstiloArteDirecao)
+    : "editorial";
 
   const camadas: EspecificacaoDeCamada[] = [
     { tipo: "imagem", role: "fundo", source: "generated", storagePath: pathFundo, bucket: "artifacts", bytes: imagemFundo.bytes, naturalWidth: width, naturalHeight: height, x: 0, y: 0, width, height },
   ];
 
-  let cursorY = margem;
-
-  // Escolhe a cor de cada bloco de texto pela luminância REAL da região do
-  // fundo onde ele vai cair (não a média do canvas inteiro) — achado em
-  // teste real de produção: um fundo gradiente pode ter uma região clara
-  // no topo (onde o headline cai) mesmo com média geral escura, e a cor
-  // "certa pra média" reprova no contraste real contra aquele trecho
-  // específico. amostrarLuminanciaMedia já existe e é barata (reduz a
-  // 8x8 antes de calcular).
-  async function corDeTextoParaRegiao(x: number, y: number, larguraRegiao: number, alturaRegiao: number): Promise<string> {
-    const luminanciaLocal = await amostrarLuminanciaMedia(imagemFundo.bytes, { x, y, width: larguraRegiao, height: alturaRegiao });
-    return corDeTextoPadrao(luminanciaLocal);
-  }
-
-  if (camposValidos.includes("caption")) {
-    const fontSize = Math.round(width * 0.028);
-    const texto = valoresBrutos.caption!.trim();
-    const alturaEstimada = estimarAlturaDeTexto(texto, width - margem * 2, fontSize);
-    const corLocal = await corDeTextoParaRegiao(margem, cursorY, width - margem * 2, alturaEstimada);
-    camadas.push({ tipo: "texto", field: "caption", texto, x: margem, y: cursorY, width: width - margem * 2, fontSize, fontFamily: fontFamilyApoio, fontWeight: "bold", fill: corPrimaria ?? corLocal, textAlign: "left", required: true });
-    cursorY += alturaEstimada + Math.round(height * 0.015);
-  }
-
-  if (camposValidos.includes("headline")) {
-    const fontSize = Math.round(width * 0.07);
-    const texto = valoresBrutos.headline!.trim();
-    const alturaEstimada = estimarAlturaDeTexto(texto, width - margem * 2, fontSize);
-    const corLocal = await corDeTextoParaRegiao(margem, cursorY, width - margem * 2, alturaEstimada);
-    camadas.push({ tipo: "texto", field: "headline", texto, x: margem, y: cursorY, width: width - margem * 2, fontSize, fontFamily: fontFamilyTitulo, fontWeight: "bold", fill: corLocal, textAlign: "left", required: true });
-    cursorY += alturaEstimada + Math.round(height * 0.015);
-  }
-
-  if (camposValidos.includes("subheadline")) {
-    const fontSize = Math.round(width * 0.038);
-    const texto = valoresBrutos.subheadline!.trim();
-    const alturaEstimada = estimarAlturaDeTexto(texto, width - margem * 2, fontSize);
-    const corLocal = await corDeTextoParaRegiao(margem, cursorY, width - margem * 2, alturaEstimada);
-    camadas.push({ tipo: "texto", field: "subheadline", texto, x: margem, y: cursorY, width: width - margem * 2, fontSize, fontFamily: fontFamilyApoio, fontWeight: "normal", fill: corLocal, textAlign: "left", required: true });
-    cursorY += alturaEstimada + Math.round(height * 0.02);
-  }
-
-  if (ativosDrive.length > 0) {
-    const primeiroAtivo = ativosDrive[0]!;
-    const larguraAlvo = Math.round(width * 0.55);
-    const alturaAlvo = Math.round(larguraAlvo * (primeiroAtivo.naturalHeight / primeiroAtivo.naturalWidth));
-    const xAlvo = Math.round((width - larguraAlvo) / 2);
-    const yAlvo = Math.max(cursorY, Math.round(height * 0.4));
-    camadas.push({ tipo: "imagem", role: primeiroAtivo.role, source: "drive", assetId: primeiroAtivo.assetId, storagePath: primeiroAtivo.storagePath, bucket: "brand-assets", bytes: primeiroAtivo.bytes, naturalWidth: primeiroAtivo.naturalWidth, naturalHeight: primeiroAtivo.naturalHeight, x: xAlvo, y: yAlvo, width: larguraAlvo, height: alturaAlvo });
-  }
-
-  let ctaCaixa: { x: number; y: number; width: number; height: number } | null = null;
-  if (camposValidos.includes("cta")) {
-    const fontSize = Math.round(width * 0.042);
-    const texto = valoresBrutos.cta!.trim();
-    const larguraTexto = Math.min(width - margem * 2, Math.round(width * 0.6));
-    const alturaTexto = estimarAlturaDeTexto(texto, larguraTexto, fontSize);
-    const padding = Math.round(fontSize * 0.6);
-    const yForma = height - margem - alturaTexto - padding * 2;
-    ctaCaixa = { x: margem, y: yForma, width: larguraTexto + padding * 2, height: alturaTexto + padding * 2 };
-    camadas.push({ tipo: "forma", x: ctaCaixa.x, y: ctaCaixa.y, width: ctaCaixa.width, height: ctaCaixa.height, fill: corPrimaria ?? corTextoPadrao, opacity: 0.92, raioCanto: Math.round(fontSize * 0.4) });
-    camadas.push({
-      tipo: "texto",
-      field: "cta",
-      texto,
-      x: ctaCaixa.x + padding,
-      y: ctaCaixa.y + padding,
-      width: larguraTexto,
-      fontSize,
-      fontFamily: fontFamilyTitulo,
-      fontWeight: "bold",
-      fill: corPrimaria ? corDeTextoPadrao(luminanciaRelativaHex(corPrimaria)) : corDeTextoPadrao(1 - luminanciaGeralDoFundo),
-      textAlign: "left",
-      required: true,
-    });
-  }
-
-  if (logo && logoBytes && logoDimensaoReal) {
-    const larguraLogo = Math.round(width * 0.18);
-    const alturaLogo = Math.round(larguraLogo * (logoDimensaoReal.height / logoDimensaoReal.width));
-    camadas.push({
-      tipo: "logo",
-      assetId: logo.id,
-      storagePath: logo.storagePath,
-      bucket: "brand-assets",
-      bytes: logoBytes,
-      naturalWidth: logoDimensaoReal.width,
-      naturalHeight: logoDimensaoReal.height,
-      x: width - larguraLogo - margem,
-      y: height - alturaLogo - margem,
-      width: larguraLogo,
-      height: alturaLogo,
-    });
-  }
+  const camadasDeConteudo = await montarLayoutPorDirecao(estiloEscolhido, {
+    width,
+    height,
+    margem,
+    pathFundo,
+    fundoBytes: imagemFundo.bytes,
+    luminanciaGeralDoFundo,
+    textos: {
+      headline: camposValidos.includes("headline") ? valoresBrutos.headline!.trim() : undefined,
+      subheadline: camposValidos.includes("subheadline") ? valoresBrutos.subheadline!.trim() : undefined,
+      cta: camposValidos.includes("cta") ? valoresBrutos.cta!.trim() : undefined,
+      caption: camposValidos.includes("caption") ? valoresBrutos.caption!.trim() : undefined,
+    },
+    fontFamilyTitulo,
+    fontFamilyApoio,
+    corPrimaria,
+    ativosDrive,
+    logo:
+      logo && logoBytes && logoDimensaoReal
+        ? { id: logo.id, storagePath: logo.storagePath, bytes: logoBytes, naturalWidth: logoDimensaoReal.width, naturalHeight: logoDimensaoReal.height }
+        : null,
+  });
+  camadas.push(...camadasDeConteudo);
 
   // 5) Validações reais (Fase 3) — área segura e contraste medido de
   // verdade contra os pixels do FUNDO (o texto ainda não existe nos
@@ -1355,6 +1301,12 @@ async function executarCriarPecaDeDesign(input: Record<string, unknown>, ctx: Co
     visualPromptBruto,
     camposValidos.includes("headline") ? `Headline: ${valoresBrutos.headline}` : null,
     camposValidos.includes("cta") ? `CTA: ${valoresBrutos.cta}` : null,
+    // Contexto de estilo (sem virar critério novo) — o Critic já avalia
+    // composicaoHierarquia/proporcao/alinhamento; sabendo qual dos 6
+    // arranjos foi usado, esses critérios existentes julgam com o padrão
+    // certo (ex: texto centralizado é esperado em "testimonial", não em
+    // "editorial").
+    `Direção de arte usada: ${estiloEscolhido}`,
   ]
     .filter(Boolean)
     .join("\n");

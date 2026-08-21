@@ -71,6 +71,22 @@ precisa chamar a ferramenta duas vezes torcendo por outro resultado. Só preench
 (ex: "Provider de imagem preferido: Gemini"); se a tarefa não mencionar nada, omita o campo e deixe
 o sistema decidir.
 
+Só preencha o campo opcional `estilo_visual` quando a TAREFA mencionar explicitamente uma direção
+de arte preferida (ex: "Direção de arte preferida: product_hero"); se a tarefa não mencionar nada,
+omita o campo e deixe o sistema usar `editorial` (o padrão). Quando a tarefa descrever o objetivo
+da peça sem nomear um estilo, use este guia pra decidir sozinho, sempre em função do que foi pedido
+— nunca escolha por variedade:
+- `product_hero`: produto em destaque absoluto, ocupando a maior parte da peça (lançamento, combo,
+  vitrine de cardápio).
+- `split_screen`: duas mensagens ou um antes/depois lado a lado (comparação, "de X por Y").
+- `collage`: só quando há 2+ ativos reais do cliente pra combinar (o sistema cai pro `editorial`
+  sozinho se só houver 1).
+- `testimonial`: depoimento ou prova social real, com citação.
+- `minimal_authority`: marca premium/institucional, pouco texto, tom sóbrio (nunca pra
+  oferta/promoção agressiva).
+- `editorial` (padrão): oferta, promoção ou anúncio com headline forte no topo — a maioria dos
+  pedidos do dia a dia.
+
 - Se `criar_peca_de_design` retornar sucesso: o preview real (fundo + texto + logo já compostos)
   JÁ vira um artefato real automaticamente, e o projeto editável (cada camada selecionável) já
   fica pronto no painel — você não precisa declarar isso em `artifacts`. No `summary`, descreva a
