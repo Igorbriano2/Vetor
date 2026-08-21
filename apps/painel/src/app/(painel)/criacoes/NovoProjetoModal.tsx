@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { criarProjetoCanvas } from "@/lib/canvas/criarProjeto";
@@ -79,24 +78,24 @@ export default function NovoProjetoModal({ clienteId, onFechar }: { clienteId: s
             </button>
             <div className="mt-3 grid max-h-[60vh] grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2">
               {RECEITAS_AGENCIA.map((r) => (
-                <Link
+                <button
                   key={r.id}
-                  href={`/design?${queryDaReceita(r)}`}
-                  onClick={onFechar}
+                  type="button"
+                  onClick={() => router.push(`/design?${queryDaReceita(r)}`)}
                   className="flex flex-col gap-1 rounded-2xl border border-areia/10 bg-petroleo-3/50 p-4 text-left transition hover:border-menta/40 hover:bg-petroleo-3/80"
                 >
                   <p className="text-sm font-semibold text-areia">{r.nome}</p>
                   <p className="text-xs text-areia/50">{r.descricao}</p>
-                </Link>
+                </button>
               ))}
             </div>
-            <Link
-              href="/templates"
-              onClick={onFechar}
-              className="mt-4 inline-block font-mono text-[11px] text-menta underline underline-offset-2 hover:text-menta-forte"
+            <button
+              type="button"
+              onClick={() => router.push("/templates")}
+              className="mt-4 font-mono text-[11px] text-menta underline underline-offset-2 hover:text-menta-forte"
             >
               ver meus templates salvos
-            </Link>
+            </button>
           </>
         ) : (
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
