@@ -1,10 +1,9 @@
 # Design V2 — Fases 9 e 10 (relatório de execução)
 
-**Gerado em:** 2026-08-21
+**Gerado em:** 2026-08-21 (atualizado com o smoke test real, aprovado pelo usuário após a primeira
+versão deste relatório)
 **Escopo do pedido:** Fase 9 (qualidade visual + ArtDirectionSpec real) e Fase 10 (testes E2E e
 aceite), com plano detalhado aprovado previamente pelo usuário (`/Users/usuario1/.claude/plans/scalable-plotting-avalanche.md`).
-**Restrição inegociável cumprida:** nenhuma chamada paga de geração de imagem/vídeo foi feita nesta
-rodada. O smoke test real só acontece depois deste relatório ser aprovado.
 
 ---
 
@@ -90,19 +89,24 @@ o resto é Track B (seção 4).
 | `apps/painel/src/lib/workspace/resolverClienteAtivo.test.ts` | 6 | Primeiro teste do repo com um Supabase client fake — isolamento de workspace: cliente comum nunca troca via cookie, admin só troca pra um `cliente_id` que existe de verdade (critério 15) |
 | `apps/agentes/src/tools/registry.test.ts` (extensão) | +3 | `criar_peca_de_design`/`gerar_imagem`/`gerar_video_higgsfield` travados como `medium+` — nunca viram `low` por acidente (critério 7) |
 
-**Resultado final**: 271 testes em `apps/agentes` (268 + 3), 88 em `apps/painel` (72 + 16) — todos
-passando. Typecheck e lint limpos nos dois apps, em cada commit.
+Mais 1 arquivo/4 testes vieram do smoke test real (seção 6): `apps/painel/src/lib/design/resolveCanvasUrls.test.ts`,
+cobrindo o bug do `crossOrigin` encontrado ao vivo.
+
+**Resultado final**: 271 testes em `apps/agentes` (268 + 3), 92 em `apps/painel` (72 + 16 + 4) —
+todos passando. Typecheck e lint limpos nos dois apps, em cada commit.
 
 ---
 
 ## 3. Deploy
 
-5 commits enviados pro `main` (`5899c73` → `ba83766`), DigitalOcean App Platform (`deploy_on_push: true`
+6 commits enviados pro `main` (`5899c73` → `849f7ca`), DigitalOcean App Platform (`deploy_on_push: true`
 pros dois serviços) redeployou automaticamente:
 
-- `agentes` (`api.vetormkt.online/health`) → `200`, confirmado após o build.
+- `agentes` (`api.vetormkt.online/health`) → `200`, confirmado após cada build.
 - `painel` (`painel.vetormkt.online`) → fingerprint de build (hash do chunk CSS) mudou de
-  `2z3i3k8_88t8_.css` pra `35yuq79q0z6-7.css`, confirmando que o novo código está servindo.
+  `2z3i3k8_88t8_.css` pra `35yuq79q0z6-7.css` no primeiro deploy, confirmando que o novo código
+  estava servindo. O segundo deploy (fix do `crossOrigin`, commit `849f7ca`) estava demorando bem
+  mais que o normal no momento da escrita deste relatório — ver seção 6.2 pro status exato.
 
 Nenhuma migration nova nesta rodada além da `0035` (já aplicada antes do deploy).
 
@@ -125,13 +129,13 @@ geração paga de verdade) foi identificado e **nunca clicado**.
 | 3 | Escolha uma receita/referência sem prompt técnico | ✅ Wizard de 4 passos, nenhum campo técnico obrigatório |
 | 4 | Sistema coleta briefing sem exigir agente/skill | ✅ Mensagem em linguagem natural ("Crie uma peça de post de oferta... estilo product_hero") virou plano de missão automaticamente |
 | 5 | Vetor monta plano compreensível | ✅ "Proposta de missão" com hipótese, critério de sucesso, etapas em português |
-| 6 | Aprovação exigida antes de qualquer chamada paga | ✅ **Confirmado ao vivo**: etapa de Design nasceu com badge "AGUARDANDO SUA APROVAÇÃO" e botões reais Aprovar/Rejeitar — **não clicados** |
-| 7 | Missão idempotente | ⚠️ Coberto parcialmente (hash já testado em `orchestrator.hash.test.ts`); execução completa fica como limitação conhecida (ver seção 5) |
+| 6 | Aprovação exigida antes de qualquer chamada paga | ✅ **Confirmado ao vivo**: etapa de Design nasceu com badge "AGUARDANDO SUA APROVAÇÃO" e botões reais Aprovar/Rejeitar — aprovado deliberadamente no smoke test (seção 6), disparando geração real |
+| 7 | Missão idempotente | ⚠️ Coberto parcialmente (hash já testado em `orchestrator.hash.test.ts` + execução real completa no smoke test); idempotência sob reenvio concorrente fica como limitação conhecida (ver seção 5) |
 | 8 | Criações/Planejamento/Negócio no workspace correto | ✅ Confirmado por troca de workspace: cada tenant mostrou dados completamente diferentes (Cantina da Ana vazio, "Vetor conta de teste" com o histórico real do Dog Frango Duplo) |
 | 9 | Estados vazios com ação clara | ✅ Todas as telas vazias testadas (Criações, Design, Referências × 4 abas, Planejamento) têm frase explicando o que fazer, nunca um vazio mudo |
 | 10 | Nenhum thumbnail falso | ✅ Card "Análise do Banco de Ativos" (tipo `document`) mostra rótulo "Documento", nunca finge ser imagem |
 | 11 | Modo avançado nunca obrigatório | ✅ "Ver como canvas" é um `<details>` colapsado por padrão — o fluxo principal (chat → aprovação) não passa por ele |
-| 12 | Design V1 com layers/editor funcionando | ⚠️ **Não verificado visualmente** — zero `design_projects` existem em toda a base de produção hoje (consulta SQL direta confirmou), então não havia projeto existente pra abrir sem gerar um novo (proibido). Coberto por revisão de código + typecheck/lint/testes; verificação visual fica pendente pro smoke test aprovado. |
+| 12 | Design V1 com layers/editor funcionando | ✅ **Confirmado ao vivo no smoke test** (seção 6.1): logo travada, headline como `textbox` editável real. Achado nesse teste: bug do `crossOrigin` no export (seção 6.2), corrigido, verificação final do fix em produção pendente de deploy propagar |
 | 13 | Rotas antigas por alias | ✅ `/dashboard` redireciona pra `/vetor` |
 | 14 | RLS/isolamento de workspace | ✅ Confirmado ao vivo (isolamento entre tenants, seção 8 acima) + `resolverClienteAtivo.test.ts` |
 | 15 | Estilo visual real (novo nesta rodada) | ✅ Seletor "Estilo visual" testado ao vivo no wizard — "Produto em destaque" selecionável; o Vetor reconheceu "product_hero" mencionado em texto livre no chat e o plano gerado citou "product hero" explicitamente |
@@ -140,9 +144,14 @@ geração paga de verdade) foi identificado e **nunca clicado**.
 
 ## 5. Limitações conhecidas (honestas, não escondidas)
 
-- **Critério 12 (Design V1 visual)**: não há nenhum `design_project` real em produção hoje — a
-  verificação ao vivo do editor de camadas/botão "Baixar PNG" fica pendente até o primeiro smoke test
-  real (que só roda depois da sua aprovação deste relatório).
+- **Deploy do fix `crossOrigin`**: commitado, testado e enviado pro `main`, mas a propagação em
+  produção estava demorando bem mais que o deploy anterior no momento da escrita deste relatório —
+  confirmação visual final (clique real em "Baixar PNG" funcionando) ainda pendente.
+- **DesignCritic reprovou a peça do smoke test**: comportamento correto (fail-closed), mas significa
+  que ainda não existe em produção uma peça deste ciclo que tenha passado por todos os 12 critérios
+  visuais + 5 estruturais ao mesmo tempo — os ajustes reais que o Critic pediu (fonte cadastrada,
+  contraste do CTA, foto real do produto) não foram feitos nesta rodada (fora do escopo: seriam
+  mudanças de conteúdo/dados do cliente, não de código).
 - **"Para esta campanha"**: sem vínculo real entre `reference_collections` e `missions` no schema —
   mostra a coleção mais recente como fallback honesto. Se isso não for suficiente, uma migration
   aditiva (`reference_collections.mission_id`) resolveria de verdade numa próxima rodada.
@@ -152,7 +161,63 @@ geração paga de verdade) foi identificado e **nunca clicado**.
 
 ---
 
-## 6. Próximo passo
+## 6. Smoke test real (executado após aprovação deste relatório)
 
-Com este relatório aprovado, o smoke test real (1 peça gerada de verdade, gastando crédito Gemini) é
-o único item que falta pra fechar completamente o roteiro de aceite (critérios 7 e 12 na íntegra).
+Missão real: "Peça de oferta Dog Frango Duplo - Product Hero" (workspace "Vetor conta de teste",
+`mission_id 208ad41b-9e7c-47cb-837f-4e9e574fd775`). Fluxo completo executado ao vivo:
+
+1. Copy gerada de verdade (Social Media) — 3 variações reais de gancho.
+2. Etapa de Design aprovada de verdade (clique real em "Aprovar") — **crédito Gemini gasto**.
+3. Fundo gerado de verdade (gradiente radial nas cores do brand kit), logo oficial aplicada como
+   camada travada, headline/subheadline/CTA reais extraídos da copy aprovada.
+4. **DesignCritic reprovou a peça** (fail-closed, comportamento correto e esperado) com motivos
+   reais e específicos:
+   - Tipografia `Passion One` do brand kit não está cadastrada no sistema (usou fallback sans).
+   - Contraste do CTA insuficiente (1.2:1) na versão gerada.
+   - Nenhuma foto real do Dog Frango Duplo no Drive — espaço reservado ficou vazio (o `product_hero`
+     exige o produto como estrela).
+   - **Achado de qualidade de dados real, fora do escopo desta rodada**: o Critic identificou que a
+     logo oficial cadastrada ("Dog King", visualmente uma paródia do Burger King) não condiz com um
+     negócio de hot dog — vale revisão do brand kit deste tenant.
+5. Mesmo reprovada, o sistema **não descartou o trabalho** — persistiu um `design_project` real
+   (`041c4440-775f-4660-bd5b-26e47ae8af97`) como rascunho editável, e reportou os motivos reais no
+   lugar de fingir sucesso. Confirma o comportamento fail-closed já documentado no código.
+
+### 6.1 Confirmação visual do editor (critério 12, agora fechado)
+
+Abri o `design_project` gerado no editor real:
+- **Logo**: selecionável, painel de propriedades mostra "Logo oficial — bloqueada por padrão. Peça
+  uma exceção explícita nas regras do BrandKit pra editar." — camada real, travada conforme o
+  BrandKit, não pixel fundido no fundo.
+- **Headline** ("Dog Frango Duplo"): selecionável, painel de propriedades mostra tamanho de fonte
+  (67), cor, alinhamento, posição X/Y editáveis — `textbox` Fabric.js real, não texto rasterizado.
+
+### 6.2 Bug real encontrado e corrigido: canvas "tainted" impedia exportar
+
+Ao clicar no botão "Baixar PNG" (novo, desta rodada), o console mostrou:
+`SecurityError: Failed to execute 'toDataURL' — Tainted canvases may not be exported.`
+
+**Causa raiz**: `resolverUrlsDoCanvas()` (`apps/painel/src/lib/design/resolveCanvasUrls.ts`) injeta a
+URL assinada do Supabase Storage (sempre cross-origin em relação ao painel) como `src` de cada
+imagem do canvas, mas nunca setava `crossOrigin`. O Fabric.js 7 carrega a imagem sem o atributo
+`crossOrigin` do `<img>`, e mesmo com o Storage permitindo CORS, o canvas fica "tainted" — qualquer
+`toDataURL()`/`toBlob()` depois lança `SecurityError`.
+
+**Achado bônus**: isso não foi introduzido pela mudança desta rodada — os botões pré-existentes
+"Exportar PNG"/"Exportar JPG" do spike original do canvas sofriam do mesmo bug silenciosamente; só
+apareceu agora porque foi a primeira vez que alguém testou um export com uma imagem real carregada.
+
+**Fix**: `crossOrigin: "anonymous"` junto do `src`, no mesmo lugar onde a URL é resolvida (commit
+`849f7ca`, com 4 testes novos cobrindo `resolverUrlsDoCanvas`). Corrige os dois botões de uma vez.
+Typecheck, lint e suíte completa (92/92) passando localmente antes do commit.
+
+**Status do fix em produção**: commitado e enviado pro `main`, mas a verificação visual ao vivo (o
+botão realmente baixando o arquivo) ficou pendente — o deploy no DigitalOcean estava demorando bem
+mais que o normal (~20min vs ~10min do deploy anterior) e não há acesso ao token da API do DO nesta
+sessão pra diagnosticar a causa. Confirmar com um clique real em "Baixar PNG" (ou "Exportar PNG") no
+editor assim que o deploy propagar é o único item que resta pra fechar 100% este critério.
+
+## 7. Próximo passo
+
+Confirmar visualmente que o fix do `crossOrigin` chegou em produção (deploy pendente de propagação
+no momento da escrita deste relatório) — depois disso, os 15 critérios da Fase 10 estão fechados.
