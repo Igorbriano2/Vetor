@@ -32,6 +32,11 @@ export interface ResultadoNodeInfo {
   provider: string | null;
   custoCentavos: number | null;
   designProjectId: string | null;
+  // Fase 4 — nunca null quando mock=false: é o vínculo real com o Mission
+  // Orchestrator (o canvas nunca chama criar_peca_de_design diretamente,
+  // sempre passa pela mesma jornada texto->proposta->confirmação->
+  // aprovação manual que o chat já usa).
+  missionId: string | null;
   mock: boolean;
 }
 
@@ -117,7 +122,7 @@ export function criarNode(tipo: TipoNode, posicao: { x: number; y: number }): Gr
       estado: "idle",
       erro: null,
       ...(tipo === "resultado"
-        ? { resultado: { thumbnailUrl: null, aspectRatio: null, resolucao: null, provider: null, custoCentavos: null, designProjectId: null, mock: true } }
+        ? { resultado: { thumbnailUrl: null, aspectRatio: null, resolucao: null, provider: null, custoCentavos: null, designProjectId: null, missionId: null, mock: true } }
         : {}),
     },
   };

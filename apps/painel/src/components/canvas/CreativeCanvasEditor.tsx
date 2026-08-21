@@ -198,6 +198,7 @@ export default function CreativeCanvasEditor({ projectId, tituloInicial, graphIn
             provider: "mock — nenhum crédito gasto",
             custoCentavos: 0,
             designProjectId: null,
+            missionId: null,
             mock: true,
           },
         });
@@ -205,6 +206,121 @@ export default function CreativeCanvasEditor({ projectId, tituloInicial, graphIn
         atualizarDadosNode(id, { estado: "pronto" });
       }
     }, 1100);
+  }
+
+  // Fase 4 do VETOR Manager V2 — junta título+configuração de tudo que
+  // alimenta o node de Resultado (edges apontando pra ele) num briefing em
+  // linguagem natural, exatamente como um cliente digitaria no chat.
+  // Nunca chama criar_peca_de_design direto: passa pela MESMA jornada
+  // texto -> proposta -> confirmação -> aprovação manual que o chat já usa
+  // (Mission Orchestrator + Policy Engine intocados, aprovação sempre
+  // exigida antes de qualquer chamada paga).
+  function montarBriefingDosNodes(resultadoId: string): string {
+    const idsOrigem = edges.filter((e) => e.target === resultadoId).map((e) => e.source);
+    const nodesOrigem = nodes.filter((n) => idsOrigem.includes(n.id));
+    const partes = nodesOrigem
+      .filter((n) => n.data.titulo.trim() || n.data.descricao.trim())
+      .map((n) => `${RÓTULO_TIPO[n.data.tipo]}: ${[n.data.titulo, n.data.descricao].filter(Boolean).join(" — ")}`);
+    const resultado = nodes.find((n) => n.id === resultadoId);
+    if (resultado?.data.titulo.trim() || resultado?.data.descricao.trim()) {
+      partes.unshift([resultado!.data.titulo, resultado!.data.descricao].filter(Boolean).join(" — "));
+    }
+    return partes.length > 0 ? `Crie uma peça de design a partir deste briefing do Creative Canvas:\n${partes.join("\n")}` : "";
+  }
+
+  async function gerarPecaReal(resultadoId: string) {
+    const briefing = montarBriefingDosNodes(resultadoId);
+    if (!briefing) {
+      atualizarDadosNode(resultadoId, { estado: "erro", erro: "Conecte ao menos um node com título ou configuração antes de gerar." });
+      return;
+    }
+    atualizarDadosNode(resultadoId, { estado: "processando", erro: null });
+    try {
+      const resComando = await fetch("/api/comando", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texto: briefing, responder_em_voz: false }),
+      });
+      const dataComando = await resComando.json();
+      if (!resComando.ok) throw new Error(dataComando?.error ?? "Falha ao falar com o Vetor");
+
+      if (!dataComando.intent) {
+        atualizarDadosNode(resultadoId, {
+          estado: "erro",
+          erro: `O Vetor precisa de mais contexto: "${dataComando.respostaTexto}" — ajuste os nodes conectados e tente de novo.`,
+        });
+        return;
+      }
+
+      const resMissao = await fetch("/api/missoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plano: dataComando.intent, solicitacao_id: dataComando.solicitacaoId }),
+      });
+      const dataMissao = await resMissao.json();
+      if (!resMissao.ok) throw new Error(dataMissao?.error ?? "Falha ao confirmar a missão");
+
+      atualizarDadosNode(resultadoId, {
+        estado: "aguardando_aprovacao",
+        resultado: {
+          thumbnailUrl: null,
+          aspectRatio: null,
+          resolucao: null,
+          provider: null,
+          custoCentavos: null,
+          designProjectId: null,
+          missionId: dataMissao.missionId,
+          mock: false,
+        },
+      });
+    } catch (err) {
+      atualizarDadosNode(resultadoId, { estado: "erro", erro: err instanceof Error ? err.message : "Falha ao gerar a peça real" });
+    }
+  }
+
+  // Busca o design_project real vinculado à missão (só existe depois que
+  // alguém aprovar a etapa de Design na tela da missão — nunca chamado
+  // automaticamente por polling, sempre um clique explícito do cliente).
+  async function atualizarResultadoReal(resultadoId: string) {
+    const node = nodes.find((n) => n.id === resultadoId);
+    const missionId = node?.data.resultado?.missionId;
+    if (!missionId) return;
+
+    const { data: projeto } = await supabase
+      .from("design_projects")
+      .select("id, status, width, height, thumbnail_url")
+      .eq("mission_id", missionId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!projeto) return;
+
+    const { data: custos } = await supabase.from("agent_runs").select("custo_estimado_centavos").eq("mission_id", missionId);
+    const custoTotal = (custos ?? []).reduce((soma, c) => soma + (c.custo_estimado_centavos as number | null ?? 0), 0);
+
+    atualizarDadosNode(resultadoId, {
+      estado: projeto.status === "approved" ? "aprovado" : "pronto",
+      resultado: {
+        thumbnailUrl: (projeto.thumbnail_url as string | null) ?? null,
+        aspectRatio: projeto.width && projeto.height ? `${projeto.width}:${projeto.height}` : null,
+        resolucao: projeto.width && projeto.height ? `${projeto.width}×${projeto.height}` : null,
+        provider: null,
+        custoCentavos: custoTotal,
+        designProjectId: projeto.id as string,
+        missionId,
+        mock: false,
+      },
+    });
+  }
+
+  // Node "scene_graph" não tem resultado próprio — o Scene Graph real é
+  // sempre o de um node "resultado" conectado a ele (em qualquer direção
+  // da seta, pra não depender de como o cliente desenhou a conexão).
+  function designProjectConectado(sceneGraphId: string): string | null {
+    const idsVizinhos = edges.filter((e) => e.source === sceneGraphId || e.target === sceneGraphId).map((e) => (e.source === sceneGraphId ? e.target : e.source));
+    const resultado = nodes.find((n) => idsVizinhos.includes(n.id) && n.data.tipo === "resultado" && n.data.resultado?.designProjectId);
+    return resultado?.data.resultado?.designProjectId ?? null;
   }
 
   async function salvarTitulo() {
@@ -296,10 +412,40 @@ export default function CreativeCanvasEditor({ projectId, tituloInicial, graphIn
 
             {nodeSelecionado.data.tipo === "scene_graph" && (
               <p className="text-[11px] text-areia/40">
-                {nodeSelecionado.data.resultado?.designProjectId
-                  ? "Projeto real disponível."
-                  : "Disponível depois de gerar um resultado real (Fase 4) — ainda não há Scene Graph real conectado."}
+                {designProjectConectado(nodeSelecionado.id) ? (
+                  <Link href={`/design/editor/${designProjectConectado(nodeSelecionado.id)}`} className="text-menta hover:underline">
+                    Abrir Scene Graph real →
+                  </Link>
+                ) : (
+                  "Disponível depois de conectar um node de Resultado com uma peça real já gerada e aprovada."
+                )}
               </p>
+            )}
+
+            {nodeSelecionado.data.tipo === "resultado" && (
+              <div className="space-y-2 rounded-lg border border-ambar/20 bg-ambar/5 p-2.5">
+                <p className="text-[11px] text-areia/50">
+                  Geração real usa os nodes conectados como briefing e passa pela aprovação normal da missão — nunca
+                  gera direto, nunca em lote.
+                </p>
+                <button
+                  onClick={() => gerarPecaReal(nodeSelecionado.id)}
+                  disabled={nodeSelecionado.data.estado === "processando"}
+                  className="w-full rounded-lg border border-ambar/40 bg-ambar/10 px-2.5 py-1.5 text-[11px] font-semibold text-ambar hover:bg-ambar/20 disabled:opacity-40"
+                >
+                  {nodeSelecionado.data.estado === "processando" ? "Enviando ao Vetor..." : "Gerar peça real"}
+                </button>
+                {nodeSelecionado.data.resultado?.missionId && (
+                  <div className="flex items-center justify-between gap-2">
+                    <Link href={`/missoes/${nodeSelecionado.data.resultado.missionId}`} className="text-[11px] text-menta hover:underline">
+                      Ver e aprovar na missão →
+                    </Link>
+                    <button onClick={() => atualizarResultadoReal(nodeSelecionado.id)} className="text-[11px] text-areia/50 hover:text-areia">
+                      Atualizar
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
 
             <div className="flex flex-wrap gap-2 border-t border-areia/10 pt-3">
@@ -308,7 +454,7 @@ export default function CreativeCanvasEditor({ projectId, tituloInicial, graphIn
                 disabled={nodeSelecionado.data.estado === "processando"}
                 className="rounded-lg border border-menta/30 px-2.5 py-1.5 text-[11px] text-menta hover:bg-menta/10 disabled:opacity-40"
               >
-                {nodeSelecionado.data.estado === "processando" ? "Processando..." : "Reprocessar"}
+                {nodeSelecionado.data.estado === "processando" ? "Processando..." : "Reprocessar (mock)"}
               </button>
               <button onClick={() => duplicarNode(nodeSelecionado.id)} className="rounded-lg border border-areia/15 px-2.5 py-1.5 text-[11px] text-areia/70 hover:text-areia">
                 Duplicar
