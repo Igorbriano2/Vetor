@@ -64,6 +64,15 @@ export interface VetorNodeData {
   estado: EstadoNode;
   erro: string | null;
   resultado?: ResultadoNodeInfo;
+  // Design V2 (auditoria Gravyx) — o node de Resultado do Gravyx deixa
+  // escolher formato/quantas variações ANTES de gerar, direto no node; o
+  // Vetor não tinha nenhum controle equivalente (só texto livre). Sem
+  // parâmetro estruturado novo no backend (CRIAR_PECA_DESIGN_TOOL já lê
+  // "formato" e pedidos de variação em linguagem natural) — só dois campos
+  // de configuração no node, dobrados em texto no briefing que vira o
+  // pedido real (mesmo padrão de "Direção de arte preferida: X").
+  formatoDesejado?: string;
+  variacoesDesejadas?: number;
   [chave: string]: unknown;
 }
 

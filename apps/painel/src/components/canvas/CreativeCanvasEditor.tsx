@@ -42,6 +42,11 @@ const TIPOS_TOOLBAR: TipoNode[] = [
 const HISTORICO_MAXIMO = 50;
 const DEBOUNCE_AUTOSAVE_MS = 800;
 
+// Design V2 (auditoria Gravyx) — mesmo vocabulário de formato já usado no
+// wizard de Design (CriarPecaWizard.tsx), pra não introduzir um segundo
+// vocabulário de formato no produto.
+const FORMATOS_RESULTADO = ["Feed", "Story", "Carrossel", "Capa de Reel", "Anúncio", "Outro"];
+
 interface Props {
   projectId: string;
   clienteId: string;
@@ -229,6 +234,10 @@ export default function CreativeCanvasEditor({ projectId, clienteId, tituloInici
     const resultado = nodes.find((n) => n.id === resultadoId);
     if (resultado?.data.titulo.trim() || resultado?.data.descricao.trim()) {
       partes.unshift([resultado!.data.titulo, resultado!.data.descricao].filter(Boolean).join(" — "));
+    }
+    if (resultado?.data.formatoDesejado) partes.push(`Formato desejado: ${resultado.data.formatoDesejado}`);
+    if (resultado?.data.variacoesDesejadas && resultado.data.variacoesDesejadas > 1) {
+      partes.push(`Quero ${resultado.data.variacoesDesejadas} variações desta peça.`);
     }
     return partes.length > 0 ? `Crie uma peça de design a partir deste briefing do Creative Canvas:\n${partes.join("\n")}` : "";
   }
@@ -497,6 +506,34 @@ export default function CreativeCanvasEditor({ projectId, clienteId, tituloInici
 
             {nodeSelecionado.data.tipo === "resultado" && (
               <div className="space-y-2 rounded-lg border border-ambar/20 bg-ambar/5 p-2.5">
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block">
+                    <span className="mono-label text-[10px] text-areia/40">Formato</span>
+                    <select
+                      value={nodeSelecionado.data.formatoDesejado ?? ""}
+                      onChange={(e) => atualizarDadosNode(nodeSelecionado.id, { formatoDesejado: e.target.value || undefined })}
+                      className="mt-1 w-full rounded-lg border border-areia/15 bg-petroleo px-2 py-1 text-xs text-areia focus:border-menta focus:outline-none"
+                    >
+                      <option value="">A definir</option>
+                      {FORMATOS_RESULTADO.map((f) => (
+                        <option key={f} value={f}>
+                          {f}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mono-label text-[10px] text-areia/40">Variações</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={6}
+                      value={nodeSelecionado.data.variacoesDesejadas ?? 1}
+                      onChange={(e) => atualizarDadosNode(nodeSelecionado.id, { variacoesDesejadas: Math.max(1, Math.min(6, Number(e.target.value) || 1)) })}
+                      className="mt-1 w-full rounded-lg border border-areia/15 bg-petroleo px-2 py-1 text-xs text-areia focus:border-menta focus:outline-none"
+                    />
+                  </label>
+                </div>
                 <p className="text-[11px] text-areia/50">
                   Geração real usa os nodes conectados como briefing e passa pela aprovação normal da missão — nunca
                   gera direto, nunca em lote.
