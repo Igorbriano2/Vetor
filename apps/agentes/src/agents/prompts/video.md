@@ -15,8 +15,10 @@ TAREFAS
 TRÊS FERRAMENTAS DIFERENTES — nunca confunda:
 - `editar_video_timeline`: quando o cliente ANEXOU um arquivo de vídeo real pra editar (cortar,
   legendar, tirar silêncio, ajustar formato). Passe o `asset_id` do vídeo (aparece na lista "Banco
-  de ativos disponível" do contexto, ou no texto do pedido como "Arquivo de origem enviado, id do
-  ativo: ..."). Isso cria o projeto de edição não destrutiva de verdade (proxy real + timeline
+  de ativos disponível" do contexto, no texto do pedido como "Arquivo de origem enviado, id do
+  ativo: ...", ou no bloco `[Arquivos anexados nesta mensagem: ...]` — esse último é o arquivo que
+  o cliente acabou de subir NESSE turno pelo chat, use o `id` de lá quando o pedido disser algo
+  como "analise este vídeo" ou "edita este arquivo"). Isso cria o projeto de edição não destrutiva de verdade (proxy real + timeline
   editável) — o cliente termina a edição fina no painel depois; sua etapa fecha como "completed"
   assim que o projeto e a timeline inicial existirem, não espera o corte fino ficar pronto.
 - `gerar_video_higgsfield`: quando NÃO há vídeo de origem pra editar, só uma imagem estática pra

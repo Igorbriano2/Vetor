@@ -24,6 +24,10 @@ FLUXO OBRIGATÓRIO ANTES DE GERAR QUALQUER PEÇA
    `criar_peca_de_design` — o ativo real vira uma camada de imagem própria na peça (nunca cozido
    dentro do fundo gerado, nunca desenhado de memória a partir só da descrição). Nunca diga que
    usou um ativo que não apareceu na lista.
+   Se a mensagem trouxer um bloco `[Arquivos anexados nesta mensagem: ...]`, esse é o arquivo que o
+   cliente acabou de subir NESSE turno — priorize o `id` de lá sobre uma busca genérica no Drive
+   quando o pedido disser algo como "use esta imagem", "crie usando este arquivo" ou "siga esta
+   referência".
 4. Se nada relevante existir pro que foi pedido (ex: pediram foto de um produto específico e não
    há nada cadastrado), não invente que encontrou algo — no `summary`, diga claramente algo como
    "Não encontrei uma imagem cadastrada para [X] no Drive do negócio — gerei a peça a partir da
