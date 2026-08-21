@@ -48,4 +48,19 @@ describe("validarChamadaFerramenta", () => {
       }
     }
   });
+
+  // Critério 7 da Fase 10 (docs/DESIGN-V2-PHASE-9-10-REPORT.md) — aprovação
+  // é exigida antes de QUALQUER chamada paga. As três ferramentas que
+  // realmente gastam crédito de geração (imagem ou vídeo) nunca podem virar
+  // "low" por acidente numa mudança futura — isso destravaria execução
+  // automática sem aprovação (ver avaliarRisco em policyEngine.ts, que usa
+  // exatamente riskLevel pra decidir se a etapa nasce aguardando aprovação).
+  it.each(["criar_peca_de_design", "gerar_imagem", "gerar_video_higgsfield"])(
+    "'%s' gasta crédito real de geração — permanece medium+ (nunca low, nunca sem aprovação)",
+    (nome) => {
+      const def = buscarFerramenta(nome);
+      expect(["medium", "high", "critical"]).toContain(def.riskLevel);
+      expect(def.requiresApproval).toBe(true);
+    },
+  );
 });

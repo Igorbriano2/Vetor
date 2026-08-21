@@ -1,6 +1,7 @@
 import Link from "next/link";
 import StatusBadge from "./StatusBadge";
 import type { ArtefatoBiblioteca } from "@/lib/artifacts/fetchArtifacts";
+import { rotuloDoPlaceholder, LABEL_TIPO } from "@/lib/campanha/rotuloDePeca";
 
 // Força download real mesmo cross-origin (o atributo `download` do <a>
 // sozinho é ignorado pelo navegador em recursos de outra origem, e a URL
@@ -15,16 +16,6 @@ function comDownloadForcado(url: string): string {
   if (!url.includes("token=")) return url;
   return url.includes("?") ? `${url}&download=` : `${url}?download=`;
 }
-
-const LABEL_TIPO: Record<string, string> = {
-  image: "Imagem",
-  video: "Vídeo",
-  copy: "Copy",
-  document: "Documento",
-  report: "Relatório",
-  plan: "Plano",
-  campaign_snapshot: "Campanha",
-};
 
 // Biblioteca visual reutilizada por Design/Videomaker/Entregas — mesma
 // lógica de card (thumbnail/preview, tipo, data, origem, status, ação),
@@ -55,11 +46,7 @@ export default function ArtifactLibrary({
                   existe, mas também nunca deixa um estado em andamento
                   parecer indistinguível de "nunca foi gerado" — texto muda
                   conforme o status real da peça. */}
-              {a.status?.toLowerCase().includes("fail")
-                ? "Falhou na geração"
-                : (a.type === "image" || a.type === "video") && ["draft", "pending", "ready", "running", "processing", "awaiting_approval"].includes(a.status)
-                  ? "Aguardando geração"
-                  : (LABEL_TIPO[a.type] ?? a.type)}
+              {rotuloDoPlaceholder(a.status, a.type)}
             </div>
           )}
 
