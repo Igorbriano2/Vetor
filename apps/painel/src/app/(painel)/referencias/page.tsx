@@ -14,7 +14,9 @@ export default async function ReferenciasPage() {
   const [{ data: itens }, { data: colecoes }, { data: itensDeColecao }, { data: assetsDrive }, { data: perfis }, { data: perfisImagem }] = await Promise.all([
     supabase
       .from("reference_library_items")
-      .select("id, cliente_id, source_type, asset_id, external_url, title, description, tags, department, direitos_uso, status, created_at")
+      // favorito (migration 0035) sustenta a coleção "Salvas"; created_by
+      // sustenta o autor real no modal de detalhe (Fase 9).
+      .select("id, cliente_id, source_type, asset_id, external_url, title, description, tags, department, direitos_uso, status, created_at, favorito, created_by")
       .or(`cliente_id.eq.${clienteId},cliente_id.is.null`)
       .eq("status", "ativo")
       .order("created_at", { ascending: false }),
@@ -56,6 +58,16 @@ export default async function ReferenciasPage() {
   const assetIdsUsados = new Set((itens ?? []).map((i) => i.asset_id as string | null).filter((v): v is string => !!v));
   const pathPorAssetId = new Map((assetsDrive ?? []).map((a) => [a.id as string, a.storage_path as string]));
   const mimeTypePorAssetId = new Map((assetsDrive ?? []).map((a) => [a.id as string, a.mime_type as string | null]));
+
+  // Autor real (Fase 9 — modal de detalhe) — busca em lote, mesmo padrão
+  // já usado pra assinar URLs de asset acima. Item curado (created_by
+  // nulo) nunca tem autor individual — o modal mostra "Curado pelo Vetor".
+  const autorIdsUsados = new Set((itens ?? []).map((i) => i.created_by as string | null).filter((v): v is string => !!v));
+  const { data: autores } =
+    autorIdsUsados.size > 0
+      ? await supabase.from("usuarios").select("id, nome").in("id", Array.from(autorIdsUsados))
+      : { data: [] };
+  const nomePorAutorId = new Map((autores ?? []).map((u) => [u.id as string, u.nome as string]));
   const perfilPorItemId = new Map((perfis ?? []).map((p) => [p.reference_library_item_id as string, p]));
   const perfilImagemPorItemId = new Map((perfisImagem ?? []).map((p) => [p.reference_library_item_id as string, p]));
   const urlsAssinadas = new Map<string, string>();
@@ -95,6 +107,12 @@ export default async function ReferenciasPage() {
             thumbnailUrl: i.asset_id ? (urlsAssinadas.get(i.asset_id as string) ?? null) : null,
             isVideo: i.asset_id ? !!mimeTypePorAssetId.get(i.asset_id as string)?.startsWith("video/") : false,
             isImage: i.asset_id ? !!mimeTypePorAssetId.get(i.asset_id as string)?.startsWith("image/") : false,
+            favorito: (i.favorito as boolean | null) ?? false,
+            autorNome: i.created_by
+              ? (nomePorAutorId.get(i.created_by as string) ?? null)
+              : i.source_type === "curated" || i.cliente_id === null
+                ? "Curado pelo Vetor"
+                : null,
             perfilEstilo: (() => {
               const p = perfilPorItemId.get(i.id as string);
               if (!p) return null;

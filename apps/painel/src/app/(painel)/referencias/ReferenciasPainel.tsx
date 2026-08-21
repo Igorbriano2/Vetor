@@ -43,6 +43,8 @@ interface ItemReferencia {
   isImage: boolean;
   perfilEstilo: PerfilEstiloVideo | null;
   perfilVisual: PerfilVisualImagem | null;
+  favorito: boolean;
+  autorNome: string | null;
 }
 
 interface Colecao {
@@ -97,6 +99,18 @@ const CATEGORIAS_CURADAS = [
   { nome: "Anúncio", descricao: "Peça pensada pra tráfego pago, com CTA direto.", cor: "from-menta/30 to-petroleo-2" },
 ] as const;
 
+// Fase 9 do Design V2 — as 4 coleções pedidas: "Minhas referências" e
+// "Curadas pelo Vetor" já existiam como seções separadas antes desta
+// rodada; "Salvas" e "Para esta campanha" são novas, cada uma sustentada
+// por dado real (favorito / reference_collections), nunca só um filtro
+// cosmético renomeado.
+const ABAS = [
+  { valor: "minhas", label: "Minhas referências" },
+  { valor: "salvas", label: "Salvas" },
+  { valor: "campanha", label: "Para esta campanha" },
+  { valor: "curadas", label: "Curadas pelo Vetor" },
+] as const;
+
 const BUSCAS_PRONTAS = [
   { label: "Quero uma arte elegante", termo: "elegante" },
   { label: "Quero uma promoção forte", termo: "promoção" },
@@ -127,6 +141,14 @@ export default function ReferenciasPainel({
   const [enviando, setEnviando] = useState(false);
   const [mostrarForm, setMostrarForm] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // Fase 9 do Design V2 — 4 coleções nomeadas de verdade (não só um rótulo
+  // de UI): "Minhas referências" e "Curadas pelo Vetor" já existiam como
+  // seções; "Salvas" usa o campo real favorito (migration 0035); "Para
+  // esta campanha" usa a coleção mais recente (reference_collections não
+  // tem vínculo com missions hoje — mostrar a mais recente é o fallback
+  // honesto já previsto no plano aprovado, nunca inventa uma campanha).
+  const [abaSelecionada, setAbaSelecionada] = useState<"minhas" | "salvas" | "campanha" | "curadas">("minhas");
+  const [itemDetalhe, setItemDetalhe] = useState<ItemReferencia | null>(null);
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -151,6 +173,17 @@ export default function ReferenciasPainel({
       );
     });
   }, [meusItens, busca, departamentoFiltro, idsDaColecaoFiltro]);
+
+  const itensSalvos = useMemo(() => meusItens.filter((i) => i.favorito), [meusItens]);
+
+  // colecoesIniciais já chega ordenada por created_at desc (ver page.tsx)
+  // — a primeira é sempre a mais recente.
+  const colecaoDaCampanha = colecoes[0] ?? null;
+  const itensDaCampanha = useMemo(() => {
+    if (!colecaoDaCampanha) return [];
+    const ids = new Set(itensPorColecao.filter((r) => r.collectionId === colecaoDaCampanha.id).map((r) => r.itemId));
+    return meusItens.filter((i) => ids.has(i.id));
+  }, [meusItens, itensPorColecao, colecaoDaCampanha]);
 
   async function adicionarPorUrl(dados: {
     title: string;
@@ -297,6 +330,17 @@ export default function ReferenciasPainel({
     }
   }
 
+  async function alternarFavorito(id: string, novoValor: boolean) {
+    // Otimista — a coleção "Salvas" depende de resposta imediata pra não
+    // parecer quebrada; reverte se a escrita falhar.
+    setItens((atual) => atual.map((i) => (i.id === id ? { ...i, favorito: novoValor } : i)));
+    const { error } = await supabase.from("reference_library_items").update({ favorito: novoValor }).eq("id", id).eq("cliente_id", clienteId);
+    if (error) {
+      setItens((atual) => atual.map((i) => (i.id === id ? { ...i, favorito: !novoValor } : i)));
+      setErro(error.message);
+    }
+  }
+
   async function arquivar(id: string) {
     const { error } = await supabase
       .from("reference_library_items")
@@ -359,111 +403,202 @@ export default function ReferenciasPainel({
 
       {erro && <p className="text-xs text-coral">{erro}</p>}
 
-      <section>
-        <p className="mono-label mb-3 text-areia/50">Biblioteca curada do Vetor</p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {CATEGORIAS_CURADAS.map((c) => (
-            <div key={c.nome} className="overflow-hidden rounded-2xl border border-areia/10 bg-petroleo-2/60">
-              <div className={`flex aspect-video items-center justify-center bg-gradient-to-br ${c.cor} p-3 text-center`}>
-                <span className="text-sm font-semibold text-areia">{c.nome}</span>
-              </div>
-              <div className="p-3">
-                <p className="line-clamp-2 text-[11px] text-areia/50">{c.descricao}</p>
-                <Link
-                  href={`/design?categoria=${encodeURIComponent(c.nome)}`}
-                  className="mono-label mt-2 block text-center text-menta hover:underline"
-                >
-                  Usar como inspiração
-                </Link>
-              </div>
-            </div>
-          ))}
-          {itensCurados.map((item) => (
-            <ReferenciaCard
-              key={item.id}
-              item={item}
-              clienteId={clienteId}
-              colecoes={colecoes}
-              analisando={analisando.has(item.id)}
-              onArquivar={arquivar}
-              onAdicionarNaColecao={adicionarNaColecao}
-              onAnalisarEstilo={analisarEstilo}
-            />
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <div className="flex items-center justify-between">
-          <p className="mono-label text-areia/50">Minhas referências</p>
-          <button onClick={() => setMostrarForm((v) => !v)} className="mono-label text-menta hover:underline">
-            {mostrarForm ? "cancelar" : "+ adicionar referência"}
+      <div className="flex flex-wrap gap-2 border-b border-areia/10 pb-4">
+        {ABAS.map((a) => (
+          <button
+            key={a.valor}
+            type="button"
+            onClick={() => setAbaSelecionada(a.valor)}
+            className={`rounded-full border px-4 py-1.5 text-sm transition ${
+              abaSelecionada === a.valor ? "border-menta bg-menta/10 text-menta" : "border-areia/15 text-areia/70 hover:border-menta/40"
+            }`}
+          >
+            {a.label}
+            {a.valor === "salvas" && itensSalvos.length > 0 ? ` (${itensSalvos.length})` : ""}
           </button>
-        </div>
+        ))}
+      </div>
 
-        {mostrarForm && (
-          <div className="mt-3">
-            <AdicionarReferenciaForm enviando={enviando} assetsDrive={assetsDrive} onAdicionarUrl={adicionarPorUrl} onAdicionarDrive={adicionarDoDrive} />
+      {abaSelecionada === "curadas" && (
+        <section>
+          <p className="mono-label mb-3 text-areia/50">Biblioteca curada do Vetor</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {CATEGORIAS_CURADAS.map((c) => (
+              <div key={c.nome} className="overflow-hidden rounded-2xl border border-areia/10 bg-petroleo-2/60">
+                <div className={`flex aspect-video items-center justify-center bg-gradient-to-br ${c.cor} p-3 text-center`}>
+                  <span className="text-sm font-semibold text-areia">{c.nome}</span>
+                </div>
+                <div className="p-3">
+                  <p className="line-clamp-2 text-[11px] text-areia/50">{c.descricao}</p>
+                  <Link
+                    href={`/design?categoria=${encodeURIComponent(c.nome)}`}
+                    className="mono-label mt-2 block text-center text-menta hover:underline"
+                  >
+                    Usar como inspiração
+                  </Link>
+                </div>
+              </div>
+            ))}
+            {itensCurados.map((item) => (
+              <ReferenciaCard
+                key={item.id}
+                item={item}
+                clienteId={clienteId}
+                colecoes={colecoes}
+                analisando={analisando.has(item.id)}
+                onArquivar={arquivar}
+                onAdicionarNaColecao={adicionarNaColecao}
+                onAnalisarEstilo={analisarEstilo}
+                onAlternarFavorito={alternarFavorito}
+                onAbrirDetalhe={setItemDetalhe}
+              />
+            ))}
           </div>
-        )}
+        </section>
+      )}
 
-        <div className="mt-4">
-          <ColecoesPainel colecoes={colecoes} onCriar={criarColecao} />
-        </div>
+      {abaSelecionada === "minhas" && (
+        <section>
+          <div className="flex items-center justify-between">
+            <p className="mono-label text-areia/50">Minhas referências</p>
+            <button onClick={() => setMostrarForm((v) => !v)} className="mono-label text-menta hover:underline">
+              {mostrarForm ? "cancelar" : "+ adicionar referência"}
+            </button>
+          </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por título, descrição ou tag..."
-            className="flex-1 rounded-xl border border-areia/15 bg-petroleo-2/60 px-4 py-2 text-sm text-areia placeholder:text-areia/30 focus:border-menta focus:outline-none"
-          />
-          <select
-            value={departamentoFiltro}
-            onChange={(e) => setDepartamentoFiltro(e.target.value)}
-            className="rounded-xl border border-areia/15 bg-petroleo-2/60 px-3 py-2 text-sm text-areia"
-          >
-            <option value="todos">Todos os departamentos</option>
-            {DEPARTAMENTOS.map((d) => (
-              <option key={d.valor} value={d.valor}>
-                {d.label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={colecaoFiltro}
-            onChange={(e) => setColecaoFiltro(e.target.value)}
-            className="rounded-xl border border-areia/15 bg-petroleo-2/60 px-3 py-2 text-sm text-areia"
-          >
-            <option value="todas">Todas as coleções</option>
-            {colecoes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nome}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {filtrados.length === 0 && (
-            <p className="col-span-full rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
-              Nenhuma referência sua ainda — adicione uma acima.
-            </p>
+          {mostrarForm && (
+            <div className="mt-3">
+              <AdicionarReferenciaForm enviando={enviando} assetsDrive={assetsDrive} onAdicionarUrl={adicionarPorUrl} onAdicionarDrive={adicionarDoDrive} />
+            </div>
           )}
-          {filtrados.map((item) => (
-            <ReferenciaCard
-              key={item.id}
-              item={item}
-              clienteId={clienteId}
-              colecoes={colecoes}
-              analisando={analisando.has(item.id)}
-              onArquivar={arquivar}
-              onAdicionarNaColecao={adicionarNaColecao}
-              onAnalisarEstilo={analisarEstilo}
+
+          <div className="mt-4">
+            <ColecoesPainel colecoes={colecoes} onCriar={criarColecao} />
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar por título, descrição ou tag..."
+              className="flex-1 rounded-xl border border-areia/15 bg-petroleo-2/60 px-4 py-2 text-sm text-areia placeholder:text-areia/30 focus:border-menta focus:outline-none"
             />
-          ))}
-        </div>
-      </section>
+            <select
+              value={departamentoFiltro}
+              onChange={(e) => setDepartamentoFiltro(e.target.value)}
+              className="rounded-xl border border-areia/15 bg-petroleo-2/60 px-3 py-2 text-sm text-areia"
+            >
+              <option value="todos">Todos os departamentos</option>
+              {DEPARTAMENTOS.map((d) => (
+                <option key={d.valor} value={d.valor}>
+                  {d.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={colecaoFiltro}
+              onChange={(e) => setColecaoFiltro(e.target.value)}
+              className="rounded-xl border border-areia/15 bg-petroleo-2/60 px-3 py-2 text-sm text-areia"
+            >
+              <option value="todas">Todas as coleções</option>
+              {colecoes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {filtrados.length === 0 && (
+              <p className="col-span-full rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+                Nenhuma referência sua ainda — adicione uma acima.
+              </p>
+            )}
+            {filtrados.map((item) => (
+              <ReferenciaCard
+                key={item.id}
+                item={item}
+                clienteId={clienteId}
+                colecoes={colecoes}
+                analisando={analisando.has(item.id)}
+                onArquivar={arquivar}
+                onAdicionarNaColecao={adicionarNaColecao}
+                onAnalisarEstilo={analisarEstilo}
+                onAlternarFavorito={alternarFavorito}
+                onAbrirDetalhe={setItemDetalhe}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {abaSelecionada === "salvas" && (
+        <section>
+          <p className="mono-label mb-3 text-areia/50">Salvas</p>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {itensSalvos.length === 0 && (
+              <p className="col-span-full rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+                Nenhuma referência salva ainda — toque na estrela de um card em &ldquo;Minhas referências&rdquo; pra
+                guardar aqui.
+              </p>
+            )}
+            {itensSalvos.map((item) => (
+              <ReferenciaCard
+                key={item.id}
+                item={item}
+                clienteId={clienteId}
+                colecoes={colecoes}
+                analisando={analisando.has(item.id)}
+                onArquivar={arquivar}
+                onAdicionarNaColecao={adicionarNaColecao}
+                onAnalisarEstilo={analisarEstilo}
+                onAlternarFavorito={alternarFavorito}
+                onAbrirDetalhe={setItemDetalhe}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {abaSelecionada === "campanha" && (
+        <section>
+          <p className="mono-label mb-3 text-areia/50">
+            Para esta campanha{colecaoDaCampanha ? ` — ${colecaoDaCampanha.nome}` : ""}
+          </p>
+          {!colecaoDaCampanha ? (
+            <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+              Nenhuma coleção criada ainda — crie uma em &ldquo;Minhas referências&rdquo; pra agrupar referências de
+              uma campanha específica. Mostramos aqui a coleção mais recente assim que existir uma.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {itensDaCampanha.length === 0 && (
+                <p className="col-span-full rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+                  Essa coleção ainda não tem nenhuma referência — adicione uma pelo seletor &ldquo;+ coleção&rdquo; em
+                  um card de &ldquo;Minhas referências&rdquo;.
+                </p>
+              )}
+              {itensDaCampanha.map((item) => (
+                <ReferenciaCard
+                  key={item.id}
+                  item={item}
+                  clienteId={clienteId}
+                  colecoes={colecoes}
+                  analisando={analisando.has(item.id)}
+                  onArquivar={arquivar}
+                  onAdicionarNaColecao={adicionarNaColecao}
+                  onAnalisarEstilo={analisarEstilo}
+                  onAlternarFavorito={alternarFavorito}
+                  onAbrirDetalhe={setItemDetalhe}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {itemDetalhe && <ModalDetalheReferencia item={itemDetalhe} onFechar={() => setItemDetalhe(null)} onAlternarFavorito={alternarFavorito} />}
     </div>
   );
 }
@@ -486,6 +621,8 @@ function mapearLinha(row: Record<string, unknown>): ItemReferencia {
     isImage: false,
     perfilEstilo: null,
     perfilVisual: null,
+    favorito: false,
+    autorNome: null,
   };
 }
 
@@ -677,6 +814,8 @@ function ReferenciaCard({
   onArquivar,
   onAdicionarNaColecao,
   onAnalisarEstilo,
+  onAlternarFavorito,
+  onAbrirDetalhe,
 }: {
   item: ItemReferencia;
   clienteId: string;
@@ -685,30 +824,44 @@ function ReferenciaCard({
   onArquivar: (id: string) => void;
   onAdicionarNaColecao: (itemId: string, collectionId: string) => void;
   onAnalisarEstilo: (item: ItemReferencia) => void;
+  onAlternarFavorito: (id: string, novoValor: boolean) => void;
+  onAbrirDetalhe: (item: ItemReferencia) => void;
 }) {
   const editavel = item.clienteId === clienteId;
   const podeAnalisar = item.isVideo || item.isImage;
 
   return (
     <div className="flex flex-col overflow-hidden rounded-2xl border border-areia/10 bg-petroleo-2/60">
-      <div className="flex aspect-square items-center justify-center overflow-hidden bg-petroleo-3/60">
+      <button
+        type="button"
+        onClick={() => onAbrirDetalhe(item)}
+        className="relative flex aspect-square items-center justify-center overflow-hidden bg-petroleo-3/60"
+      >
         {item.thumbnailUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={item.thumbnailUrl} alt={item.title} className="size-full object-cover" />
         ) : item.externalUrl ? (
-          <a href={item.externalUrl} target="_blank" rel="noreferrer" className="mono-label px-3 text-center text-menta underline">
-            Ver link
-          </a>
+          <span className="mono-label px-3 text-center text-menta">Ver link</span>
         ) : (
           <span className="text-xs text-areia/30">sem prévia</span>
         )}
-      </div>
+      </button>
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div className="flex items-center justify-between gap-2">
           <p className="truncate text-sm font-semibold text-areia">{item.title}</p>
-          <span className="mono-label shrink-0 rounded border border-areia/15 px-1.5 py-0.5 text-[10px] text-areia/50">
-            {ORIGEM_LABEL[item.sourceType]}
-          </span>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => onAlternarFavorito(item.id, !item.favorito)}
+              aria-label={item.favorito ? "Remover das salvas" : "Salvar"}
+              className={`text-sm ${item.favorito ? "text-ambar" : "text-areia/25 hover:text-ambar/70"}`}
+            >
+              {item.favorito ? "★" : "☆"}
+            </button>
+            <span className="mono-label rounded border border-areia/15 px-1.5 py-0.5 text-[10px] text-areia/50">
+              {ORIGEM_LABEL[item.sourceType]}
+            </span>
+          </div>
         </div>
         {item.department && <p className="mono-label text-[10px] text-areia/40">{DEPARTAMENTOS.find((d) => d.valor === item.department)?.label ?? item.department}</p>}
         {item.description && <p className="line-clamp-2 text-xs text-areia/50">{item.description}</p>}
@@ -803,6 +956,101 @@ function ReferenciaCard({
               Arquivar
             </button>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Fase 9 do Design V2 — modal de detalhe (imagem, origem, autor real,
+// resumo simples da análise já feita, e o mesmo botão "usar como
+// inspiração" que já existia no card) em vez das ações ficarem só
+// espalhadas inline no card.
+function ModalDetalheReferencia({
+  item,
+  onFechar,
+  onAlternarFavorito,
+}: {
+  item: ItemReferencia;
+  onFechar: () => void;
+  onAlternarFavorito: (id: string, novoValor: boolean) => void;
+}) {
+  const resumoSimples = item.perfilEstilo?.resumoSimples ?? item.perfilVisual?.resumoSimples ?? null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-petroleo/80 p-4 backdrop-blur-sm" onClick={onFechar}>
+      <div
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-areia/10 bg-petroleo-2 p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="text-lg font-semibold text-areia">{item.title}</h2>
+          <button onClick={onFechar} className="shrink-0 text-areia/40 hover:text-areia" aria-label="Fechar">
+            ✕
+          </button>
+        </div>
+
+        <div className="mt-4 flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-petroleo-3/60">
+          {item.thumbnailUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={item.thumbnailUrl} alt={item.title} className="size-full object-contain" />
+          ) : item.externalUrl ? (
+            <a href={item.externalUrl} target="_blank" rel="noreferrer" className="mono-label px-3 text-center text-menta underline">
+              Ver link original
+            </a>
+          ) : (
+            <span className="text-xs text-areia/30">sem prévia</span>
+          )}
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-areia/70">
+          <p>
+            <span className="text-areia/40">Origem:</span> {ORIGEM_LABEL[item.sourceType]}
+          </p>
+          <p>
+            <span className="text-areia/40">Autor:</span> {item.autorNome ?? "não identificado"}
+          </p>
+          {item.department && (
+            <p>
+              <span className="text-areia/40">Departamento:</span>{" "}
+              {DEPARTAMENTOS.find((d) => d.valor === item.department)?.label ?? item.department}
+            </p>
+          )}
+          <p>
+            <span className="text-areia/40">Adicionada em:</span> {new Date(item.createdAt).toLocaleDateString("pt-BR")}
+          </p>
+        </div>
+
+        {item.direitosUso && <p className="mt-2 text-xs text-ambar/70">{item.direitosUso}</p>}
+        {item.description && <p className="mt-3 text-sm text-areia/70">{item.description}</p>}
+        {resumoSimples && <p className="mt-3 text-sm font-medium italic text-menta">“{resumoSimples}”</p>}
+
+        {item.tags.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1">
+            {item.tags.map((t) => (
+              <span key={t} className="rounded border border-areia/10 px-1.5 py-0.5 text-[10px] text-areia/40">
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-6 flex items-center gap-3">
+          <Link
+            href={`/design?referencia=${item.id}&nome=${encodeURIComponent(item.title)}`}
+            className="mono-label flex-1 rounded-lg border border-ambar/30 bg-ambar/10 px-3 py-2 text-center text-ambar hover:bg-ambar/20"
+          >
+            Usar como inspiração
+          </Link>
+          <button
+            type="button"
+            onClick={() => onAlternarFavorito(item.id, !item.favorito)}
+            className={`rounded-lg border px-3 py-2 text-sm ${
+              item.favorito ? "border-ambar/40 text-ambar" : "border-areia/15 text-areia/60 hover:border-ambar/40"
+            }`}
+          >
+            {item.favorito ? "★ Salva" : "☆ Salvar"}
+          </button>
         </div>
       </div>
     </div>
