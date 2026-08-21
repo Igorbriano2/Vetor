@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
+import { buscarArtefatos } from "@/lib/artifacts/fetchArtifacts";
 import VetorCockpit from "@/components/VetorCockpit";
 
 const STATUS_MISSAO_TERMINAL = ["completed", "completed_with_caveats", "failed", "cancelled", "archived"];
@@ -9,6 +10,10 @@ const STATUS_MISSAO_TERMINAL = ["completed", "completed_with_caveats", "failed",
 // Tráfego, Solicitações, Planejamento, Entregas e Insights continuam
 // acessíveis pela navegação existente (VetorAppShell, intocado) — só o
 // conteúdo central desta página muda, por instrução explícita do comando.
+// Fase 1 do Vetor Manager UX (docs/VETOR-MANAGER-UX-AUDIT.md) — home híbrida:
+// além do núcleo+chat, agora busca as criações mais recentes (mesma
+// buscarArtefatos já usada em /criacoes) pra dar uma primeira dobra menos
+// vazia. Nenhuma tabela nova, nenhum caminho de dado novo.
 export default async function DashboardPage() {
   const supabase = await createSupabaseServerClient();
   const ativo = await resolverClienteAtivo(supabase);
@@ -55,11 +60,16 @@ export default async function DashboardPage() {
 
   const contagemPendentes = (aprovacoesPendentes?.length ?? 0) + (demandasPendentes?.length ?? 0);
 
+  const criacoesRecentes = (
+    await buscarArtefatos(supabase, { departamentos: ["design", "videomaker"], clienteId: ativo.clienteId })
+  ).slice(0, 4);
+
   return (
     <VetorCockpit
       missaoAtual={missaoAtual ? { id: missaoAtual.id, titulo: missaoAtual.titulo, status: missaoAtual.status } : null}
       contagemPendentes={contagemPendentes}
       contagemAtivas={missoesAtivas.length}
+      criacoesRecentes={criacoesRecentes}
       // A pedido explícito do dono do produto: a saudação toca toda vez que
       // o usuário entra ou atualiza a página, não só na primeira vez — ver
       // apps/agentes/src/routes/perfil.ts (não é mais idempotente por

@@ -7,7 +7,9 @@ import VetorVoiceOverlay from "./VetorVoiceOverlay";
 import VetorIntentCard, { type MissaoProposta } from "./VetorIntentCard";
 import StatusBadge from "./StatusBadge";
 import VoiceIndicator from "./voice/VoiceIndicator";
+import ArtifactLibrary from "./ArtifactLibrary";
 import { readApiResponse } from "@/lib/api/readApiResponse";
+import type { ArtefatoBiblioteca } from "@/lib/artifacts/fetchArtifacts";
 
 // Painel principal (Fase "chat + núcleo") — única exceção ao layout
 // congelado: o conteúdo central vira a sala de interação do Vetor (núcleo
@@ -40,9 +42,24 @@ interface Props {
   contagemPendentes: number;
   contagemAtivas: number;
   saudacaoJaTocada: boolean;
+  criacoesRecentes?: ArtefatoBiblioteca[];
 }
 
-export default function VetorCockpit({ missaoAtual, contagemPendentes, contagemAtivas, saudacaoJaTocada }: Props) {
+// Fase 1 do Vetor Manager UX (docs/VETOR-MANAGER-UX-AUDIT.md) — ações
+// rápidas nunca abrem um caminho paralelo de criação: "prompt" só preenche
+// o campo de texto do MESMO chat (usuário revisa e envia, igual digitar na
+// mão); "href" navega pra um hub que já existe. Nenhuma missão é criada
+// direto por um clique aqui.
+const ACOES_RAPIDAS: Array<{ label: string; prompt?: string; href?: string }> = [
+  { label: "Criar uma peça", prompt: "Quero criar uma peça de design." },
+  { label: "Criar um vídeo", prompt: "Quero criar um vídeo." },
+  { label: "Planejar meu mês", prompt: "Monte o planejamento deste mês pra mim." },
+  { label: "Analisar campanhas", prompt: "Como estão minhas campanhas de tráfego agora?" },
+  { label: "Usar uma referência", href: "/referencias" },
+  { label: "Consultar meu negócio", href: "/configuracoes/negocio" },
+];
+
+export default function VetorCockpit({ missaoAtual, contagemPendentes, contagemAtivas, saudacaoJaTocada, criacoesRecentes = [] }: Props) {
   const [estado, setEstado] = useState<EstadoCore>("idle");
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [texto, setTexto] = useState("");
@@ -70,6 +87,12 @@ export default function VetorCockpit({ missaoAtual, contagemPendentes, contagemA
   const rafRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const saudacaoDisparadaRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function usarAcaoRapida(prompt: string) {
+    setTexto(prompt);
+    inputRef.current?.focus();
+  }
 
   // Recupera a conversa em aberto ao recarregar a página.
   useEffect(() => {
@@ -379,6 +402,28 @@ export default function VetorCockpit({ missaoAtual, contagemPendentes, contagemA
         )}
       </div>
 
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
+        {ACOES_RAPIDAS.map((acao) =>
+          acao.href ? (
+            <Link
+              key={acao.label}
+              href={acao.href}
+              className="rounded-full border border-areia/15 bg-petroleo-2/60 px-3.5 py-1.5 text-xs text-areia/70 transition hover:border-menta/40 hover:text-menta"
+            >
+              {acao.label}
+            </Link>
+          ) : (
+            <button
+              key={acao.label}
+              onClick={() => usarAcaoRapida(acao.prompt!)}
+              className="rounded-full border border-areia/15 bg-petroleo-2/60 px-3.5 py-1.5 text-xs text-areia/70 transition hover:border-menta/40 hover:text-menta"
+            >
+              {acao.label}
+            </button>
+          ),
+        )}
+      </div>
+
       <div className="mt-8 rounded-3xl border border-areia/10 bg-petroleo-2/60 p-5 backdrop-blur">
         <div className="max-h-[26rem] space-y-2 overflow-y-auto">
           {mensagens.length === 0 && (
@@ -427,6 +472,7 @@ export default function VetorCockpit({ missaoAtual, contagemPendentes, contagemA
 
         <div className="mt-4 flex items-center gap-2">
           <input
+            ref={inputRef}
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && enviarTexto()}
@@ -462,6 +508,20 @@ export default function VetorCockpit({ missaoAtual, contagemPendentes, contagemA
           <VoiceIndicator />
         </div>
       </div>
+
+      {criacoesRecentes.length > 0 && (
+        <div className="mt-8">
+          <div className="flex items-center justify-between">
+            <p className="font-mono text-xs font-semibold uppercase tracking-widest text-areia/40">Criações recentes</p>
+            <Link href="/criacoes" className="font-mono text-[11px] text-menta hover:underline">
+              ver tudo
+            </Link>
+          </div>
+          <div className="mt-3">
+            <ArtifactLibrary artefatos={criacoesRecentes} vazio="" />
+          </div>
+        </div>
+      )}
 
       {/* Indicação discreta — sem cards grandes de indicadores concorrendo com o núcleo. */}
       <div className="mt-4 flex items-center justify-center gap-4 font-mono text-[11px] text-areia/40">
