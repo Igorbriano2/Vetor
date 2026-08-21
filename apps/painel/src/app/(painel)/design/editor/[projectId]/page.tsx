@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolverUrlsDoCanvas } from "@/lib/design/resolveCanvasUrls";
@@ -23,7 +24,9 @@ export default async function DesignProjectEditorPage({ params }: { params: Prom
   return (
     <div className="px-6 py-10">
       <div className="mx-auto max-w-5xl">
-        <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
+        <Link href="/criacoes" className="font-mono text-xs uppercase tracking-wide text-areia/40 hover:text-menta">
+          ← Voltar para Criações
+        </Link>
         <h1 className="mt-1 text-2xl font-bold text-areia">Editor de Design</h1>
         <p className="mt-2 text-sm text-areia/60">
           Selecione um elemento pra editar. A logo oficial fica bloqueada por padrão — nunca é removida ou distorcida

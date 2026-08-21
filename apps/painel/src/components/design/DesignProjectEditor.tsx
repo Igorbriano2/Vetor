@@ -32,6 +32,7 @@ export default function DesignProjectEditor({ projeto }: { projeto: DesignProjec
   const [criandoVersao, setCriandoVersao] = useState(false);
   const [status, setStatus] = useState<DesignProjectStatus>(projeto.status);
   const [aprovando, setAprovando] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const canvasJsonAtualRef = useRef<unknown>(projeto.canvasJson);
   // Design profissional V1, Fase 5 — calculado uma vez sobre o canvasJson
   // ORIGINAL do servidor (nunca sobre o estado ao vivo do canvas, que já
@@ -106,6 +107,16 @@ export default function DesignProjectEditor({ projeto }: { projeto: DesignProjec
     link.click();
   }
 
+  // Design V2 Fase 4 — "visualizar" só congela o mesmo <canvas> já montado
+  // num PNG e mostra em tela cheia sem seleção/handles, nenhuma renderização
+  // paralela nova (mesmo <canvas> que baixarComoPng/exportarEsalvarThumbnail
+  // já leem).
+  function visualizar() {
+    const canvasEl = document.querySelector<HTMLCanvasElement>("canvas.lower-canvas");
+    if (!canvasEl) return;
+    setPreviewUrl(canvasEl.toDataURL("image/png"));
+  }
+
   async function exportarEsalvarThumbnail() {
     // Reaproveita o mesmo <canvas> já montado — pega o PNG via toDataURL,
     // nunca gera uma segunda renderização em paralelo.
@@ -130,6 +141,9 @@ export default function DesignProjectEditor({ projeto }: { projeto: DesignProjec
     <div>
       {editabilidade.editabilityStatus === "flat_image_legacy" && (
         <div className="mb-3 rounded-lg border border-ambar/30 bg-ambar/10 px-3 py-2 text-xs text-ambar">
+          <span className="mono-label mr-2 rounded border border-ambar/40 px-1.5 py-0.5 text-[10px]">
+            Imagem legada — edição limitada
+          </span>
           Esta peça é uma imagem única (criada antes do editor em camadas, ou sem texto/imagem próprios além do
           fundo) — não é possível corrigir texto ou reposicionar elementos com precisão nela. Use como referência
           visual, ou peça ao Vetor pra criar uma versão nova editável a partir do mesmo briefing.
@@ -159,6 +173,13 @@ export default function DesignProjectEditor({ projeto }: { projeto: DesignProjec
           )}
           <button
             type="button"
+            onClick={visualizar}
+            className="rounded-lg border border-areia/15 px-3 py-1.5 text-xs hover:bg-areia/5"
+          >
+            Visualizar
+          </button>
+          <button
+            type="button"
             onClick={exportarEsalvarThumbnail}
             className="rounded-lg border border-areia/15 px-3 py-1.5 text-xs hover:bg-areia/5"
           >
@@ -169,7 +190,7 @@ export default function DesignProjectEditor({ projeto }: { projeto: DesignProjec
             onClick={baixarComoPng}
             className="rounded-lg border border-menta/30 px-3 py-1.5 text-xs text-menta hover:bg-menta/10"
           >
-            Baixar PNG
+            Exportar (PNG)
           </button>
           <button
             type="button"
@@ -189,6 +210,23 @@ export default function DesignProjectEditor({ projeto }: { projeto: DesignProjec
         onAutosave={salvar}
         maxDisplayWidth={720}
       />
+
+      {previewUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-petroleo/90 p-6 backdrop-blur-sm"
+          onClick={() => setPreviewUrl(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={previewUrl} alt={`Visualização de ${projeto.title}`} className="max-h-full max-w-full rounded-lg shadow-2xl" />
+          <button
+            type="button"
+            onClick={() => setPreviewUrl(null)}
+            className="absolute right-6 top-6 rounded-lg border border-areia/20 px-3 py-1.5 text-xs text-areia hover:bg-areia/10"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
     </div>
   );
 }
