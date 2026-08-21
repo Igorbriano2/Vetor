@@ -2,6 +2,20 @@ import Link from "next/link";
 import StatusBadge from "./StatusBadge";
 import type { ArtefatoBiblioteca } from "@/lib/artifacts/fetchArtifacts";
 
+// Força download real mesmo cross-origin (o atributo `download` do <a>
+// sozinho é ignorado pelo navegador em recursos de outra origem, e a URL
+// assinada do Supabase Storage é sempre de outra origem). Supabase Storage
+// reconhece esse parâmetro de query em qualquer URL assinada — mesmo
+// efeito de createSignedUrl(path, exp, { download: true }), sem precisar
+// gerar uma segunda URL assinada só pra isso. URLs externas (ex:
+// Higgsfield, storage_provider "external") não têm "token=" — o link cai
+// pro comportamento normal (abre a URL real, nunca finge suporte a
+// download que o provider externo não tem).
+function comDownloadForcado(url: string): string {
+  if (!url.includes("token=")) return url;
+  return url.includes("?") ? `${url}&download=` : `${url}?download=`;
+}
+
 const LABEL_TIPO: Record<string, string> = {
   image: "Imagem",
   video: "Vídeo",
@@ -80,6 +94,15 @@ export default function ArtifactLibrary({
                     className="font-mono text-[11px] text-menta underline underline-offset-2 hover:text-menta-forte"
                   >
                     abrir
+                  </a>
+                )}
+                {a.url && (a.type === "image" || a.type === "video") && (
+                  <a
+                    href={comDownloadForcado(a.url)}
+                    download
+                    className="font-mono text-[11px] text-menta underline underline-offset-2 hover:text-menta-forte"
+                  >
+                    baixar
                   </a>
                 )}
               </div>

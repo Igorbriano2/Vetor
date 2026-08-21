@@ -89,6 +89,23 @@ export default function DesignProjectEditor({ projeto }: { projeto: DesignProjec
     if (!error && data) router.push(`/design/editor/${data.id as string}`);
   }
 
+  // Fase 9 do Design V2 — Design V1 nunca teve exportação própria (só
+  // "abrir" a URL crua do artefato gerado, quando existia). Reaproveita o
+  // mesmo <canvas> já montado (mesma leitura de exportarEsalvarThumbnail
+  // abaixo) — nenhuma renderização paralela nova, só um download real em
+  // vez de subir pro storage. data: URL nunca sofre a limitação de
+  // cross-origin do atributo `download` (que existe pra http(s):// — ver
+  // comDownloadForcado em ArtifactLibrary.tsx), então funciona direto.
+  function baixarComoPng() {
+    const canvasEl = document.querySelector<HTMLCanvasElement>("canvas.lower-canvas");
+    if (!canvasEl) return;
+    const dataUrl = canvasEl.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.href = dataUrl;
+    link.download = `${projeto.title.trim() || "peca"}-v${projeto.version}.png`;
+    link.click();
+  }
+
   async function exportarEsalvarThumbnail() {
     // Reaproveita o mesmo <canvas> já montado — pega o PNG via toDataURL,
     // nunca gera uma segunda renderização em paralelo.
@@ -146,6 +163,13 @@ export default function DesignProjectEditor({ projeto }: { projeto: DesignProjec
             className="rounded-lg border border-areia/15 px-3 py-1.5 text-xs hover:bg-areia/5"
           >
             Atualizar thumbnail
+          </button>
+          <button
+            type="button"
+            onClick={baixarComoPng}
+            className="rounded-lg border border-menta/30 px-3 py-1.5 text-xs text-menta hover:bg-menta/10"
+          >
+            Baixar PNG
           </button>
           <button
             type="button"
