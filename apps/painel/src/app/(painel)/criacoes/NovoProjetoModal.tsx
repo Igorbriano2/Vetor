@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { criarProjetoCanvas } from "@/lib/canvas/criarProjeto";
+import { RECEITAS_AGENCIA, queryDaReceita } from "@/lib/design/receitasAgencia";
 
 interface Opcao {
   id: string;
@@ -25,6 +27,7 @@ const OPCOES: Opcao[] = [
 // um quinto fluxo de criação novo.
 export default function NovoProjetoModal({ clienteId, onFechar }: { clienteId: string; onFechar: () => void }) {
   const [criando, setCriando] = useState(false);
+  const [mostrarReceitas, setMostrarReceitas] = useState(false);
   const router = useRouter();
 
   async function escolher(opcao: string) {
@@ -41,7 +44,7 @@ export default function NovoProjetoModal({ clienteId, onFechar }: { clienteId: s
       return;
     }
     if (opcao === "receita") {
-      router.push("/templates");
+      setMostrarReceitas(true);
       return;
     }
     if (opcao === "referencia") {
@@ -57,29 +60,63 @@ export default function NovoProjetoModal({ clienteId, onFechar }: { clienteId: s
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-areia">Como você quer começar?</h2>
+          <h2 className="text-lg font-semibold text-areia">
+            {mostrarReceitas ? "Qual receita você quer usar?" : "Como você quer começar?"}
+          </h2>
           <button onClick={onFechar} className="text-areia/40 transition hover:text-areia" aria-label="Fechar">
             ✕
           </button>
         </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {OPCOES.map((o) => (
+        {mostrarReceitas ? (
+          <>
             <button
-              key={o.id}
               type="button"
-              disabled={criando}
-              onClick={() => escolher(o.id)}
-              className="flex flex-col items-start gap-2 rounded-2xl border border-areia/10 bg-petroleo-3/50 p-5 text-left transition hover:border-menta/40 hover:bg-petroleo-3/80 disabled:opacity-40"
+              onClick={() => setMostrarReceitas(false)}
+              className="mt-3 font-mono text-[11px] uppercase tracking-wide text-areia/40 hover:text-areia"
             >
-              <span className="flex size-10 items-center justify-center rounded-xl border border-menta/30 bg-menta/10 text-lg text-menta">
-                {o.emoji}
-              </span>
-              <p className="text-sm font-semibold text-areia">{o.titulo}</p>
-              <p className="text-xs text-areia/50">{o.descricao}</p>
+              ← voltar
             </button>
-          ))}
-        </div>
+            <div className="mt-3 grid max-h-[60vh] grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2">
+              {RECEITAS_AGENCIA.map((r) => (
+                <Link
+                  key={r.id}
+                  href={`/design?${queryDaReceita(r)}`}
+                  onClick={onFechar}
+                  className="flex flex-col gap-1 rounded-2xl border border-areia/10 bg-petroleo-3/50 p-4 text-left transition hover:border-menta/40 hover:bg-petroleo-3/80"
+                >
+                  <p className="text-sm font-semibold text-areia">{r.nome}</p>
+                  <p className="text-xs text-areia/50">{r.descricao}</p>
+                </Link>
+              ))}
+            </div>
+            <Link
+              href="/templates"
+              onClick={onFechar}
+              className="mt-4 inline-block font-mono text-[11px] text-menta underline underline-offset-2 hover:text-menta-forte"
+            >
+              ver meus templates salvos
+            </Link>
+          </>
+        ) : (
+          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {OPCOES.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                disabled={criando}
+                onClick={() => escolher(o.id)}
+                className="flex flex-col items-start gap-2 rounded-2xl border border-areia/10 bg-petroleo-3/50 p-5 text-left transition hover:border-menta/40 hover:bg-petroleo-3/80 disabled:opacity-40"
+              >
+                <span className="flex size-10 items-center justify-center rounded-xl border border-menta/30 bg-menta/10 text-lg text-menta">
+                  {o.emoji}
+                </span>
+                <p className="text-sm font-semibold text-areia">{o.titulo}</p>
+                <p className="text-xs text-areia/50">{o.descricao}</p>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
