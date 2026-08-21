@@ -14,6 +14,11 @@ export interface EtapaParaLayout {
   tarefa: string;
   status: string;
   dependeDe: string[];
+  // Fase 6 do Vetor Manager UX (docs/VETOR-MANAGER-UX-AUDIT.md) — soma real
+  // de agent_runs.custo_estimado_centavos pra esta etapa (pode ter mais de
+  // uma chamada/retry). Undefined/null quando ainda não rodou nenhuma
+  // chamada real — nunca mostrado como R$ 0,00 fabricado.
+  custoEstimadoCentavos?: number | null;
 }
 
 export interface NoDoCanvas {
@@ -24,6 +29,7 @@ export interface NoDoCanvas {
   x: number;
   y: number;
   dependeDe: string[];
+  custoEstimadoCentavos?: number | null;
 }
 
 export interface ArestaDoCanvas {
@@ -97,7 +103,16 @@ export function calcularLayoutDoCanvas(etapas: EtapaParaLayout[]): LayoutDoCanva
       const dependeDeValidas = etapa.dependeDe.filter((d) => porId.has(d) && d !== id);
       const x = nivel * (LARGURA_NO + GAP_X);
       const y = indice * (ALTURA_NO + GAP_Y);
-      nos.push({ id, agente: etapa.agente, tarefa: etapa.tarefa, status: etapa.status, x, y, dependeDe: dependeDeValidas });
+      nos.push({
+        id,
+        agente: etapa.agente,
+        tarefa: etapa.tarefa,
+        status: etapa.status,
+        x,
+        y,
+        dependeDe: dependeDeValidas,
+        custoEstimadoCentavos: etapa.custoEstimadoCentavos,
+      });
       for (const dep of dependeDeValidas) arestas.push({ deId: dep, paraId: id });
       alturaMaxima = Math.max(alturaMaxima, y + ALTURA_NO);
     });

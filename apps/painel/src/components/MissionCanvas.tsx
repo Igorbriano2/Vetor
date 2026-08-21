@@ -61,6 +61,15 @@ export default function MissionCanvas({ etapas }: { etapas: EtapaParaLayout[] })
               <StatusBadge status={no.status} />
             </div>
             <p className="line-clamp-2 text-xs text-areia/60">{no.tarefa}</p>
+            {/* Fase 6 do Vetor Manager UX — só mostra quando existe custo
+                real registrado (agent_runs.custo_estimado_centavos); uma
+                etapa que ainda não rodou nenhuma chamada fica sem esta
+                linha, nunca "R$ 0,00" fabricado. */}
+            {no.custoEstimadoCentavos != null && no.custoEstimadoCentavos > 0 && (
+              <p className="mt-auto font-mono text-[10px] text-ambar/70">
+                custo real: R$ {(no.custoEstimadoCentavos / 100).toFixed(2)}
+              </p>
+            )}
           </div>
         ))}
       </div>

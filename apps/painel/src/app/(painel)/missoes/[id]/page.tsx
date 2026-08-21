@@ -45,6 +45,21 @@ export default async function MissaoDetalhePage({ params }: { params: Promise<{ 
     (designProjectsBrutos ?? []).map((d) => [d.mission_step_id as string, { status: d.status as string, version: d.version as number }]),
   );
 
+  // Fase 6 do Vetor Manager UX (docs/VETOR-MANAGER-UX-AUDIT.md) — custo real
+  // por etapa no Canvas (agent_runs.custo_estimado_centavos, confirmado
+  // populado em produção). Soma quando há mais de uma chamada/retry na
+  // mesma etapa; etapa sem nenhum run fica ausente do Map (nunca 0 fabricado).
+  const { data: runsBrutos } = etapaIds.length
+    ? await supabase.from("agent_runs").select("mission_step_id, custo_estimado_centavos").in("mission_step_id", etapaIds)
+    : { data: [] };
+  const custoPorEtapa = new Map<string, number>();
+  for (const r of runsBrutos ?? []) {
+    const stepId = r.mission_step_id as string;
+    const custo = r.custo_estimado_centavos as number | null;
+    if (custo == null) continue;
+    custoPorEtapa.set(stepId, (custoPorEtapa.get(stepId) ?? 0) + custo);
+  }
+
   // Fase 7 do reset de produto — o projeto de vídeo (editável desde a
   // primeira etapa, não só depois do render final) precisa de um link
   // direto assim que existir, nunca deixar o cliente preso numa frase
@@ -142,6 +157,7 @@ export default async function MissaoDetalhePage({ params }: { params: Promise<{ 
                   tarefa: e.tarefa as string,
                   status: e.status as string,
                   dependeDe: (e.depende_de as string[] | null) ?? [],
+                  custoEstimadoCentavos: custoPorEtapa.get(e.id as string) ?? null,
                 }))}
               />
             </div>
