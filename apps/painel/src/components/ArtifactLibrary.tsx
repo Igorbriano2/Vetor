@@ -32,16 +32,19 @@ export default function ArtifactLibrary({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {artefatos.map((a) => (
-        <div key={a.id} className="flex flex-col overflow-hidden rounded-2xl border border-areia/10 bg-petroleo-2/60 backdrop-blur">
+        <div
+          key={a.id}
+          className="flex flex-col overflow-hidden rounded-2xl border border-areia/10 bg-petroleo-2/60 backdrop-blur transition hover:border-menta/30"
+        >
           {a.type === "image" && a.url && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={a.url} alt={a.title} className="h-36 w-full object-cover" />
+            <img src={a.url} alt={a.title} className="h-48 w-full object-cover" />
           )}
-          {a.type === "video" && a.url && <video src={a.url} className="h-36 w-full object-cover" muted />}
+          {a.type === "video" && a.url && <video src={a.url} className="h-48 w-full object-cover" muted />}
           {!(a.url && (a.type === "image" || a.type === "video")) && (
-            <div className="flex h-36 w-full items-center justify-center bg-petroleo/60 font-mono text-[10px] uppercase tracking-wide text-areia/30">
+            <div className="flex h-48 w-full items-center justify-center bg-petroleo/60 font-mono text-[10px] uppercase tracking-wide text-areia/30">
               {/* Fase 2 do Vetor Manager UX — nunca finge um preview que não
                   existe, mas também nunca deixa um estado em andamento
                   parecer indistinguível de "nunca foi gerado" — texto muda

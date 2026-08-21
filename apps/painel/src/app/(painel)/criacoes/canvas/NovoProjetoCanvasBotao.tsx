@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { grafoVazio } from "@/lib/canvas/types";
+import { criarProjetoCanvas } from "@/lib/canvas/criarProjeto";
 
 export default function NovoProjetoCanvasBotao({ clienteId }: { clienteId: string }) {
   const [criando, setCriando] = useState(false);
@@ -12,13 +12,9 @@ export default function NovoProjetoCanvasBotao({ clienteId }: { clienteId: strin
   async function criar() {
     setCriando(true);
     const supabase = createSupabaseBrowserClient();
-    const { data, error } = await supabase
-      .from("creative_canvas_projects")
-      .insert({ cliente_id: clienteId, title: "Novo projeto de canvas", graph_json: grafoVazio() })
-      .select("id")
-      .single();
+    const id = await criarProjetoCanvas(supabase, clienteId);
     setCriando(false);
-    if (!error && data) router.push(`/criacoes/canvas/${data.id as string}`);
+    if (id) router.push(`/criacoes/canvas/${id}`);
   }
 
   return (

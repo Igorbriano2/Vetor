@@ -3,7 +3,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 import { buscarArtefatos, buscarVideosFinalizados } from "@/lib/artifacts/fetchArtifacts";
 import { agruparPorCampanha } from "@/lib/artifacts/agruparPorCampanha";
+import { buscarPecasEmProgresso } from "@/lib/artifacts/buscarPecasEmProgresso";
 import CriacoesGaleria from "./CriacoesGaleria";
+import NovoProjetoBotao from "./NovoProjetoBotao";
 
 const ENTRADAS = [
   { href: "/design", titulo: "Criar uma peça", descricao: "Wizard de 4 passos — objetivo, formato, referência e ajustes." },
@@ -30,9 +32,10 @@ export default async function CriacoesPage() {
   }
   const clienteId = ativo.clienteId;
 
-  const [artefatos, videosFinalizados] = await Promise.all([
+  const [artefatos, videosFinalizados, progresso] = await Promise.all([
     buscarArtefatos(supabase, { departamentos: ["design", "videomaker", "conteudo"], clienteId }),
     buscarVideosFinalizados(supabase),
+    buscarPecasEmProgresso(supabase, clienteId),
   ]);
   const todosArtefatos = [...artefatos, ...videosFinalizados];
 
@@ -54,11 +57,14 @@ export default async function CriacoesPage() {
   return (
     <div className="px-6 py-10">
       <div className="mx-auto max-w-6xl">
-        <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
-        <h1 className="mt-1 text-2xl font-bold text-areia">Criações</h1>
-        <p className="mt-2 text-sm text-areia/60">
-          Design, vídeo, referências, receitas e entregas — tudo o que o Vetor produz pra sua marca, num só lugar.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-wide text-areia/40">VETOR / CRIAÇÕES</p>
+            <h1 className="mt-1 text-2xl font-bold text-areia">Criações</h1>
+            <p className="mt-2 text-sm text-areia/60">Tudo o que o VETOR produz para sua marca.</p>
+          </div>
+          <NovoProjetoBotao clienteId={clienteId} />
+        </div>
 
         <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {ENTRADAS.map((e) => (
@@ -76,7 +82,12 @@ export default async function CriacoesPage() {
         <div className="mt-10">
           <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-areia/40">Biblioteca visual</h2>
           <div className="mt-3">
-            <CriacoesGaleria artefatos={todosArtefatos} campanhas={campanhas} />
+            <CriacoesGaleria
+              artefatos={todosArtefatos}
+              campanhas={campanhas}
+              emProducao={progresso.emProducao}
+              comFalha={progresso.comFalha}
+            />
           </div>
         </div>
       </div>
