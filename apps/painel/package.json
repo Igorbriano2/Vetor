@@ -15,6 +15,7 @@
     "@supabase/supabase-js": "^2.112.2",
     "@xyflow/react": "^12.11.3",
     "fabric": "^7.4.0",
+    "geist": "^1.7.2",
     "next": "16.3.0",
     "onnxruntime-web": "^1.27.0",
     "react": "19.2.8",

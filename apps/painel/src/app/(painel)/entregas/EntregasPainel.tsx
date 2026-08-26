@@ -62,7 +62,7 @@ export default function EntregasPainel({ campanhas }: { campanhas: CampanhaDeEnt
               {c.missionId && (
                 <Link
                   href={`/missoes/${c.missionId}`}
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
                   className="shrink-0 font-mono text-[11px] text-menta hover:underline"
                 >
                   ver missão

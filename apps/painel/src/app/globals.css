@@ -77,7 +77,7 @@
   --color-grid: var(--color-grid);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter);
+  --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-jetbrains-mono);
 }
 
@@ -101,6 +101,64 @@ body {
     0 24px 70px -40px oklch(0 0 0 / 0.9),
     inset 0 1px 0 0 color-mix(in oklab, var(--color-menta) 8%, transparent);
   backdrop-filter: blur(10px);
+}
+
+/* Design V2 Fase F (docs/AUDITORIA-E-PROMPT-RECONSTRUCAO-2026-08.md) —
+   "Liquid Glass" real em CSS puro, sem WebGL: a refração verdadeira não
+   existe em CSS, mas backdrop-filter blur+saturate já simula o desfoque
+   translúcido, o pseudo ::before radial dá o brilho de "luz entrando pela
+   quina" e o border-box/padding-box duplo dá o contorno que gira sem
+   depender de z-index (evita o pseudo ficar escondido atrás do próprio
+   fundo do painel — achado real testando a abordagem com ::after). Usado
+   só em superfícies flutuantes/transitórias (wizards, modais) — nunca na
+   chrome persistente (sidebar, cards de lista), pra não virar ruído visual
+   constante; ver critério "aplicar primeiro isolado" no documento acima. */
+@property --liquid-glass-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes vetor-liquid-glass-spin {
+  to {
+    --liquid-glass-angle: 360deg;
+  }
+}
+
+@utility liquid-glass {
+  position: relative;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(
+        180deg,
+        color-mix(in oklab, var(--color-petroleo-3) 92%, transparent),
+        color-mix(in oklab, var(--color-petroleo-2) 96%, transparent)
+      )
+      padding-box,
+    conic-gradient(
+        from var(--liquid-glass-angle, 0deg),
+        transparent 0deg,
+        color-mix(in oklab, var(--color-menta) 70%, transparent) 20deg,
+        transparent 65deg,
+        transparent 300deg,
+        color-mix(in oklab, var(--color-electric) 45%, transparent) 335deg,
+        transparent 360deg
+      )
+      border-box;
+  box-shadow:
+    0 32px 90px -36px oklch(0 0 0 / 0.85),
+    inset 0 1px 0 0 color-mix(in oklab, var(--color-areia) 10%, transparent);
+  backdrop-filter: blur(20px) saturate(160%);
+  animation: vetor-liquid-glass-spin 8s linear infinite;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 1px;
+    border-radius: inherit;
+    background: radial-gradient(140% 80% at 18% -10%, color-mix(in oklab, var(--color-areia) 8%, transparent), transparent 60%);
+    pointer-events: none;
+  }
 }
 
 @utility mono-label {
@@ -259,6 +317,25 @@ body {
     transform: translateY(-3px);
     border-color: color-mix(in oklab, var(--color-menta) 35%, transparent);
     box-shadow: 0 20px 40px -24px oklch(0 0 0 / 0.7);
+  }
+}
+
+/* Design V2 Fase F — Spatial UI: profundidade real (perspective/rotateY/
+   translateZ), não só um translateY como card-lift acima. Aplicado só no
+   Creative Canvas (React Flow já tem nós que se sobrepõem com z-index —
+   candidato natural, ver documento de auditoria), nunca espalhado pro
+   resto do painel nesta rodada. O transform vive num elemento FILHO do que
+   o React Flow move (nunca o wrapper que o React Flow arrasta), então não
+   interfere na física de drag/zoom do canvas. */
+@utility spatial-node {
+  transform: perspective(1400px) rotateX(0deg) rotateY(0deg) translateZ(0px);
+  transition:
+    transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 260ms ease;
+  will-change: transform;
+
+  &:hover {
+    transform: perspective(1400px) rotateX(1.5deg) rotateY(-2.5deg) translateZ(16px);
   }
 }
 

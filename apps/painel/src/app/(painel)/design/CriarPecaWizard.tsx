@@ -196,7 +196,7 @@ export default function CriarPecaWizard({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-petroleo/80 p-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-areia/10 bg-petroleo-2 p-6 shadow-2xl">
+      <div className="liquid-glass max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl p-6">
         {status === "confirmada" && missionId ? (
           <div>
             <p className="mono-label text-menta">Missão criada</p>

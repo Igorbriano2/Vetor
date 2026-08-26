@@ -60,7 +60,7 @@ export default function VetorFlowNode({ id, data, selected }: NodeProps & { data
 
   return (
     <div
-      className="min-w-[240px] max-w-[300px] rounded-2xl border bg-petroleo-2/95 p-3.5 backdrop-blur-md transition-shadow"
+      className="spatial-node min-w-[240px] max-w-[300px] rounded-2xl border bg-petroleo-2/95 p-3.5 backdrop-blur-md transition-shadow"
       style={{
         borderColor: selected ? cor : "color-mix(in oklab, var(--color-areia) 12%, transparent)",
         boxShadow: selected ? `0 0 0 1px ${cor}, 0 0 28px -8px ${cor}` : "0 10px 28px -20px oklch(0 0 0 / 0.8)",
