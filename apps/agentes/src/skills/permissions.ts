@@ -7,11 +7,34 @@
 // só garante que uma skill nunca declara mais do que o gateway permite).
 
 import { TOOL_REGISTRY } from "../tools/registry.js";
-import type { SkillManifest } from "./types.js";
+import type { SkillCustoEstimado, SkillManifest } from "./types.js";
 
 export interface ValidacaoPermissaoSkill {
   valido: boolean;
   motivos: string[];
+}
+
+const CUSTOS_VALIDOS: SkillCustoEstimado[] = ["nenhum", "baixo", "medio", "alto"];
+
+// custoEstimado/timeoutMs/idempotencyKey são opcionais (skills antigas não
+// os têm), mas fail-closed quando presentes — mesmo padrão do resto deste
+// arquivo, nunca aceitar um valor fora do esperado silenciosamente.
+function validarCamposOpcionais(manifest: SkillManifest): string[] {
+  const motivos: string[] = [];
+
+  if (manifest.custoEstimado !== undefined && !CUSTOS_VALIDOS.includes(manifest.custoEstimado)) {
+    motivos.push(`custoEstimado "${manifest.custoEstimado}" inválido — precisa ser um de: ${CUSTOS_VALIDOS.join(", ")}.`);
+  }
+
+  if (manifest.timeoutMs !== undefined && (!Number.isFinite(manifest.timeoutMs) || manifest.timeoutMs <= 0)) {
+    motivos.push(`timeoutMs "${manifest.timeoutMs}" inválido — precisa ser um número positivo.`);
+  }
+
+  if (manifest.idempotencyKey !== undefined && manifest.idempotencyKey.trim() === "") {
+    motivos.push("idempotencyKey declarado mas vazio — omita o campo em vez de declarar string vazia.");
+  }
+
+  return motivos;
 }
 
 // Toda ferramenta declarada em allowedTools precisa existir no Tool
@@ -47,6 +70,8 @@ export function validarPermissoesDaSkill(manifest: SkillManifest): ValidacaoPerm
   if (maiorRiscoReal !== "low" && !manifest.requiresApproval) {
     motivos.push(`Skill usa ferramenta de risco "${maiorRiscoReal}" mas requiresApproval está false.`);
   }
+
+  motivos.push(...validarCamposOpcionais(manifest));
 
   return { valido: motivos.length === 0, motivos };
 }

@@ -16,5 +16,7 @@
   "allowedTools": ["ler_perfil_negocio", "ler_brand_kit", "ler_historico", "criar_relatorio"],
   "riskLevel": "low",
   "requiresApproval": false,
-  "outputType": "report"
+  "outputType": "report",
+  "custoEstimado": "nenhum",
+  "timeoutMs": 60000
 }

@@ -33,6 +33,14 @@ export interface SkillSource {
   importedAt: string;
 }
 
+// Estimativa categórica, não um valor em centavos: uma skill nunca chama um
+// provider diretamente (só orienta o especialista a usar tools do gateway),
+// então o custo real de uma execução depende de quais/quantas tools o
+// especialista de fato invoca durante a etapa — não é algo que o manifesto
+// possa declarar com precisão numérica. "nenhum" é pra skills puramente de
+// raciocínio/formatação (nunca chamam tool paga).
+export type SkillCustoEstimado = "nenhum" | "baixo" | "medio" | "alto";
+
 // O manifesto é a unidade de carregamento progressivo (princípio 8): cabe
 // inteiro num manifesto pequeno por sessão, sem precisar ler o SKILL.md
 // completo até a intenção do cliente bater com um trigger.
@@ -49,6 +57,17 @@ export interface SkillManifest {
   requiresApproval: boolean;
   outputType: SkillOutputType;
   source: SkillSource;
+  /** Opcional — ausente em skills antigas, sempre validado quando presente (permissions.ts). */
+  custoEstimado?: SkillCustoEstimado;
+  /** Opcional, em milissegundos. */
+  timeoutMs?: number;
+  /**
+   * Opcional — template de chave pra identificar execuções repetidas da
+   * mesma skill pro mesmo contexto (ex: "{missionStepId}:{skillId}"), pra
+   * quem orquestra evitar reprocessar. A skill só declara o template; quem
+   * gera a chave real é o especialista, usando o SkillContext da execução.
+   */
+  idempotencyKey?: string;
 }
 
 // SkillDefinition = manifesto + corpo carregado sob demanda (loader.ts lê

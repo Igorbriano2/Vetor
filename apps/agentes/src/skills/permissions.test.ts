@@ -56,6 +56,36 @@ describe("validarPermissoesDaSkill", () => {
     );
     expect(resultado.valido).toBe(false);
   });
+
+  it("aprova sem custoEstimado/timeoutMs/idempotencyKey (campos opcionais, skills antigas não têm)", () => {
+    const resultado = validarPermissoesDaSkill(manifest());
+    expect(resultado.valido).toBe(true);
+  });
+
+  it("aprova com custoEstimado/timeoutMs/idempotencyKey válidos", () => {
+    const resultado = validarPermissoesDaSkill(
+      manifest({ custoEstimado: "medio", timeoutMs: 30000, idempotencyKey: "{missionStepId}:teste" }),
+    );
+    expect(resultado.valido).toBe(true);
+  });
+
+  it("reprova custoEstimado fora do enum (fail-closed)", () => {
+    const resultado = validarPermissoesDaSkill(manifest({ custoEstimado: "gigante" as never }));
+    expect(resultado.valido).toBe(false);
+    expect(resultado.motivos.some((m) => m.includes("custoEstimado"))).toBe(true);
+  });
+
+  it("reprova timeoutMs não-positivo", () => {
+    const resultado = validarPermissoesDaSkill(manifest({ timeoutMs: 0 }));
+    expect(resultado.valido).toBe(false);
+    expect(resultado.motivos.some((m) => m.includes("timeoutMs"))).toBe(true);
+  });
+
+  it("reprova idempotencyKey vazio (deveria omitir o campo, não declarar string vazia)", () => {
+    const resultado = validarPermissoesDaSkill(manifest({ idempotencyKey: "   " }));
+    expect(resultado.valido).toBe(false);
+    expect(resultado.motivos.some((m) => m.includes("idempotencyKey"))).toBe(true);
+  });
 });
 
 describe("ferramentasPermitidasParaPapel", () => {

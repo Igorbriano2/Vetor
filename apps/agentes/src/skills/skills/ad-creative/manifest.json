@@ -19,5 +19,8 @@
   "allowedTools": ["ler_brand_kit", "ler_historico", "gerar_imagem"],
   "riskLevel": "medium",
   "requiresApproval": true,
-  "outputType": "image"
+  "outputType": "image",
+  "custoEstimado": "medio",
+  "timeoutMs": 45000,
+  "idempotencyKey": "{missionStepId}:ad-creative"
 }
