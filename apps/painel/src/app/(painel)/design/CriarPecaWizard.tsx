@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { readApiResponse } from "@/lib/api/readApiResponse";
+import { ESTILOS_VISUAIS } from "@/lib/design/receitasAgencia";
 
 interface ReferenciaOpcao {
   id: string;
@@ -34,18 +35,6 @@ const FORMATOS = ["Feed", "Story", "Carrossel", "Capa de Reel", "Anúncio", "Out
 const NUMERO_DE_DIRECOES_PADRAO = 3;
 
 type OrigemReferencia = "biblioteca" | "url" | "drive" | "nenhuma";
-
-// Mesmos 6 estilos de apps/agentes/src/negocio/artDirection.ts (Fase 9) —
-// rótulo em português só pra exibição, o valor enviado no briefing é
-// sempre a chave em inglês que o schema da ferramenta espera.
-const ESTILOS_VISUAIS: Array<{ valor: string; label: string }> = [
-  { valor: "editorial", label: "Editorial" },
-  { valor: "product_hero", label: "Produto em destaque" },
-  { valor: "split_screen", label: "Tela dividida" },
-  { valor: "collage", label: "Colagem" },
-  { valor: "testimonial", label: "Depoimento" },
-  { valor: "minimal_authority", label: "Minimalista" },
-];
 
 export interface TemplatePreFill {
   nome: string;

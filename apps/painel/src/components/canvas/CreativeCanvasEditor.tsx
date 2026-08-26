@@ -18,6 +18,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import VetorFlowNode from "./VetorFlowNode";
+import NodePropertiesPanel from "./NodePropertiesPanel";
 import { ICONE_TIPO } from "./nodeIcons";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { criarNode, RÓTULO_TIPO, COR_TIPO, type GraphJson, type TipoNode, type VetorNodeData } from "@/lib/canvas/types";
@@ -41,11 +42,6 @@ const TIPOS_TOOLBAR: TipoNode[] = [
 
 const HISTORICO_MAXIMO = 50;
 const DEBOUNCE_AUTOSAVE_MS = 800;
-
-// Design V2 (auditoria Gravyx) — mesmo vocabulário de formato já usado no
-// wizard de Design (CriarPecaWizard.tsx), pra não introduzir um segundo
-// vocabulário de formato no produto.
-const FORMATOS_RESULTADO = ["Feed", "Story", "Carrossel", "Capa de Reel", "Anúncio", "Outro"];
 
 interface Props {
   projectId: string;
@@ -231,6 +227,24 @@ export default function CreativeCanvasEditor({ projectId, clienteId, tituloInici
     const partes = nodesOrigem
       .filter((n) => n.data.titulo.trim() || n.data.descricao.trim())
       .map((n) => `${RÓTULO_TIPO[n.data.tipo]}: ${[n.data.titulo, n.data.descricao].filter(Boolean).join(" — ")}`);
+
+    // Design V2 (auditoria Gravyx) — os campos estruturados novos por tipo
+    // (upload real, referência/brandkit escolhidos, direção de arte,
+    // provider) viram hint em texto natural, mesmo padrão já usado pra
+    // formatoDesejado/variacoesDesejadas do node de Resultado — o backend
+    // só recebe linguagem natural, nunca um parâmetro JSON novo. Frases
+    // batem literalmente com os exemplos do próprio schema da ferramenta
+    // (apps/agentes/src/agents/specialistRunner.ts) pra maximizar a chance
+    // real de extração pelo agente.
+    nodesOrigem.forEach((n) => {
+      if (n.data.tipo === "arquivo" && n.data.arquivoNome) partes.push(`Arquivo anexado: ${n.data.arquivoNome}`);
+      if (n.data.tipo === "referencia" && n.data.referenciaTitulo) partes.push(`Usar como referência visual: "${n.data.referenciaTitulo}" (biblioteca de referências)`);
+      if (n.data.tipo === "brandkit" && n.data.brandkitAssetNomes?.length) partes.push(`Usar identidade visual: ${n.data.brandkitAssetNomes.join(", ")}`);
+      if (n.data.tipo === "direcao_arte" && n.data.direcaoArteEstilo) partes.push(`Direção de arte preferida: ${n.data.direcaoArteEstilo}`);
+      if (n.data.tipo === "provider" && n.data.providerPreferido) partes.push(`Provider de imagem preferido: ${n.data.providerPreferido === "openai" ? "OpenAI" : "Gemini"}`);
+      if (n.data.tipo === "entrega" && n.data.entregaCanal) partes.push(`Entregar via: ${n.data.entregaCanal}`);
+    });
+
     const resultado = nodes.find((n) => n.id === resultadoId);
     if (resultado?.data.titulo.trim() || resultado?.data.descricao.trim()) {
       partes.unshift([resultado!.data.titulo, resultado!.data.descricao].filter(Boolean).join(" — "));
@@ -340,13 +354,15 @@ export default function CreativeCanvasEditor({ projectId, clienteId, tituloInici
     });
   }
 
-  // Node "scene_graph" não tem resultado próprio — o Scene Graph real é
-  // sempre o de um node "resultado" conectado a ele (em qualquer direção
-  // da seta, pra não depender de como o cliente desenhou a conexão).
-  function designProjectConectado(sceneGraphId: string): string | null {
-    const idsVizinhos = edges.filter((e) => e.source === sceneGraphId || e.target === sceneGraphId).map((e) => (e.source === sceneGraphId ? e.target : e.source));
-    const resultado = nodes.find((n) => idsVizinhos.includes(n.id) && n.data.tipo === "resultado" && n.data.resultado?.designProjectId);
-    return resultado?.data.resultado?.designProjectId ?? null;
+  // Design V2 (auditoria Gravyx) — nenhum tipo (scene_graph, critica,
+  // aprovacao) tem resultado próprio: todos leem do node "resultado"
+  // conectado a eles (em qualquer direção da seta, pra não depender de como
+  // o cliente desenhou a conexão). Passado pro NodePropertiesPanel, que
+  // decide o que extrair dele por tipo (designProjectId, missionId,
+  // variações...).
+  function resultadoConectado(nodeId: string): NodeV | null {
+    const idsVizinhos = edges.filter((e) => e.source === nodeId || e.target === nodeId).map((e) => (e.source === nodeId ? e.target : e.source));
+    return nodes.find((n) => idsVizinhos.includes(n.id) && n.data.tipo === "resultado") ?? null;
   }
 
   async function salvarTitulo() {
@@ -481,131 +497,16 @@ export default function CreativeCanvasEditor({ projectId, clienteId, tituloInici
                 className="mt-1 w-full rounded-lg border border-areia/15 bg-petroleo px-2.5 py-1.5 text-sm text-areia focus:border-menta focus:outline-none"
               />
             </label>
-            <label className="block">
-              <span className="mono-label text-areia/40">Configuração</span>
-              <textarea
-                value={nodeSelecionado.data.descricao}
-                onChange={(e) => atualizarDadosNode(nodeSelecionado.id, { descricao: e.target.value })}
-                rows={4}
-                placeholder="Texto livre — briefing, prompt, notas..."
-                className="mt-1 w-full rounded-lg border border-areia/15 bg-petroleo px-2.5 py-1.5 text-xs text-areia placeholder:text-areia/30 focus:border-menta focus:outline-none"
-              />
-            </label>
 
-            {nodeSelecionado.data.tipo === "scene_graph" && (
-              <p className="text-[11px] text-areia/40">
-                {designProjectConectado(nodeSelecionado.id) ? (
-                  <Link href={`/design/editor/${designProjectConectado(nodeSelecionado.id)}`} className="text-menta hover:underline">
-                    Abrir Scene Graph real →
-                  </Link>
-                ) : (
-                  "Disponível depois de conectar um node de Resultado com uma peça real já gerada e aprovada."
-                )}
-              </p>
-            )}
-
-            {nodeSelecionado.data.tipo === "resultado" && (
-              <div className="space-y-2 rounded-lg border border-ambar/20 bg-ambar/5 p-2.5">
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="block">
-                    <span className="mono-label text-[10px] text-areia/40">Formato</span>
-                    <select
-                      value={nodeSelecionado.data.formatoDesejado ?? ""}
-                      onChange={(e) => atualizarDadosNode(nodeSelecionado.id, { formatoDesejado: e.target.value || undefined })}
-                      className="mt-1 w-full rounded-lg border border-areia/15 bg-petroleo px-2 py-1 text-xs text-areia focus:border-menta focus:outline-none"
-                    >
-                      <option value="">A definir</option>
-                      {FORMATOS_RESULTADO.map((f) => (
-                        <option key={f} value={f}>
-                          {f}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block">
-                    <span className="mono-label text-[10px] text-areia/40">Variações</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={6}
-                      value={nodeSelecionado.data.variacoesDesejadas ?? 1}
-                      onChange={(e) => atualizarDadosNode(nodeSelecionado.id, { variacoesDesejadas: Math.max(1, Math.min(6, Number(e.target.value) || 1)) })}
-                      className="mt-1 w-full rounded-lg border border-areia/15 bg-petroleo px-2 py-1 text-xs text-areia focus:border-menta focus:outline-none"
-                    />
-                  </label>
-                </div>
-                <p className="text-[11px] text-areia/50">
-                  Geração real usa os nodes conectados como briefing e passa pela aprovação normal da missão — nunca
-                  gera direto, nunca em lote.
-                </p>
-                <button
-                  onClick={() => gerarPecaReal(nodeSelecionado.id)}
-                  disabled={nodeSelecionado.data.estado === "processando"}
-                  className="w-full rounded-lg border border-ambar/40 bg-ambar/10 px-2.5 py-1.5 text-[11px] font-semibold text-ambar hover:bg-ambar/20 disabled:opacity-40"
-                >
-                  {nodeSelecionado.data.estado === "processando" ? "Enviando ao Vetor..." : "Gerar peça real"}
-                </button>
-
-                {nodeSelecionado.data.resultado?.missionId && (
-                  <div className="flex items-center justify-between gap-2">
-                    <Link href={`/missoes/${nodeSelecionado.data.resultado.missionId}`} className="text-[11px] text-menta hover:underline">
-                      Ver e aprovar na missão →
-                    </Link>
-                    <button onClick={() => atualizarResultadoReal(nodeSelecionado.id)} className="text-[11px] text-areia/50 hover:text-areia">
-                      Atualizar
-                    </button>
-                  </div>
-                )}
-
-                {/* Design V2 Fase 3 — grid de saídas reais (uma missão pode ter
-                    N variações). Nunca mostra card vazio como se fosse uma
-                    saída pronta: "Aguardando geração" explica o motivo real. */}
-                {nodeSelecionado.data.resultado && !nodeSelecionado.data.resultado.mock && nodeSelecionado.data.resultado.variacoes.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    {nodeSelecionado.data.resultado.variacoes.map((v, i) => (
-                      <div key={v.designProjectId} className="overflow-hidden rounded-lg border border-areia/10 bg-petroleo/60">
-                        <div className="flex aspect-square items-center justify-center bg-petroleo overflow-hidden">
-                          {v.thumbnailUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={v.thumbnailUrl} alt={`Variação ${i + 1}`} className="size-full object-cover" />
-                          ) : (
-                            <span className="text-[10px] text-areia/30">sem preview</span>
-                          )}
-                        </div>
-                        <div className="space-y-0.5 p-1.5">
-                          <p className="text-[10px] text-areia/40">
-                            {v.resolucao ?? "resolução indefinida"} {v.aspectRatio ? `· ${v.aspectRatio}` : ""}
-                          </p>
-                          <p className={`text-[10px] ${v.status === "approved" ? "text-menta" : "text-areia/50"}`}>
-                            {v.status === "approved" ? "aprovado" : v.status}
-                          </p>
-                          <div className="flex items-center justify-between pt-0.5">
-                            <Link href={`/design/editor/${v.designProjectId}`} className="text-[10px] text-menta hover:underline">
-                              abrir no editor
-                            </Link>
-                            {v.status !== "approved" && (
-                              <Link href={`/missoes/${nodeSelecionado.data.resultado?.missionId}`} className="text-[10px] text-ambar hover:underline">
-                                aprovar
-                              </Link>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : nodeSelecionado.data.resultado && !nodeSelecionado.data.resultado.mock ? (
-                  <p className="rounded-lg bg-petroleo-3/40 p-2 text-[11px] text-areia/40">
-                    Aguardando geração — {nodeSelecionado.data.estado === "erro" ? "a geração falhou, veja abaixo" : "esperando a etapa de Design da missão ser aprovada e concluída"}.
-                  </p>
-                ) : null}
-
-                {nodeSelecionado.data.estado === "erro" && nodeSelecionado.data.resultado?.missionId && (
-                  <Link href={`/missoes/${nodeSelecionado.data.resultado.missionId}`} className="text-[11px] text-coral hover:underline">
-                    Tentar de novo na missão →
-                  </Link>
-                )}
-              </div>
-            )}
+            <NodePropertiesPanel
+              node={nodeSelecionado}
+              clienteId={clienteId}
+              supabase={supabase}
+              onPatch={(patch) => atualizarDadosNode(nodeSelecionado.id, patch)}
+              onGerarPecaReal={() => gerarPecaReal(nodeSelecionado.id)}
+              onAtualizarResultadoReal={() => atualizarResultadoReal(nodeSelecionado.id)}
+              resultadoConectado={resultadoConectado}
+            />
 
             <div className="flex flex-wrap gap-2 border-t border-areia/10 pt-3">
               <button

@@ -32,4 +32,13 @@ describe("criarNode", () => {
     const briefing = criarNode("briefing", { x: 0, y: 0 });
     expect(briefing.data.resultado).toBeUndefined();
   });
+
+  it("node do tipo 'arquivo' nasce com arquivoStatus 'vazio' — nunca 'pronto' antes de um upload real", () => {
+    const arquivo = criarNode("arquivo", { x: 0, y: 0 });
+    expect(arquivo.data.arquivoStatus).toBe("vazio");
+    expect(arquivo.data.arquivoUrl).toBeUndefined();
+
+    const briefing = criarNode("briefing", { x: 0, y: 0 });
+    expect(briefing.data.arquivoStatus).toBeUndefined();
+  });
 });

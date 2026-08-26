@@ -6,6 +6,8 @@
 // código). Cada receita monta os MESMOS query params que TemplatesPainel.
 // usarTemplate() já usa — abre /design com o wizard pré-preenchido, nunca
 // um caminho de geração paralelo.
+export type EstiloVisual = "editorial" | "product_hero" | "split_screen" | "collage" | "testimonial" | "minimal_authority";
+
 export interface ReceitaAgencia {
   id: string;
   nome: string;
@@ -13,8 +15,26 @@ export interface ReceitaAgencia {
   objetivo: string;
   formato: string;
   tom: string;
-  estiloVisual: "editorial" | "product_hero" | "split_screen" | "collage" | "testimonial" | "minimal_authority";
+  estiloVisual: EstiloVisual;
 }
+
+// Design V2 (auditoria Gravyx) — fonte única dos 6 estilos de
+// apps/agentes/src/negocio/artDirection.ts (Fase 9). Antes existiam 2
+// cópias soltas da mesma lista (aqui como union type, e uma segunda em
+// CriarPecaWizard.tsx com label mas sem "ajuda") — centralizado aqui pra
+// tanto o wizard quanto o node de Direção de arte do Creative Canvas
+// usarem exatamente o mesmo vocabulário. Texto de "ajuda" é o mesmo guia
+// (resumido) que o próprio schema da ferramenta usa em
+// apps/agentes/src/agents/specialistRunner.ts — pra escolher no node bater
+// com o que o agente real otimiza quando recebe esse estilo.
+export const ESTILOS_VISUAIS: Array<{ valor: EstiloVisual; label: string; ajuda: string }> = [
+  { valor: "editorial", label: "Editorial", ajuda: "Oferta/promoção com headline forte no topo." },
+  { valor: "product_hero", label: "Produto em destaque", ajuda: "Produto em destaque absoluto." },
+  { valor: "split_screen", label: "Tela dividida", ajuda: "Comparação ou duas mensagens lado a lado." },
+  { valor: "collage", label: "Colagem", ajuda: "2+ ativos reais do Drive combinados." },
+  { valor: "testimonial", label: "Depoimento", ajuda: "Prova social com citação." },
+  { valor: "minimal_authority", label: "Minimalista", ajuda: "Marca premium/institucional, pouco texto." },
+];
 
 export const RECEITAS_AGENCIA: ReceitaAgencia[] = [
   {

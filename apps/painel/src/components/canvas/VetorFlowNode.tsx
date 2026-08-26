@@ -3,6 +3,9 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { RÓTULO_TIPO, COR_TIPO, type VetorNodeData } from "@/lib/canvas/types";
 import { ICONE_TIPO } from "./nodeIcons";
+import { ESTILOS_VISUAIS } from "@/lib/design/receitasAgencia";
+
+const LABEL_PROVIDER: Record<string, string> = { openai: "OpenAI", gemini: "Gemini" };
 
 const RÓTULO_ESTADO: Record<VetorNodeData["estado"], string> = {
   idle: "não iniciado",
@@ -72,6 +75,41 @@ export default function VetorFlowNode({ data, selected }: NodeProps & { data: Ve
       </div>
 
       {data.descricao && <p className="mt-1.5 line-clamp-2 text-[11px] text-areia/50">{data.descricao}</p>}
+
+      {/* Design V2 (auditoria Gravyx) — cada tipo com campo estruturado
+          mostra o valor real como chip/thumbnail no card, não só no
+          painel — dá pra escanear o grafo sem abrir cada node. */}
+      {data.tipo === "arquivo" &&
+        (data.arquivoUrl && data.arquivoMimeType?.startsWith("image/") ? (
+          <div className="mt-2 aspect-video w-full overflow-hidden rounded-lg bg-petroleo/60">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={data.arquivoUrl} alt={data.arquivoNome ?? "arquivo"} className="size-full object-cover" />
+          </div>
+        ) : data.arquivoNome ? (
+          <span className="mt-1.5 inline-block rounded-full border border-menta/30 bg-menta/10 px-1.5 py-0.5 text-[9px] text-menta">{data.arquivoNome}</span>
+        ) : null)}
+      {data.tipo === "referencia" && data.referenciaTitulo && (
+        <span className="mt-1.5 inline-block rounded-full border border-menta/30 bg-menta/10 px-1.5 py-0.5 text-[9px] text-menta">{data.referenciaTitulo}</span>
+      )}
+      {data.tipo === "brandkit" && (data.brandkitAssetNomes?.length ?? 0) > 0 && (
+        <span className="mt-1.5 inline-block rounded-full border border-ambar/30 bg-ambar/10 px-1.5 py-0.5 text-[9px] text-ambar">
+          {data.brandkitAssetNomes!.length} ativo{data.brandkitAssetNomes!.length > 1 ? "s" : ""}
+        </span>
+      )}
+      {data.tipo === "direcao_arte" && data.direcaoArteEstilo && (
+        <span className="mt-1.5 inline-block rounded-full border border-electric/30 bg-electric/10 px-1.5 py-0.5 text-[9px] text-electric">
+          {ESTILOS_VISUAIS.find((e) => e.valor === data.direcaoArteEstilo)?.label ?? data.direcaoArteEstilo}
+        </span>
+      )}
+      {data.tipo === "provider" && data.providerPreferido && (
+        <span className="mt-1.5 inline-block rounded-full border border-areia/20 px-1.5 py-0.5 text-[9px] text-areia/60">{LABEL_PROVIDER[data.providerPreferido]}</span>
+      )}
+      {data.tipo === "critica" && data.criticaResumo && (
+        <span className={`mt-1.5 flex items-center gap-1 text-[9px] ${data.criticaResumo.passed ? "text-menta" : "text-coral"}`}>
+          <span className={`size-1.5 rounded-full ${data.criticaResumo.passed ? "bg-menta" : "bg-coral"}`} />
+          {data.criticaResumo.passed ? "aprovado no critic" : `${data.criticaResumo.issuesCount} pendência${data.criticaResumo.issuesCount === 1 ? "" : "s"}`}
+        </span>
+      )}
 
       {data.tipo === "resultado" && data.resultado && !data.resultado.mock && (data.resultado.variacoes.length > 1 || (data.resultado.custoCentavos ?? 0) > 0) && (
         <div className="mt-1.5 flex flex-wrap gap-1">

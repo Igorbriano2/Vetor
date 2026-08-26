@@ -73,6 +73,53 @@ export interface VetorNodeData {
   // pedido real (mesmo padrão de "Direção de arte preferida: X").
   formatoDesejado?: string;
   variacoesDesejadas?: number;
+
+  // Design V2 (auditoria node-a-node do Gravyx) — cada node deles abre a
+  // interface certa pra sua função (upload de verdade, seletor de
+  // referência/identidade, seletor de provider/modelo, seletor de estilo).
+  // Os campos abaixo dão a mesma especificidade ao Vetor, sempre em cima de
+  // dado real (nunca uma opção fictícia) — todos dobrados em texto natural
+  // no briefing em montarBriefingDosNodes(), nunca um parâmetro estruturado
+  // novo no backend.
+
+  // arquivo — upload real via /api/upload (mesmo endpoint que VetorCockpit
+  // já usa no chat), grava em business_assets de verdade.
+  arquivoAssetId?: string;
+  arquivoUrl?: string | null;
+  arquivoNome?: string;
+  arquivoMimeType?: string;
+  arquivoStatus?: "vazio" | "enviando" | "pronto" | "erro";
+
+  // referencia — item real de reference_library_items (biblioteca curada +
+  // referências do próprio cliente), nunca descrição solta do que usar.
+  referenciaItemId?: string;
+  referenciaTitulo?: string;
+
+  // brandkit — não existe tabela brand_kits no schema; isto é um seletor
+  // sobre business_assets com categoria='identidade_visual' (enum real em
+  // apps/agentes/src/negocio/businessAssets.ts), o rótulo do produto
+  // continua "BrandKit" porque é o que o cliente reconhece.
+  brandkitAssetIds?: string[];
+  brandkitAssetNomes?: string[];
+
+  // direcao_arte — mesmos 6 estilos de ESTILOS_VISUAIS
+  // (lib/design/receitasAgencia.ts), nunca um 2º vocabulário.
+  direcaoArteEstilo?: string;
+
+  // provider — só os 2 providers reais de imagem hoje (openai/gemini, ver
+  // apps/agentes/src/integrations/imageProvider.ts), nunca uma opção que o
+  // backend não sabe honrar.
+  providerPreferido?: "openai" | "gemini";
+
+  // entrega — hint de texto (não é um contrato de backend, mesmo padrão de
+  // formatoDesejado acima).
+  entregaCanal?: string;
+
+  // critica — cache local do design_critic real (já persistido em
+  // design_projects.design_critic) da última vez que o painel buscou, pro
+  // card do canvas não precisar reconsultar o banco.
+  criticaResumo?: { passed: boolean; issuesCount: number } | null;
+
   [chave: string]: unknown;
 }
 
@@ -150,6 +197,7 @@ export function criarNode(tipo: TipoNode, posicao: { x: number; y: number }): Gr
       ...(tipo === "resultado"
         ? { resultado: { thumbnailUrl: null, aspectRatio: null, resolucao: null, provider: null, custoCentavos: null, designProjectId: null, missionId: null, mock: true, variacoes: [] } }
         : {}),
+      ...(tipo === "arquivo" ? { arquivoStatus: "vazio" as const } : {}),
     },
   };
 }
