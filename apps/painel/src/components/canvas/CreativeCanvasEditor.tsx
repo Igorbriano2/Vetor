@@ -18,7 +18,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import VetorFlowNode from "./VetorFlowNode";
-import NodePropertiesPanel from "./NodePropertiesPanel";
+import { CanvasActionsContext } from "./canvasActions";
 import { ICONE_TIPO } from "./nodeIcons";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { criarNode, RÓTULO_TIPO, COR_TIPO, type GraphJson, type TipoNode, type VetorNodeData } from "@/lib/canvas/types";
@@ -55,7 +55,6 @@ type NodeV = Node<VetorNodeData>;
 export default function CreativeCanvasEditor({ projectId, clienteId, tituloInicial, graphInicial }: Props) {
   const [nodes, setNodesState] = useState<NodeV[]>(graphInicial.nodes as unknown as NodeV[]);
   const [edges, setEdgesState] = useState<Edge[]>(graphInicial.edges as unknown as Edge[]);
-  const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [ultimoSalvamento, setUltimoSalvamento] = useState<string | null>(null);
   const [titulo, setTitulo] = useState(tituloInicial);
@@ -67,8 +66,6 @@ export default function CreativeCanvasEditor({ projectId, clienteId, tituloInici
   const indiceRef = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const aplicandoHistoricoRef = useRef(false);
-
-  const nodeSelecionado = nodes.find((n) => n.id === selecionadoId) ?? null;
 
   const salvar = useCallback(async () => {
     setSalvando(true);
@@ -150,21 +147,19 @@ export default function CreativeCanvasEditor({ projectId, clienteId, tituloInici
     // render — regra react-hooks/purity) baseada na quantidade atual de
     // nodes, suficiente pra novos nodes não nascerem todos empilhados.
     const posicao = { x: 80 + (nodes.length % 5) * 60, y: 80 + Math.floor(nodes.length / 5) * 100 };
-    const node = criarNode(tipo, posicao) as unknown as NodeV;
-    const novosNodes = [...nodes, node];
+    const node = { ...(criarNode(tipo, posicao) as unknown as NodeV), selected: true };
+    const novosNodes = [...nodes.map((n) => ({ ...n, selected: false })), node];
     setNodesState(novosNodes);
-    setSelecionadoId(node.id);
     empilharHistorico(novosNodes, edges);
   }
 
   function duplicarNode(id: string) {
     const original = nodes.find((n) => n.id === id);
     if (!original) return;
-    const copia = criarNode(original.data.tipo, { x: original.position.x + 40, y: original.position.y + 40 }) as unknown as NodeV;
+    const copia = { ...(criarNode(original.data.tipo, { x: original.position.x + 40, y: original.position.y + 40 }) as unknown as NodeV), selected: true };
     copia.data = { ...original.data };
-    const novosNodes = [...nodes, copia];
+    const novosNodes = [...nodes.map((n) => ({ ...n, selected: false })), copia];
     setNodesState(novosNodes);
-    setSelecionadoId(copia.id);
     empilharHistorico(novosNodes, edges);
   }
 
@@ -173,7 +168,6 @@ export default function CreativeCanvasEditor({ projectId, clienteId, tituloInici
     const novosEdges = edges.filter((e) => e.source !== id && e.target !== id);
     setNodesState(novosNodes);
     setEdgesState(novosEdges);
-    if (selecionadoId === id) setSelecionadoId(null);
     empilharHistorico(novosNodes, novosEdges);
   }
 
@@ -438,29 +432,45 @@ export default function CreativeCanvasEditor({ projectId, clienteId, tituloInici
 
       <div className="relative flex flex-1">
         <div className="flex-1">
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            nodeTypes={NODE_TYPES}
-            onNodesChange={onNodesChange}
-            onNodeDragStop={onNodeDragStop}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onNodeClick={(_: React.MouseEvent, node: NodeV) => setSelecionadoId(node.id)}
-            onPaneClick={() => setSelecionadoId(null)}
-            colorMode="dark"
-            fitView
+          {/* Design V2 (auditoria Gravyx, 2ª rodada) — não existe mais painel
+              lateral: cada node é a própria superfície de edição (achado
+              central da auditoria — nenhum node do Gravyx abre um painel
+              fora dele mesmo). O contexto dá aos nodes acesso aos handlers
+              sem prop-drilling através do NodeProps do React Flow. */}
+          <CanvasActionsContext.Provider
+            value={{
+              clienteId,
+              supabase,
+              onPatch: atualizarDadosNode,
+              onDuplicar: duplicarNode,
+              onRemover: removerNode,
+              onReprocessar: reprocessarNode,
+              onGerarPecaReal: gerarPecaReal,
+              onAtualizarResultadoReal: atualizarResultadoReal,
+              resultadoConectado,
+            }}
           >
-            <Background color="var(--color-areia)" gap={28} size={1} style={{ opacity: 0.06 }} />
-            <Controls />
-            <MiniMap pannable zoomable style={{ background: "var(--color-petroleo-2)" }} />
-          </ReactFlow>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              nodeTypes={NODE_TYPES}
+              onNodesChange={onNodesChange}
+              onNodeDragStop={onNodeDragStop}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              colorMode="dark"
+              fitView
+            >
+              <Background color="var(--color-areia)" gap={28} size={1} style={{ opacity: 0.06 }} />
+              <Controls />
+              <MiniMap pannable zoomable style={{ background: "var(--color-petroleo-2)" }} />
+            </ReactFlow>
+          </CanvasActionsContext.Provider>
 
-          {/* Design V2 (auditoria Gravyx) — barra flutuante de adicionar node,
-              posição e formato de cápsula inspirados no toolbar deles, mas com
-              rótulo de texto (não só ícone): os 12 tipos do Vetor são
-              conceitos específicos do pipeline de criação, não genéricos
-              como os deles — ícone sozinho ficaria ambíguo aqui. */}
+          {/* Barra flutuante de adicionar node — cápsula no rodapé (mesma
+              posição do toolbar do Gravyx), rótulo de texto porque os 12
+              tipos do Vetor são conceitos específicos do pipeline, não
+              genéricos como os deles. */}
           <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-4">
             <div className="pointer-events-auto flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-areia/10 bg-petroleo-2/90 px-2 py-1.5 shadow-2xl backdrop-blur-xl">
               {TIPOS_TOOLBAR.map((tipo) => (
@@ -483,56 +493,6 @@ export default function CreativeCanvasEditor({ projectId, clienteId, tituloInici
             </div>
           </div>
         </div>
-
-        {nodeSelecionado && (
-          <div className="w-72 shrink-0 space-y-3 overflow-y-auto border-l border-areia/10 bg-petroleo-2/60 p-4">
-            <p className="mono-label" style={{ color: COR_TIPO[nodeSelecionado.data.tipo] }}>
-              {RÓTULO_TIPO[nodeSelecionado.data.tipo]}
-            </p>
-            <label className="block">
-              <span className="mono-label text-areia/40">Título</span>
-              <input
-                value={nodeSelecionado.data.titulo}
-                onChange={(e) => atualizarDadosNode(nodeSelecionado.id, { titulo: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-areia/15 bg-petroleo px-2.5 py-1.5 text-sm text-areia focus:border-menta focus:outline-none"
-              />
-            </label>
-
-            <NodePropertiesPanel
-              node={nodeSelecionado}
-              clienteId={clienteId}
-              supabase={supabase}
-              onPatch={(patch) => atualizarDadosNode(nodeSelecionado.id, patch)}
-              onGerarPecaReal={() => gerarPecaReal(nodeSelecionado.id)}
-              onAtualizarResultadoReal={() => atualizarResultadoReal(nodeSelecionado.id)}
-              resultadoConectado={resultadoConectado}
-            />
-
-            <div className="flex flex-wrap gap-2 border-t border-areia/10 pt-3">
-              <button
-                onClick={() => reprocessarNode(nodeSelecionado.id)}
-                disabled={nodeSelecionado.data.estado === "processando"}
-                className="rounded-lg border border-menta/30 px-2.5 py-1.5 text-[11px] text-menta hover:bg-menta/10 disabled:opacity-40"
-              >
-                {nodeSelecionado.data.estado === "processando" ? "Processando..." : "Reprocessar (mock)"}
-              </button>
-              <button onClick={() => duplicarNode(nodeSelecionado.id)} className="rounded-lg border border-areia/15 px-2.5 py-1.5 text-[11px] text-areia/70 hover:text-areia">
-                Duplicar
-              </button>
-              <button onClick={() => removerNode(nodeSelecionado.id)} className="rounded-lg border border-coral/30 px-2.5 py-1.5 text-[11px] text-coral hover:bg-coral/10">
-                Remover
-              </button>
-              {nodeSelecionado.data.tipo === "aprovacao" && (
-                <button
-                  onClick={() => atualizarDadosNode(nodeSelecionado.id, { estado: "aprovado" })}
-                  className="rounded-lg border border-ambar/30 px-2.5 py-1.5 text-[11px] text-ambar hover:bg-ambar/10"
-                >
-                  Aprovar
-                </button>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
