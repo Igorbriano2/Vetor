@@ -475,9 +475,15 @@ export async function processarRunAgentStep(missionStepId: string): Promise<void
 
   // Só custa a consulta extra pra quem de fato analisa/audita tráfego pago —
   // nunca inventa campanha: sem conexão Meta ativa, contaConectada fica false
-  // e a lista vem vazia (ver montarContexto em specialistRunner.ts).
+  // e a lista vem vazia (ver montarContexto em specialistRunner.ts). Inclui
+  // "estrategia" desde a Rota Estratégica (análise + plano de ação em
+  // formato de relatório executivo, pedido explícito do cliente) — a tabela
+  // de performance histórica da Rota precisa dos mesmos números reais por
+  // campanha que o agente de Tráfego já usa, nunca um número separado.
   const trafego =
-    etapa.agente === "trafego" || etapa.agente === "analitico" ? await buscarContextoTrafego(etapa.cliente_id) : undefined;
+    etapa.agente === "trafego" || etapa.agente === "analitico" || etapa.agente === "estrategia"
+      ? await buscarContextoTrafego(etapa.cliente_id)
+      : undefined;
 
   // Fase 4 do Vetor Manager UX (docs/VETOR-MANAGER-UX-AUDIT.md) — achado
   // real: só o agente de chat (vetorPlataforma.ts) lia memoria_operacional

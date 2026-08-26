@@ -38,6 +38,7 @@ import {
 } from "../negocio/designLayout.js";
 import { renderizarPecaComposta, amostrarLuminanciaMedia } from "../negocio/designComposer.js";
 import { montarLayoutPorDirecao, ESTILOS_ARTE_DIRECAO, type EstiloArteDirecao } from "../negocio/artDirection.js";
+import { ROTA_ESTRATEGICA_SCHEMA, montarPerformanceLinhas, rotaEstrategicaValida, type RotaEstrategica } from "../negocio/rotaEstrategica.js";
 import {
   buscarOuCriarVideoProjectRascunho,
   montarTimelineInicial,
@@ -121,6 +122,7 @@ export const ENTREGAR_RESULTADO_TOOL: Anthropic.Tool = {
               description: "Só pra type=plan — indicadores sugeridos pra acompanhar o período.",
               items: { type: "string" },
             },
+            rota: ROTA_ESTRATEGICA_SCHEMA,
           },
           required: ["type", "title", "content"],
         },
@@ -175,6 +177,7 @@ export const ENTREGAR_DOCUMENTO_TOOL: Anthropic.Tool = {
         description: "Só pra type=plan — indicadores reais sugeridos pra acompanhar o período.",
         items: { type: "string" },
       },
+      rota: ROTA_ESTRATEGICA_SCHEMA,
     },
     required: ["type", "title", "content"],
   },
@@ -1627,6 +1630,7 @@ export async function executarEspecialista(
     periodo?: string;
     calendario?: Array<{ data: string; titulo: string; canal?: string; tipo?: string }>;
     indicadores?: string[];
+    rota?: RotaEstrategica;
   }
   // Preenchido só quando o modelo usa a ferramenta entregar_documento no
   // turno intermediário (ver bloco abaixo) — mesclado em bruto.artifacts
@@ -1883,6 +1887,25 @@ export async function executarEspecialista(
       );
       continue;
     }
+    // Rota Estratégica: mesmo quando o modelo preencheu rota.performance,
+    // o valor que persiste é sempre recalculado aqui a partir do dado real
+    // já sincronizado (contexto.trafego) — nunca o número que o LLM
+    // escreveu. rotaEstrategicaValida rejeita uma Rota capenga (só
+    // título/lede sem os blocos que dão sustância ao formato): nesse caso
+    // cai de volta pro plano de texto simples em vez de persistir um
+    // formato prometido pela metade.
+    const rotaValida = item.type === "plan" && rotaEstrategicaValida(item.rota) ? item.rota : undefined;
+    const rotaComPerformanceReal =
+      rotaValida && contexto.trafego?.contaConectada
+        ? {
+            ...rotaValida,
+            performance: {
+              linhas: montarPerformanceLinhas(contexto.trafego.campanhas.map((c) => ({ nome: c.nome, metricas: c.metricas as never }))),
+              leitura: rotaValida.performance?.leitura ?? "",
+            },
+          }
+        : rotaValida;
+
     try {
       artefatosPersistidos.push(
         await persistirArtefato({
@@ -1896,7 +1919,12 @@ export async function executarEspecialista(
           criadoPorAgente: agenteId,
           metadataExtra:
             item.type === "plan"
-              ? { periodo: item.periodo, calendario: item.calendario ?? [], indicadores: item.indicadores ?? [] }
+              ? {
+                  periodo: item.periodo,
+                  calendario: item.calendario ?? [],
+                  indicadores: item.indicadores ?? [],
+                  ...(rotaComPerformanceReal ? { formato: "rota_estrategica", rota: rotaComPerformanceReal } : {}),
+                }
               : undefined,
         }),
       );

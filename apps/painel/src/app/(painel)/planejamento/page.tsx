@@ -4,6 +4,8 @@ import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 import GerarPecasCampanha from "@/components/GerarPecasCampanha";
 import CalendarioEditorial from "@/components/CalendarioEditorial";
 import TrafegoPainel from "../trafego/TrafegoPainel";
+import RotaEstrategicaView from "./RotaEstrategicaView";
+import type { RotaEstrategica } from "./rotaEstrategicaTipos";
 
 interface CalendarioItem {
   data: string;
@@ -134,8 +136,37 @@ export default async function PlanejamentoPage({
           <div className="mt-3 space-y-4">
             {planos?.length ? (
               planos.map((p) => {
-                const meta = (p.metadata as { content?: string; periodo?: string; calendario?: CalendarioItem[]; indicadores?: string[] } | null) ?? {};
+                const meta =
+                  (p.metadata as {
+                    content?: string;
+                    periodo?: string;
+                    calendario?: CalendarioItem[];
+                    indicadores?: string[];
+                    formato?: string;
+                    rota?: RotaEstrategica;
+                  } | null) ?? {};
                 const calendario = Array.isArray(meta.calendario) ? meta.calendario : [];
+
+                // Rota Estratégica (pedido explícito do cliente: análise +
+                // plano de ação em formato de relatório executivo) — usa a
+                // view rica em vez do card de texto genérico; o resto do
+                // plano (calendário/indicadores) não se aplica a este formato.
+                if (meta.formato === "rota_estrategica" && meta.rota) {
+                  return (
+                    <div key={p.id}>
+                      <RotaEstrategicaView rota={meta.rota} />
+                      <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-areia/30">
+                        <span>{new Date(p.created_at).toLocaleDateString("pt-BR")}</span>
+                        {p.mission_id && (
+                          <Link href={`/missoes/${p.mission_id}`} className="text-menta hover:underline">
+                            ver missão
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+
                 return (
                   <div key={p.id} className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-5 backdrop-blur">
                     <div className="flex items-center justify-between gap-3">
