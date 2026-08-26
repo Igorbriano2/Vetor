@@ -3,8 +3,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 import GerarPecasCampanha from "@/components/GerarPecasCampanha";
 import CalendarioEditorial from "@/components/CalendarioEditorial";
-import RotaEstrategicaView from "./RotaEstrategicaView";
-import type { RotaEstrategica } from "./rotaEstrategicaTipos";
 
 interface CalendarioItem {
   data: string;
@@ -14,8 +12,11 @@ interface CalendarioItem {
 }
 
 // Navegação por especialista — Tráfego saiu daqui e virou área própria
-// (/trafego), TrafegoPainel realocado pra lá. Planejamento volta a ser só
-// calendário editorial, documentos e hipóteses em jogo.
+// (/trafego), TrafegoPainel realocado pra lá. Hipóteses em jogo e Rotas
+// Estratégicas (artifacts metadata.formato="rota_estrategica") também
+// saíram e viraram parte de /estrategia (EstrategiaCommandCenter). Aqui
+// fica só o que é genuinamente "planejamento": calendário editorial e
+// documentos de plano comuns (periodo/calendario/indicadores).
 export default async function PlanejamentoPage() {
   const supabase = await createSupabaseServerClient();
   const ativo = await resolverClienteAtivo(supabase);
@@ -25,21 +26,17 @@ export default async function PlanejamentoPage() {
   }
   const clienteId = ativo.clienteId;
 
-  const [{ data: planos }, { data: missoes }] = await Promise.all([
-    supabase
-      .from("artifacts")
-      .select("id, title, description, mission_id, metadata, created_by_agent, created_at")
-      .eq("type", "plan")
-      .eq("cliente_id", clienteId)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("missions")
-      .select("id, titulo, objetivo, hipotese, criterio_sucesso, status, created_at")
-      .eq("cliente_id", clienteId)
-      .order("created_at", { ascending: false }),
-  ]);
+  const { data: planos } = await supabase
+    .from("artifacts")
+    .select("id, title, description, mission_id, metadata, created_by_agent, created_at")
+    .eq("type", "plan")
+    .eq("cliente_id", clienteId)
+    .order("created_at", { ascending: false });
 
-  const comHipotese = (missoes ?? []).filter((m) => m.hipotese);
+  const documentos = (planos ?? []).filter((p) => {
+    const meta = (p.metadata as { formato?: string } | null) ?? {};
+    return meta.formato !== "rota_estrategica";
+  });
 
   return (
     <div className="px-6 py-10">
@@ -47,8 +44,7 @@ export default async function PlanejamentoPage() {
         <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
         <h1 className="mt-1 text-2xl font-bold text-areia">Planejamento</h1>
         <p className="mt-2 text-sm text-areia/60">
-          Calendário editorial mensal operacional, documentos de planejamento gerados pelo Vetor, e as hipóteses por
-          trás de cada missão já proposta.
+          Calendário editorial mensal operacional e documentos de planejamento gerados pelo Vetor.
         </p>
 
         <section className="mt-8">
@@ -65,38 +61,16 @@ export default async function PlanejamentoPage() {
             Documentos de planejamento
           </h2>
           <div className="mt-3 space-y-4">
-            {planos?.length ? (
-              planos.map((p) => {
+            {documentos.length ? (
+              documentos.map((p) => {
                 const meta =
                   (p.metadata as {
                     content?: string;
                     periodo?: string;
                     calendario?: CalendarioItem[];
                     indicadores?: string[];
-                    formato?: string;
-                    rota?: RotaEstrategica;
                   } | null) ?? {};
                 const calendario = Array.isArray(meta.calendario) ? meta.calendario : [];
-
-                // Rota Estratégica (pedido explícito do cliente: análise +
-                // plano de ação em formato de relatório executivo) — usa a
-                // view rica em vez do card de texto genérico; o resto do
-                // plano (calendário/indicadores) não se aplica a este formato.
-                if (meta.formato === "rota_estrategica" && meta.rota) {
-                  return (
-                    <div key={p.id}>
-                      <RotaEstrategicaView rota={meta.rota} />
-                      <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-areia/30">
-                        <span>{new Date(p.created_at).toLocaleDateString("pt-BR")}</span>
-                        {p.mission_id && (
-                          <Link href={`/missoes/${p.mission_id}`} className="text-menta hover:underline">
-                            ver missão
-                          </Link>
-                        )}
-                      </div>
-                    </div>
-                  );
-                }
 
                 return (
                   <div key={p.id} className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-5 backdrop-blur">
@@ -146,39 +120,6 @@ export default async function PlanejamentoPage() {
             ) : (
               <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
                 Nenhum planejamento mensal ainda — peça pro Vetor no chat.
-              </p>
-            )}
-          </div>
-        </section>
-
-        <section className="mt-8">
-          <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-areia/40">
-            Hipóteses em jogo
-          </h2>
-          <div className="mt-3 space-y-3">
-            {comHipotese.length ? (
-              comHipotese.map((m) => (
-                <Link
-                  key={m.id}
-                  href={`/missoes/${m.id}`}
-                  className="block rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur transition hover:border-menta/40"
-                >
-                  <p className="font-medium text-areia">{m.titulo}</p>
-                  <p className="mt-1 text-sm text-areia/70">
-                    <span className="text-areia/50">Hipótese:</span> {m.hipotese}
-                  </p>
-                  {Array.isArray(m.criterio_sucesso) && m.criterio_sucesso.length > 0 && (
-                    <ul className="mt-2 space-y-0.5 text-xs text-areia/50">
-                      {m.criterio_sucesso.map((c: string, i: number) => (
-                        <li key={i}>• {c}</li>
-                      ))}
-                    </ul>
-                  )}
-                </Link>
-              ))
-            ) : (
-              <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
-                Nenhuma missão com hipótese registrada ainda.
               </p>
             )}
           </div>
