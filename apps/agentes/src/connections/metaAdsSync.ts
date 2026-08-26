@@ -23,11 +23,28 @@ interface CampanhaGraph {
 interface InsightGraph {
   spend?: string;
   impressions?: string;
+  reach?: string;
   clicks?: string;
   ctr?: string;
   cpc?: string;
   cpm?: string;
   actions?: Array<{ action_type: string; value: string }>;
+}
+
+interface AdGraph {
+  id: string;
+  name: string;
+  creative?: { thumbnail_url?: string };
+}
+
+// Meta usa vários action_type pra "compra" dependendo do evento configurado
+// (pixel, app, offline) — soma todos os que representam checkout concluído,
+// nunca inventa uma conversão que não veio da API.
+const ACTION_TYPES_COMPRA = ["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"];
+
+export function extrairCompras(insight: InsightGraph | undefined): number {
+  if (!insight?.actions) return 0;
+  return insight.actions.filter((a) => ACTION_TYPES_COMPRA.includes(a.action_type)).reduce((soma, a) => soma + Number(a.value ?? 0), 0);
 }
 
 export function mapearStatus(statusMeta: string): string {
@@ -200,6 +217,46 @@ async function gerarAnaliseDoGestor(campanhas: CampanhaGraph[], metricasPorCampa
   }
 }
 
+// Design V2 (auditoria Gravyx) — busca os anúncios reais de uma campanha
+// (id, nome, thumbnail do criativo) + insights por anúncio, e persiste em
+// criativos_trafego (migration 0039). Fail-closed silencioso: se a chamada
+// falhar (permissão insuficiente do token, por exemplo), a campanha
+// continua sincronizada normalmente — só os criativos daquela campanha
+// ficam ausentes, nunca inventados.
+async function sincronizarCriativosDaCampanha(clienteId: string, campanhaId: string, metaCampaignId: string, accessToken: string): Promise<void> {
+  try {
+    const resAds = await fetch(
+      graphApiUrl(`/${metaCampaignId}/ads?fields=id,name,creative{thumbnail_url}&limit=20`) + `&access_token=${encodeURIComponent(accessToken)}`,
+    );
+    if (!resAds.ok) return;
+    const anuncios = ((await resAds.json()) as { data: AdGraph[] }).data ?? [];
+
+    for (const anuncio of anuncios) {
+      const resInsights = await fetch(
+        graphApiUrl(`/${anuncio.id}/insights?fields=spend,impressions,clicks,ctr,cpc,cpm,actions&date_preset=last_30d`) +
+          `&access_token=${encodeURIComponent(accessToken)}`,
+      );
+      const insightsBody = resInsights.ok ? ((await resInsights.json()) as { data: InsightGraph[] }) : { data: [] };
+      const insight = insightsBody.data?.[0];
+
+      await supabase.from("criativos_trafego").upsert(
+        {
+          cliente_id: clienteId,
+          campanha_id: campanhaId,
+          meta_ad_id: anuncio.id,
+          nome: anuncio.name,
+          thumbnail_url: anuncio.creative?.thumbnail_url ?? null,
+          metricas: insight ? { ...insight, compras: extrairCompras(insight) } : {},
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "meta_ad_id" },
+      );
+    }
+  } catch (err) {
+    console.error(`Falha ao sincronizar criativos da campanha ${metaCampaignId}:`, err);
+  }
+}
+
 export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSincronizacao> {
   const conexao = await tokenAtivoDoCliente(clienteId);
   if (!conexao) throw new ContaDeAnuncioNaoConectadaError("Nenhuma conta de anúncios Meta conectada.");
@@ -214,12 +271,12 @@ export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSi
   const campanhas = ((await resCampanhas.json()) as { data: CampanhaGraph[] }).data ?? [];
 
   let sincronizadas = 0;
-  const metricasAgregadas = { spend: 0, impressions: 0, clicks: 0 };
+  const metricasAgregadas = { spend: 0, impressions: 0, reach: 0, clicks: 0, compras: 0 };
   const metricasPorCampanha: Array<{ nome: string; insight: InsightGraph | undefined }> = [];
 
   for (const campanha of campanhas) {
     const resInsights = await fetch(
-      graphApiUrl(`/${campanha.id}/insights?fields=spend,impressions,clicks,ctr,cpc,cpm,actions&date_preset=last_30d`) +
+      graphApiUrl(`/${campanha.id}/insights?fields=spend,impressions,reach,clicks,ctr,cpc,cpm,actions&date_preset=last_30d`) +
         `&access_token=${encodeURIComponent(conexao.accessToken)}`,
     );
     const insightsBody = resInsights.ok ? ((await resInsights.json()) as { data: InsightGraph[] }) : { data: [] };
@@ -229,7 +286,9 @@ export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSi
     if (insight) {
       metricasAgregadas.spend += Number(insight.spend ?? 0);
       metricasAgregadas.impressions += Number(insight.impressions ?? 0);
+      metricasAgregadas.reach += Number(insight.reach ?? 0);
       metricasAgregadas.clicks += Number(insight.clicks ?? 0);
+      metricasAgregadas.compras += extrairCompras(insight);
     }
 
     const orcamentoCentavos = campanha.daily_budget
@@ -238,19 +297,31 @@ export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSi
         ? Number(campanha.lifetime_budget)
         : null;
 
-    const { error } = await supabase.from("campanhas_trafego").upsert(
-      {
-        cliente_id: clienteId,
-        meta_campaign_id: campanha.id,
-        nome: campanha.name,
-        status: mapearStatus(campanha.status),
-        orcamento_centavos: orcamentoCentavos,
-        metricas: insight ?? {},
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "meta_campaign_id" },
-    );
+    const { data: campanhaSalva, error } = await supabase
+      .from("campanhas_trafego")
+      .upsert(
+        {
+          cliente_id: clienteId,
+          meta_campaign_id: campanha.id,
+          nome: campanha.name,
+          status: mapearStatus(campanha.status),
+          orcamento_centavos: orcamentoCentavos,
+          metricas: insight ? { ...insight, compras: extrairCompras(insight) } : {},
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "meta_campaign_id" },
+      )
+      .select("id")
+      .single();
     if (!error) sincronizadas++;
+
+    // Design V2 (auditoria Gravyx) — nível de anúncio/criativo, pra
+    // alimentar o ranking "Top criativos por métrica" real (antes só havia
+    // dado no nível de campanha). Uma chamada extra por campanha — mesma
+    // conta de anúncio, mesmo token, nunca um provider novo.
+    if (campanhaSalva) {
+      await sincronizarCriativosDaCampanha(clienteId, campanhaSalva.id as string, campanha.id, conexao.accessToken);
+    }
   }
 
   const analiseGestor = await gerarAnaliseDoGestor(campanhas, metricasPorCampanha);

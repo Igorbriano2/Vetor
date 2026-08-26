@@ -31,7 +31,7 @@ export default async function PlanejamentoPage({
   }
   const clienteId = ativo.clienteId;
 
-  const [{ data: planos }, { data: missoes }, { data: campanhasTrafego }, { data: analisesTrafego }, { data: conexaoMeta }] =
+  const [{ data: planos }, { data: missoes }, { data: campanhasTrafego }, { data: analisesTrafego }, { data: conexaoMeta }, { data: criativosTrafego }] =
     await Promise.all([
       supabase
         .from("artifacts")
@@ -66,6 +66,14 @@ export default async function PlanejamentoPage({
         .eq("provider", "meta_ads")
         .eq("status", "connected")
         .maybeSingle(),
+      // Design V2 (auditoria Gravyx — "Performance") — ranking real de
+      // criativos por métrica, migration 0039.
+      supabase
+        .from("criativos_trafego")
+        .select("id, nome, thumbnail_url, metricas, updated_at")
+        .eq("cliente_id", clienteId)
+        .order("updated_at", { ascending: false })
+        .limit(50),
     ]);
 
   const comHipotese = (missoes ?? []).filter((m) => m.hipotese);
@@ -105,6 +113,7 @@ export default async function PlanejamentoPage({
               campanhasIniciais={campanhasTrafego ?? []}
               historicoAnalises={analisesTrafego ?? []}
               contaConectada={!!conexaoMeta}
+              criativosIniciais={criativosTrafego ?? []}
             />
           </div>
         ) : (

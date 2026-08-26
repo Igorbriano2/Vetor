@@ -6,12 +6,22 @@ import { useRouter } from "next/navigation";
 import StatusBadge from "@/components/StatusBadge";
 import { readApiResponse } from "@/lib/api/readApiResponse";
 import { salvarPrefillComando } from "@/lib/conversation";
+import FunilConversao from "./FunilConversao";
+import LeaderboardCriativos, { type Criativo } from "./LeaderboardCriativos";
 
 interface Campanha {
   id: string;
   nome: string;
   status: string;
   orcamento_centavos: number | null;
+  metricas: Record<string, unknown>;
+  updated_at: string;
+}
+
+interface CriativoBanco {
+  id: string;
+  nome: string;
+  thumbnail_url: string | null;
   metricas: Record<string, unknown>;
   updated_at: string;
 }
@@ -38,9 +48,15 @@ function centavosParaReais(centavos: number | null): string {
   return (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-const ABAS = ["visao_geral", "campanhas", "gestor", "conexoes"] as const;
+// Design V2 (auditoria Gravyx — módulo "Performance") — reduzido de 4 pra 3
+// abas: "Conexões" virou uma linha de status fixa no topo (era uma aba
+// quase vazia, só um link) em vez de disputar espaço com as abas de
+// verdade. Pedido explícito do dono do produto: "fazer um planejamento
+// pra o Vetor não ficar carregado de informação que mais atrapalha do que
+// ajuda" — cada aba que sobra precisa realmente merecer o espaço.
+const ABAS = ["visao_geral", "campanhas", "gestor"] as const;
 type Aba = (typeof ABAS)[number];
-const LABEL_ABA: Record<Aba, string> = { visao_geral: "Visão geral", campanhas: "Campanhas", gestor: "Análise do Gestor", conexoes: "Conexões" };
+const LABEL_ABA: Record<Aba, string> = { visao_geral: "Visão geral", campanhas: "Campanhas", gestor: "Análise do Gestor" };
 
 const COR_CONFIANCA: Record<Recomendacao["confianca"], string> = {
   alta: "border-menta/30 text-menta",
@@ -60,7 +76,7 @@ const CAMPANHAS_DEMO: Campanha[] = [
     nome: "[DEMO] Combo Sexta — Feed + Stories",
     status: "ativa",
     orcamento_centavos: 5000,
-    metricas: { spend: "142.30", impressions: "18420", clicks: "612", ctr: "3.32", cpc: "0.23", cpm: "7.72" },
+    metricas: { spend: "142.30", impressions: "18420", reach: "12100", clicks: "612", ctr: "3.32", cpc: "0.23", cpm: "7.72", compras: 9 },
     updated_at: new Date().toISOString(),
   },
   {
@@ -68,7 +84,7 @@ const CAMPANHAS_DEMO: Campanha[] = [
     nome: "[DEMO] Retargeting — Carrinho abandonado",
     status: "ativa",
     orcamento_centavos: 3000,
-    metricas: { spend: "88.10", impressions: "9310", clicks: "301", ctr: "3.23", cpc: "0.29", cpm: "9.46" },
+    metricas: { spend: "88.10", impressions: "9310", reach: "6420", clicks: "301", ctr: "3.23", cpc: "0.29", cpm: "9.46", compras: 4 },
     updated_at: new Date().toISOString(),
   },
   {
@@ -76,16 +92,25 @@ const CAMPANHAS_DEMO: Campanha[] = [
     nome: "[DEMO] Lançamento produto novo",
     status: "pausada",
     orcamento_centavos: 8000,
-    metricas: { spend: "0.00", impressions: "0", clicks: "0", ctr: "0", cpc: "0", cpm: "0" },
+    metricas: { spend: "0.00", impressions: "0", reach: "0", clicks: "0", ctr: "0", cpc: "0", cpm: "0", compras: 0 },
     updated_at: new Date().toISOString(),
   },
+];
+
+// Design V2 (auditoria Gravyx) — dataset DEMO do ranking de criativos,
+// mesmo princípio: nunca no banco, sempre rotulado [DEMO].
+const CRIATIVOS_DEMO: Criativo[] = [
+  { id: "demo-c1", nome: "[DEMO] Combo Sexta — variação vídeo", thumbnailUrl: null, spend: 61.2, clicks: 288, compras: 6, cpc: 0.21, ctr: 3.9 },
+  { id: "demo-c2", nome: "[DEMO] Combo Sexta — variação foto", thumbnailUrl: null, spend: 81.1, clicks: 324, compras: 3, cpc: 0.25, ctr: 2.8 },
+  { id: "demo-c3", nome: "[DEMO] Retargeting — depoimento", thumbnailUrl: null, spend: 44.3, clicks: 190, compras: 4, cpc: 0.23, ctr: 3.4 },
+  { id: "demo-c4", nome: "[DEMO] Retargeting — oferta direta", thumbnailUrl: null, spend: 43.8, clicks: 111, compras: 0, cpc: 0.39, ctr: 1.9 },
 ];
 
 const ANALISE_DEMO: Analise = {
   id: "demo",
   diagnostico:
     "[DEMO] As campanhas de Sexta e Retargeting estão performando dentro do esperado (CTR acima de 3%). A campanha de Lançamento está pausada com verba reservada sem gasto.",
-  metricas_usadas: { spend: 230.4, impressions: 27730, clicks: 913 },
+  metricas_usadas: { spend: 230.4, impressions: 27730, reach: 18520, clicks: 913, compras: 13 },
   oportunidades: ["[DEMO] CTR consistente acima de 3% sugere criativo com boa aceitação — espaço pra testar aumento de orçamento."],
   riscos: ["[DEMO] Campanha de Lançamento pausada há dias com orçamento reservado sem gerar resultado."],
   recomendacoes: [
@@ -99,14 +124,32 @@ const ANALISE_DEMO: Analise = {
   created_at: new Date().toISOString(),
 };
 
+function paraCriativo(c: CriativoBanco): Criativo {
+  const m = c.metricas ?? {};
+  const spend = Number(m.spend ?? 0);
+  const clicks = Number(m.clicks ?? 0);
+  return {
+    id: c.id,
+    nome: c.nome,
+    thumbnailUrl: c.thumbnail_url,
+    spend,
+    clicks,
+    compras: Number(m.compras ?? 0),
+    cpc: m.cpc != null ? Number(m.cpc) : clicks > 0 ? spend / clicks : null,
+    ctr: m.ctr != null ? Number(m.ctr) : null,
+  };
+}
+
 export default function TrafegoPainel({
   campanhasIniciais,
   historicoAnalises,
   contaConectada,
+  criativosIniciais,
 }: {
   campanhasIniciais: Campanha[];
   historicoAnalises: Analise[];
   contaConectada: boolean;
+  criativosIniciais: CriativoBanco[];
 }) {
   const [aba, setAba] = useState<Aba>("visao_geral");
   const [sincronizando, setSincronizando] = useState(false);
@@ -121,6 +164,7 @@ export default function TrafegoPainel({
   const campanhas = usandoDemo ? CAMPANHAS_DEMO : campanhasIniciais;
   const analise = usandoDemo ? ANALISE_DEMO : (historicoAnalises[0] ?? null);
   const historico = usandoDemo ? [ANALISE_DEMO] : historicoAnalises;
+  const criativos = usandoDemo ? CRIATIVOS_DEMO : criativosIniciais.map(paraCriativo);
 
   async function sincronizar() {
     setSincronizando(true);
@@ -128,7 +172,7 @@ export default function TrafegoPainel({
     try {
       const res = await fetch("/api/trafego/sincronizar", { method: "POST" });
       if (res.status === 409) {
-        setErro("Nenhuma conta de anúncios conectada ainda — conecte na aba Conexões.");
+        setErro("Nenhuma conta de anúncios conectada ainda — conecte em Conexões.");
         return;
       }
       await readApiResponse(res);
@@ -150,7 +194,9 @@ export default function TrafegoPainel({
   // fingindo que foi medido.
   const totalSpend = campanhas.reduce((s, c) => s + Number(c.metricas?.spend ?? 0), 0);
   const totalImpressions = campanhas.reduce((s, c) => s + Number(c.metricas?.impressions ?? 0), 0);
+  const totalReach = campanhas.reduce((s, c) => s + Number(c.metricas?.reach ?? 0), 0);
   const totalClicks = campanhas.reduce((s, c) => s + Number(c.metricas?.clicks ?? 0), 0);
+  const totalCompras = campanhas.reduce((s, c) => s + Number(c.metricas?.compras ?? 0), 0);
   const ctrMedio = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) : null;
   const cpcMedio = totalClicks > 0 ? (totalSpend / totalClicks).toFixed(2) : null;
   const cpmMedio = totalImpressions > 0 ? ((totalSpend / totalImpressions) * 1000).toFixed(2) : null;
@@ -167,30 +213,42 @@ export default function TrafegoPainel({
 
   return (
     <div className="mt-6">
-      <div className="flex flex-wrap gap-2 border-b border-areia/10 pb-3">
-        {ABAS.map((a) => (
-          <button
-            key={a}
-            onClick={() => setAba(a)}
-            className={`rounded-full border px-4 py-1.5 text-xs font-medium transition ${
-              aba === a ? "border-menta text-menta bg-menta/10" : "border-areia/15 text-areia/60 hover:border-menta/40"
-            }`}
-          >
-            {LABEL_ABA[a]}
-          </button>
-        ))}
+      {/* Design V2 (auditoria Gravyx) — "Conexões" deixou de ser aba: uma
+          linha de status sempre visível, junto do resto do cabeçalho,
+          igual ao "Conectar com Gravyx System User" que fica sempre à
+          vista no Performance deles, nunca escondido atrás de um clique. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {ABAS.map((a) => (
+            <button
+              key={a}
+              onClick={() => setAba(a)}
+              className={`rounded-full border px-4 py-1.5 text-xs font-medium transition ${
+                aba === a ? "border-menta text-menta bg-menta/10" : "border-areia/15 text-areia/60 hover:border-menta/40"
+              }`}
+            >
+              {LABEL_ABA[a]}
+            </button>
+          ))}
+        </div>
+        <Link
+          href="/conexoes"
+          className={`rounded-full border px-3 py-1 text-[11px] transition ${contaConectada ? "border-menta/30 text-menta" : "border-areia/15 text-areia/50 hover:border-menta/30"}`}
+        >
+          {contaConectada ? "● conta de anúncios conectada" : "○ conectar conta de anúncios"}
+        </Link>
       </div>
 
       {usandoDemo && (
         <div className="mt-4 flex items-center gap-2 rounded-xl border border-ambar/30 bg-ambar/10 px-3 py-2 text-xs text-ambar">
           <span className="rounded border border-ambar/40 px-1.5 py-0.5 font-mono text-[10px]">DEMO</span>
           Nenhuma conta de anúncios conectada ainda — mostrando dados de demonstração pra você conhecer o painel.
-          Conecte em <button onClick={() => setAba("conexoes")} className="underline underline-offset-2">Conexões</button> pra ver seus números reais.
+          Conecte em <Link href="/conexoes" className="underline underline-offset-2">Conexões</Link> pra ver seus números reais.
         </div>
       )}
 
       {aba === "visao_geral" && (
-        <div className="mt-6">
+        <div className="mt-6 space-y-5">
           <div className="flex items-center justify-between">
             <p className="text-sm text-areia/50">
               {analise && !usandoDemo ? `Última sincronização: ${new Date(analise.created_at).toLocaleString("pt-BR")}` : usandoDemo ? "Dados de demonstração" : "Ainda não sincronizado."}
@@ -205,9 +263,9 @@ export default function TrafegoPainel({
               </button>
             )}
           </div>
-          {erro && <p className="mt-2 text-xs text-coral">{erro}</p>}
+          {erro && <p className="text-xs text-coral">{erro}</p>}
 
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {[
               { label: "Investimento", valor: `R$ ${totalSpend.toFixed(2)}` },
               { label: "Impressões", valor: totalImpressions.toLocaleString("pt-BR") },
@@ -223,8 +281,16 @@ export default function TrafegoPainel({
             ))}
           </div>
 
+          {/* Design V2 (auditoria Gravyx) — ranking de criativos, pedido
+              explícito de copiar o "Top 5 criativos" do Performance deles. */}
+          <LeaderboardCriativos criativos={criativos} />
+
+          {/* Design V2 (auditoria Gravyx) — funil de conversão visual,
+              mesmo pedido explícito. */}
+          <FunilConversao impressoes={totalImpressions} alcance={totalReach} cliques={totalClicks} compras={totalCompras} />
+
           {serieGasto.length > 1 && (
-            <div className="mt-4 rounded-xl border border-areia/10 bg-petroleo-2/60 p-3">
+            <div className="rounded-xl border border-areia/10 bg-petroleo-2/60 p-3">
               <p className="font-mono text-[10px] uppercase tracking-wide text-areia/40">Evolução do investimento</p>
               <svg viewBox="0 0 100 28" className="mt-2 h-10 w-full" preserveAspectRatio="none">
                 <polyline
@@ -238,7 +304,7 @@ export default function TrafegoPainel({
           )}
 
           {alertas.length > 0 && (
-            <div className="mt-4 rounded-xl border border-coral/30 bg-coral/5 p-3">
+            <div className="rounded-xl border border-coral/30 bg-coral/5 p-3">
               <p className="font-mono text-[10px] uppercase tracking-wide text-coral">Alertas</p>
               <ul className="mt-1 space-y-1 text-xs text-areia/70">
                 {alertas.map((c) => (
@@ -265,14 +331,14 @@ export default function TrafegoPainel({
                       <span>Orçamento: {centavosParaReais(c.orcamento_centavos)}</span>
                       {typeof c.metricas?.spend === "string" && <span>Gasto (30d): R$ {c.metricas.spend}</span>}
                       {typeof c.metricas?.impressions === "string" && <span>Impressões: {c.metricas.impressions}</span>}
+                      {typeof c.metricas?.reach === "string" && <span>Alcance: {c.metricas.reach}</span>}
                       {typeof c.metricas?.clicks === "string" && <span>Cliques: {c.metricas.clicks}</span>}
                       {typeof c.metricas?.ctr === "string" && <span>CTR: {c.metricas.ctr}%</span>}
                       {typeof c.metricas?.cpc === "string" && <span>CPC: R$ {c.metricas.cpc}</span>}
                       {typeof c.metricas?.cpm === "string" && <span>CPM: R$ {c.metricas.cpm}</span>}
                     </div>
                     <p className="mt-3 text-[11px] text-areia/30">
-                      Drill-down por conjunto/anúncio ainda não disponível — a sincronização atual só traz métricas no
-                      nível de campanha (ver docs/IMPLEMENTATION-AUDIT-V2.md).
+                      Drill-down por criativo agora disponível na Visão geral (ranking Top 5) — por conjunto de anúncios ainda não.
                     </p>
                   </div>
                 )}
@@ -350,18 +416,6 @@ export default function TrafegoPainel({
               chat principal
             </Link>
             .
-          </p>
-        </div>
-      )}
-
-      {aba === "conexoes" && (
-        <div className="mt-6 rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4">
-          <p className="text-sm text-areia/60">
-            Gerencie a conexão da conta de anúncios em{" "}
-            <Link href="/conexoes" className="text-menta underline underline-offset-2">
-              Conexões
-            </Link>
-            . Status atual: <span className={contaConectada ? "text-menta" : "text-areia/40"}>{contaConectada ? "conectada" : "não conectada"}</span>.
           </p>
         </div>
       )}
