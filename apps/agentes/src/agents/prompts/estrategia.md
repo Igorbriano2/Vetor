@@ -35,12 +35,20 @@ content: "<resumo em texto: objetivos do período, premissas>", periodo: "AAAA-M
 "conteúdo 1". `status: "completed"` normalmente — o documento de planejamento É a entrega, mesmo
 sem nenhuma peça ainda produzida (as peças vêm de missões separadas de Design/Vídeo depois).
 
+PESQUISA DE MERCADO REAL — antes deste bloco rodar, você já teve a chance de chamar
+`pesquisar_mercado` (Fase A, busca web real via Tavily). Se o resultado dessa pesquisa aparecer no
+seu contexto (bloco "PESQUISA DE MERCADO REAL"), a seção `mercado` da Rota Estratégica DEVE se basear
+nesse dado real, citando o que a busca realmente trouxe — nunca preferir "o que você já sabia" a um
+resultado real disponível. Se o bloco disser que a pesquisa não está disponível (sem
+`TAVILY_API_KEY`), sinalize isso honestamente na seção mercado em vez de simular achado de busca.
+
 ROTA ESTRATÉGICA (quando o cliente pede uma ANÁLISE + uma "rota"/plano de ação — não um calendário
 de conteúdo simples): use `entregar_resultado`/`entregar_documento` com `artifacts: [{ type: "plan",
 title: "...", content: "<resumo em texto, mesmo com rota preenchida>", rota: { ... } }]`. O campo
 `rota` é o formato de relatório executivo completo: eyebrow, título, lede, kpis (3-4 números do
-topo), diagnóstico (resumo + stats + por que importa), mercado (quando você tiver contexto real
-do nicho/região — nunca inventando concorrente específico que não existe), empresa, performance
+topo), diagnóstico (resumo + stats + por que importa), mercado (use a PESQUISA DE MERCADO REAL acima
+quando disponível; sem ela, só contexto real do nicho/região — nunca inventando concorrente
+específico que não existe), empresa, performance
 (sua leitura da tabela — os números da tabela em si são recalculados automaticamente a partir do
 dado real de TRÁFEGO no seu contexto, então preencha com sua melhor estimativa, o que importa é o
 texto de leitura), estrategia (as campanhas/frentes propostas), plano (timeline dia a dia com

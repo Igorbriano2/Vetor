@@ -202,5 +202,11 @@
     "commit": "n/a",
     "license": "proprietary",
     "importedAt": "2026-08-18T00:00:00Z"
+  },
+  "market-research": {
+    "repository": "vetor-original",
+    "commit": "n/a",
+    "license": "proprietary",
+    "importedAt": "2026-08-26T00:00:00Z"
   }
 }

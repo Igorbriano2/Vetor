@@ -1,0 +1,22 @@
+{
+  "id": "market-research",
+  "version": "1.0.0",
+  "name": "Pesquisa de mercado real",
+  "description": "Orienta o uso da ferramenta pesquisar_mercado (busca web real) pra fundamentar diagnóstico de mercado/concorrência com dado real, nunca só o que o modelo já sabia.",
+  "department": "strategy",
+  "triggers": [
+    "mercado",
+    "concorrência",
+    "concorrente",
+    "análise de mercado",
+    "rota estratégica",
+    "quem são meus concorrentes"
+  ],
+  "requiredContext": ["negocio.nomeEmpresa", "negocio.nicho"],
+  "allowedTools": ["pesquisar_mercado", "criar_relatorio"],
+  "riskLevel": "low",
+  "requiresApproval": false,
+  "outputType": "report",
+  "custoEstimado": "baixo",
+  "timeoutMs": 20000
+}

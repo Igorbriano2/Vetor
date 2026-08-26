@@ -52,6 +52,7 @@ import { executarEstagioIdempotente, pularEstagio } from "../negocio/videoPipeli
 import { persistirArtefato, type ArtefatoPersistido, type ArtifactType } from "../artifacts/artifactsService.js";
 import { calcularCustoEstimadoCentavos } from "../billing/agentRunCost.js";
 import { selecionarSkills, carregarSkillsSelecionadas, listarTodosOsManifestos } from "../skills/registry.js";
+import { pesquisarMercado, PesquisaWebIndisponivelError } from "../integrations/webSearch.js";
 import type { SkillDefinition, SkillDepartment } from "../skills/types.js";
 import {
   buscarLogoParaFormato,
@@ -1567,6 +1568,58 @@ async function rodarComFerramentaDeExecucao(
   return { message: response, midiaGerada, ferramentaUsada, imagemIndisponivel };
 }
 
+const PESQUISAR_MERCADO_TOOL: Anthropic.Tool = {
+  name: "pesquisar_mercado",
+  description:
+    "Pesquisa real na web sobre o mercado local, concorrência ou o negócio do cliente. Use quando a " +
+    "etapa pedir um diagnóstico de mercado/concorrência de verdade — nunca invente concorrente ou " +
+    "dado de mercado sem essa ferramenta.",
+  input_schema: {
+    type: "object",
+    properties: { query: { type: "string", description: "Busca real, ex: 'concorrentes hamburgueria Cambé PR'." } },
+    required: ["query"],
+  },
+};
+
+// Turno curto e isolado (no máximo 1 chamada) oferecendo pesquisa web real
+// antes do fluxo principal de Estratégia/Growth. tool_choice "auto": o
+// modelo só pesquisa se decidir que precisa — se não pesquisar, ou se
+// TAVILY_API_KEY não estiver configurada (PesquisaWebIndisponivelError), o
+// bloco volta vazio e o resto do fluxo roda exatamente como antes desta
+// fase, sem nenhuma mudança de comportamento.
+async function obterPesquisaDeMercadoSeUsada(nomeEmpresa: string, nicho: string, etapaTarefa: string): Promise<string> {
+  const resposta = await anthropic.messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 300,
+    system:
+      `Negócio: ${nomeEmpresa} (${nicho}). Tarefa da etapa: ${etapaTarefa}\n\n` +
+      "Se esta tarefa pede diagnóstico de mercado/concorrência real, chame pesquisar_mercado com uma " +
+      "query específica agora. Se não precisar de pesquisa de mercado, não chame nenhuma ferramenta.",
+    messages: [{ role: "user", content: "Decida." }],
+    tools: [PESQUISAR_MERCADO_TOOL],
+    tool_choice: { type: "auto" },
+  });
+
+  const chamada = resposta.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === "pesquisar_mercado");
+  if (!chamada) return "";
+
+  const query = (chamada.input as Record<string, unknown>).query;
+  if (typeof query !== "string" || !query.trim()) return "";
+
+  try {
+    const resultado = await pesquisarMercado(query);
+    const linhas = resultado.resultados.map((r) => `- ${r.titulo} (${r.url}): ${r.resumo}`).join("\n");
+    return `\n\nPESQUISA DE MERCADO REAL (query: "${query}"):\n${resultado.respostaDireta ?? ""}\n${linhas}`.trim().length
+      ? `\n\nPESQUISA DE MERCADO REAL (query: "${query}"):\n${resultado.respostaDireta ?? ""}\n${linhas}`
+      : "";
+  } catch (err) {
+    if (err instanceof PesquisaWebIndisponivelError) {
+      return `\n\nPESQUISA DE MERCADO: tentou pesquisar "${query}" mas não está disponível (${err.message}) — não simule dado de mercado, sinalize isso honestamente no diagnóstico.`;
+    }
+    throw err;
+  }
+}
+
 // Executa um especialista (design, trafego, estrategia...) para uma etapa de
 // missão e devolve resultado estruturado, sempre validado por schema — ver
 // docs/manus-jarvis-spec/docs/03-arquitetura-tecnica.md §3. Genérico: funciona
@@ -1603,7 +1656,19 @@ export async function executarEspecialista(
         .join("\n")}`
     : "";
 
-  const systemPrompt = `${getSystemPrompt(agenteId)}\n\n${montarContexto(contexto)}${blocoSkill}${blocoReferencias}`;
+  // Fase A do prompt de reconstrução — pesquisa web real só oferecida a
+  // Estratégia/Growth (os únicos agentes que hoje precisam de diagnóstico de
+  // mercado/concorrência real). Turno curto e isolado ANTES do resto do
+  // fluxo já provado (rascunho/escolha) — nunca altera esse fluxo, só
+  // enriquece o systemPrompt se o modelo decidir pesquisar. Sem
+  // TAVILY_API_KEY, a ferramenta retorna erro claro e o bloco fica vazio
+  // (degrada pro comportamento de hoje, nunca quebra a etapa).
+  const blocoPesquisa =
+    agenteId === "estrategia" || agenteId === "growth"
+      ? await obterPesquisaDeMercadoSeUsada(contexto.negocio.nomeEmpresa, contexto.negocio.nicho, contexto.etapaTarefa)
+      : "";
+
+  const systemPrompt = `${getSystemPrompt(agenteId)}\n\n${montarContexto(contexto)}${blocoSkill}${blocoReferencias}${blocoPesquisa}`;
   const departamento = DEPARTAMENTO_POR_AGENTE[agenteId];
   // Fail-closed: uma ferramenta de geração real só é oferecida ao especialista
   // se ela mesma é de baixo risco no Tool Registry OU se o nome dela (ou de um

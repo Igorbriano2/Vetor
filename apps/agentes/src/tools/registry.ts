@@ -84,6 +84,12 @@ const FERRAMENTAS_BAIXO_RISCO: VetorToolDefinition[] = [
   ferramenta("editar_video_timeline", "Cria/retoma o projeto de edição não destrutiva de um vídeo real já enviado pelo cliente.", "low"),
   ferramenta("finalizar_video_com_legendas", "Transcreve, gera legendas e renderiza o preview/final a partir da timeline atual do projeto.", "low"),
   ferramenta("analisar_video_de_referencia", "Extrai o perfil de estilo (ritmo, energia, estrutura) de um vídeo de referência real, sem copiar conteúdo.", "low"),
+  // Fase A do prompt de reconstrução — pesquisa web real (Tavily) pro
+  // diagnóstico de mercado/concorrência; sem efeito externo, só leitura.
+  // Fail-closed sem TAVILY_API_KEY (ver integrations/webSearch.ts).
+  ferramenta("pesquisar_mercado", "Pesquisa mercado local/concorrência na web a partir de uma query real.", "low", {
+    inputSchema: { required: ["query"] },
+  }),
 ];
 
 // Médio/alto risco — ainda sem efeito público direto, mas mexem em algo que
