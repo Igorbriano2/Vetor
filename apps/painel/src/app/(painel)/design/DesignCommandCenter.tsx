@@ -31,6 +31,7 @@ interface Projeto {
   thumbnailUrl: string | null;
   missionId: string | null;
   missionTitulo: string | null;
+  designBrief: string | null;
 }
 
 interface ReferenciaPreview {
@@ -105,6 +106,19 @@ export default function DesignCommandCenter({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Banco de imagens com prompts (auditoria Gravyx, docs/
+  // AUDITORIA-E-PROMPT-RECONSTRUCAO-2026-08.md Fase B) — o prompt de cada
+  // peça gerada já era salvo em design_projects.design_brief, só não tinha
+  // tela pra reaproveitar. "Usar este prompt" reusa o mesmo mecanismo de
+  // templatePreFill já usado por /templates, nunca um caminho novo.
+  function usarPrompt(p: Projeto) {
+    if (!p.designBrief) return;
+    setTemplatePreFill({ nome: `Variação de "${p.title}"`, objetivo: p.designBrief });
+    setWizardAberto(true);
+  }
+
+  const prompts = projetos.filter((p) => !!p.designBrief);
 
   return (
     <div className="px-6 py-10">
@@ -226,6 +240,37 @@ export default function DesignCommandCenter({
           ) : (
             <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
               Nenhum projeto editável ainda — crie sua primeira peça acima.
+            </p>
+          )}
+        </section>
+
+        <section className="mt-10">
+          <p className="mono-label mb-3 text-areia/50">Prompts salvos</p>
+          {prompts.length > 0 ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {prompts.map((p) => (
+                <div key={p.id} className="flex items-start gap-3 rounded-2xl border border-areia/10 bg-petroleo-2/60 p-3 backdrop-blur">
+                  <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-petroleo">
+                    {p.thumbnailUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.thumbnailUrl} alt={p.title} className="size-full object-cover" />
+                    ) : (
+                      <span className="text-[10px] text-areia/25">sem foto</span>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium text-areia">{p.title}</p>
+                    <p className="mt-1 line-clamp-2 text-[11px] text-areia/40">{p.designBrief}</p>
+                    <button onClick={() => usarPrompt(p)} className="mt-1.5 text-[11px] font-medium text-menta hover:underline">
+                      Usar este prompt
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+              Nenhum prompt salvo ainda — toda peça que você gerar aqui entra automaticamente nessa lista.
             </p>
           )}
         </section>

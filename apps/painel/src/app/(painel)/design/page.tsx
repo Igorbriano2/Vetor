@@ -29,7 +29,7 @@ export default async function DesignPage() {
     buscarArtefatos(supabase, { departamentos: ["design"], clienteId }),
     supabase
       .from("design_projects")
-      .select("id, title, version, status, thumbnail_url, updated_at, mission_id, missions(titulo)")
+      .select("id, title, version, status, thumbnail_url, updated_at, mission_id, design_brief, missions(titulo)")
       .eq("cliente_id", clienteId)
       .order("updated_at", { ascending: false })
       .limit(12),
@@ -113,6 +113,7 @@ export default async function DesignPage() {
         thumbnailUrl: p.thumbnail_url as string | null,
         missionId: p.mission_id as string | null,
         missionTitulo: (p.missions as unknown as { titulo?: string } | null)?.titulo ?? null,
+        designBrief: p.design_brief as string | null,
       }))}
       artefatos={artefatos}
       referencias={(referenciasPreview ?? []).map((r) => ({
