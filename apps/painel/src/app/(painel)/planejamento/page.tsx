@@ -3,7 +3,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 import GerarPecasCampanha from "@/components/GerarPecasCampanha";
 import CalendarioEditorial from "@/components/CalendarioEditorial";
-import TrafegoPainel from "../trafego/TrafegoPainel";
 import RotaEstrategicaView from "./RotaEstrategicaView";
 import type { RotaEstrategica } from "./rotaEstrategicaTipos";
 
@@ -14,17 +13,10 @@ interface CalendarioItem {
   tipo?: string;
 }
 
-// Fase 4 do Vetor Manager — Tráfego passou a viver aqui como segunda aba
-// (?aba=trafego), reaproveitando TrafegoPainel tal como era em /trafego
-// (agora um redirect); nenhuma lógica de campanha foi duplicada ou reescrita.
-export default async function PlanejamentoPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ aba?: string }>;
-}) {
-  const { aba } = await searchParams;
-  const abaAtiva = aba === "trafego" ? "trafego" : "planejamento";
-
+// Navegação por especialista — Tráfego saiu daqui e virou área própria
+// (/trafego), TrafegoPainel realocado pra lá. Planejamento volta a ser só
+// calendário editorial, documentos e hipóteses em jogo.
+export default async function PlanejamentoPage() {
   const supabase = await createSupabaseServerClient();
   const ativo = await resolverClienteAtivo(supabase);
 
@@ -33,50 +25,19 @@ export default async function PlanejamentoPage({
   }
   const clienteId = ativo.clienteId;
 
-  const [{ data: planos }, { data: missoes }, { data: campanhasTrafego }, { data: analisesTrafego }, { data: conexaoMeta }, { data: criativosTrafego }] =
-    await Promise.all([
-      supabase
-        .from("artifacts")
-        .select("id, title, description, mission_id, metadata, created_by_agent, created_at")
-        .eq("type", "plan")
-        .eq("cliente_id", clienteId)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("missions")
-        .select("id, titulo, objetivo, hipotese, criterio_sucesso, status, created_at")
-        .eq("cliente_id", clienteId)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("campanhas_trafego")
-        .select("id, nome, status, orcamento_centavos, metricas, updated_at")
-        .eq("cliente_id", clienteId)
-        .order("updated_at", { ascending: false }),
-      // Fase 6 do VETOR Manager V2 — histórico de 8 análises (não só a
-      // última) pra alimentar o gráfico de evolução real da Visão geral;
-      // oportunidades/riscos/recomendacoes agora são populados de verdade
-      // por gerarAnaliseDoGestor() em apps/agentes/src/connections/metaAdsSync.ts.
-      supabase
-        .from("trafego_analises")
-        .select("id, diagnostico, metricas_usadas, oportunidades, riscos, recomendacoes, created_at")
-        .eq("cliente_id", clienteId)
-        .order("created_at", { ascending: false })
-        .limit(8),
-      supabase
-        .from("connections")
-        .select("status")
-        .eq("cliente_id", clienteId)
-        .eq("provider", "meta_ads")
-        .eq("status", "connected")
-        .maybeSingle(),
-      // Design V2 (auditoria Gravyx — "Performance") — ranking real de
-      // criativos por métrica, migration 0039.
-      supabase
-        .from("criativos_trafego")
-        .select("id, nome, thumbnail_url, metricas, updated_at")
-        .eq("cliente_id", clienteId)
-        .order("updated_at", { ascending: false })
-        .limit(50),
-    ]);
+  const [{ data: planos }, { data: missoes }] = await Promise.all([
+    supabase
+      .from("artifacts")
+      .select("id, title, description, mission_id, metadata, created_by_agent, created_at")
+      .eq("type", "plan")
+      .eq("cliente_id", clienteId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("missions")
+      .select("id, titulo, objetivo, hipotese, criterio_sucesso, status, created_at")
+      .eq("cliente_id", clienteId)
+      .order("created_at", { ascending: false }),
+  ]);
 
   const comHipotese = (missoes ?? []).filter((m) => m.hipotese);
 
@@ -86,40 +47,10 @@ export default async function PlanejamentoPage({
         <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
         <h1 className="mt-1 text-2xl font-bold text-areia">Planejamento</h1>
         <p className="mt-2 text-sm text-areia/60">
-          Calendário editorial mensal operacional, documentos de planejamento gerados pelo Vetor, as hipóteses por
-          trás de cada missão já proposta, e o Gestor de Tráfego.
+          Calendário editorial mensal operacional, documentos de planejamento gerados pelo Vetor, e as hipóteses por
+          trás de cada missão já proposta.
         </p>
 
-        <div className="mb-2 mt-6 flex gap-2 border-b border-areia/10">
-          <Link
-            href="/planejamento"
-            className={`px-3 py-2 font-mono text-xs uppercase tracking-widest transition ${
-              abaAtiva === "planejamento" ? "border-b-2 border-menta text-menta" : "text-areia/40 hover:text-areia/70"
-            }`}
-          >
-            Planejamento
-          </Link>
-          <Link
-            href="/planejamento?aba=trafego"
-            className={`px-3 py-2 font-mono text-xs uppercase tracking-widest transition ${
-              abaAtiva === "trafego" ? "border-b-2 border-menta text-menta" : "text-areia/40 hover:text-areia/70"
-            }`}
-          >
-            Tráfego
-          </Link>
-        </div>
-
-        {abaAtiva === "trafego" ? (
-          <div className="mt-6">
-            <TrafegoPainel
-              campanhasIniciais={campanhasTrafego ?? []}
-              historicoAnalises={analisesTrafego ?? []}
-              contaConectada={!!conexaoMeta}
-              criativosIniciais={criativosTrafego ?? []}
-            />
-          </div>
-        ) : (
-        <>
         <section className="mt-8">
           <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-areia/40">
             Calendário editorial
@@ -252,8 +183,6 @@ export default async function PlanejamentoPage({
             )}
           </div>
         </section>
-        </>
-        )}
       </div>
     </div>
   );

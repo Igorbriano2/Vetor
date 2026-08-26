@@ -6,21 +6,22 @@ import { usePathname } from "next/navigation";
 import LogoutButton from "@/components/LogoutButton";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
 
-// Vetor Manager — menu reduzido a quatro áreas conversacionais em torno do
-// agente Vetor (docs/VETOR-PRODUCT-CONTRACT.md). Cada área é um hub que
-// reaproveita as páginas antigas como destino de link ou aba interna — a
-// sub-navegação (Missões/Solicitações dentro de Vetor; Design/Videomaker/
-// Referências/Templates/Entregas dentro de Criações) vive dentro da própria
-// página da área, não neste menu. Nenhuma rota antiga foi removida: todas
-// viram alias (redirect 307) ou continuam acessíveis por link a partir da
-// área que as absorveu.
+// Navegação por especialista — cada frente da agência (Design, Vídeo,
+// Tráfego) tem sua própria área de primeiro nível em vez de ficar escondida
+// dentro de "Criações" ou de uma aba. Criações continua existindo como
+// biblioteca agregada (galeria de tudo que foi produzido), não como o lugar
+// onde o trabalho em si acontece. Nenhuma rota antiga foi removida: todas
+// continuam acessíveis por link a partir da área que as absorveu.
 const GRUPOS_NAV: Array<{ titulo: string | null; itens: Array<{ href: string; label: string }> }> = [
   {
     titulo: null,
     itens: [
       { href: "/vetor", label: "VETOR" },
-      { href: "/criacoes", label: "Criações" },
+      { href: "/design", label: "Design" },
+      { href: "/videomaker", label: "Vídeo" },
+      { href: "/trafego", label: "Tráfego" },
       { href: "/planejamento", label: "Planejamento" },
+      { href: "/criacoes", label: "Criações" },
       { href: "/configuracoes/negocio", label: "Negócio" },
     ],
   },
@@ -31,7 +32,7 @@ const GRUPOS_NAV: Array<{ titulo: string | null; itens: Array<{ href: string; la
 // de GRUPOS_NAV acima.
 const SUB_ROTAS_DA_AREA: Record<string, string[]> = {
   "/vetor": ["/missoes", "/solicitacoes"],
-  "/criacoes": ["/design", "/videomaker", "/referencias", "/templates", "/entregas"],
+  "/criacoes": ["/referencias", "/templates", "/entregas"],
 };
 
 function ehAtivo(pathname: string, href: string): boolean {
@@ -71,6 +72,23 @@ const ÍCONE_POR_HREF: Record<string, React.ReactNode> = {
       <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
       <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
       <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  ),
+  "/design": (
+    <svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden="true">
+      <path d="M4 16l6.5-6.5a2 2 0 0 1 2.8 0l1.2 1.2a2 2 0 0 1 0 2.8L8 20H4v-4z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M13 6l5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  ),
+  "/videomaker": (
+    <svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden="true">
+      <rect x="3.5" y="6" width="12" height="12" rx="1.8" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M15.5 10.5l4.3-2.6a.7.7 0 0 1 1.1.6v7l-4.3-2.6" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+    </svg>
+  ),
+  "/trafego": (
+    <svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden="true">
+      <path d="M4 18V9M11 18V4M18 18v-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   ),
   "/planejamento": (
