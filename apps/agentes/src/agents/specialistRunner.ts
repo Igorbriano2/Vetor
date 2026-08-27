@@ -5,7 +5,7 @@ import { getSystemPrompt, type AgenteId } from "./prompts/index.js";
 import { buscarFerramenta } from "../tools/registry.js";
 import { gerarVideoAPartirDeImagem, VideoIndisponivelError } from "../integrations/higgsfield.js";
 import { gerarProxyDeVideo, renderizarVideoFinal } from "../integrations/renderService.js";
-import { transcreverComTimestamps, isSandbox as transcricaoEmSandbox, TranscricaoIndisponivelError } from "../integrations/transcricao.js";
+import { transcreverComAssemblyAI, assemblyAiConfigurado } from "../integrations/assemblyai.js";
 import { gerarPerfilDeVideoDeReferencia } from "../negocio/referenceVideoAnalysis.js";
 import { gerarImagem, gerarImagemComReferencia, ImagemIndisponivelError, tamanhoOpenAI, type ReferenciaImagem } from "../integrations/imageProvider.js";
 import {
@@ -755,26 +755,26 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
 
         const captionTrackVazia = { cues: [] as Array<{ id: string; startMs: number; endMs: number; text: string }>, language: "pt-BR" as const };
 
-        // Estágio "captions" — em ambiente sandbox (sem STT_PROVIDER real),
-        // marca como pulado com o motivo real em vez de fingir uma
-        // transcrição. Fora do sandbox, uma falha real do provider fica
+        // Estágio "captions" — sem ASSEMBLYAI_API_KEY configurada, marca
+        // como pulado com o motivo real em vez de fingir uma transcrição.
+        // Com a chave configurada, uma falha real do provider fica
         // PERSISTIDA como "failed" no estágio (nunca escondida) — mas não
         // trava corte/preview/final_render, que não dependem de legenda
         // (achado real: vídeo de teste sem faixa de áudio decodificável
         // fazia a missão inteira travar antes desta mudança, mesmo o corte
         // e o render não tendo nada a ver com áudio).
-        const captionsResultado = transcricaoEmSandbox()
+        const captionsResultado = !assemblyAiConfigurado()
           ? await (async () => {
-              await pularEstagio(videoProjectId, ctx.clienteId, "captions", "STT_PROVIDER não configurado neste ambiente.");
+              await pularEstagio(videoProjectId, ctx.clienteId, "captions", "ASSEMBLYAI_API_KEY não configurada neste ambiente.");
               return { captionTrack: captionTrackVazia };
             })()
           : await executarEstagioIdempotente(videoProjectId, ctx.clienteId, "captions", async () => {
               // Transcreve só o trecho CORTADO (renderiza um recorte leve a
               // partir do PROXY, sem legendas ainda) — nunca o arquivo
-              // original inteiro: além de mais rápido, evita estourar o
-              // limite de 25MB da OpenAI em originais grandes (achado real
-              // da prova do Videomaker: um original de ~95MB falhava direto
-              // na transcrição antes desta mudança).
+              // original inteiro: além de mais rápido, evita estourar
+              // limites de tamanho em originais grandes (achado real da
+              // prova do Videomaker: um original de ~95MB falhava direto na
+              // transcrição antes desta mudança).
               const trecho = await renderizarVideoFinal({
                 bucket: "artifacts",
                 storagePath: projeto.proxy_storage_path as string,
@@ -785,7 +785,7 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
               const { data: baixado, error: erroDownload } = await supabase.storage.from("artifacts").download(trecho.storagePath);
               if (erroDownload || !baixado) throw new Error(`Falha ao baixar o trecho cortado pra transcrição: ${erroDownload?.message ?? "não encontrado"}`);
               const bytesTrecho = await baixado.arrayBuffer();
-              const segmentos = await transcreverComTimestamps(bytesTrecho, asset.mimeType ?? "video/mp4");
+              const segmentos = await transcreverComAssemblyAI(bytesTrecho);
               const captionTrack = montarCaptionTrackDeSegmentos(segmentos);
               await atualizarCaptionsDoVideoProject(videoProjectId, captionTrack);
               return { captionTrack };
