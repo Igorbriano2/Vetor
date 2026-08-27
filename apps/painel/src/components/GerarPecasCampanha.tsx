@@ -162,7 +162,7 @@ export default function GerarPecasCampanha({
           <button
             onClick={gerarPecas}
             disabled={status === "enviando"}
-            className="rounded-full bg-ambar px-4 py-2 text-xs font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
+            className="btn-tactile rounded-full bg-ambar px-4 py-2 text-xs font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
           >
             {status === "enviando" ? "Gerando..." : status === "erro" ? "Tentar novamente" : "Confirmar e gerar"}
           </button>
@@ -180,7 +180,7 @@ export default function GerarPecasCampanha({
     <div className="mt-4">
       <button
         onClick={() => setStatus("resumo")}
-        className="rounded-full bg-ambar px-4 py-2 text-xs font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
+        className="btn-tactile rounded-full bg-ambar px-4 py-2 text-xs font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
       >
         {`Gerar peças da campanha (${calendario.length})`}
       </button>

@@ -66,7 +66,7 @@ export default function EstrategiaCommandCenter({
         <div className="mt-6 flex flex-wrap gap-3">
           <button
             onClick={() => setWizardAberto(true)}
-            className="rounded-full bg-ambar px-5 py-2.5 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte"
+            className="btn-tactile rounded-full bg-ambar px-5 py-2.5 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte"
           >
             + Nova análise estratégica
           </button>

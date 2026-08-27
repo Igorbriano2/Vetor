@@ -436,7 +436,7 @@ export default function TrafegoPainel({
                 <button
                   onClick={sincronizar}
                   disabled={sincronizando}
-                  className="rounded-full bg-ambar px-4 py-1.5 text-xs font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
+                  className="btn-tactile rounded-full bg-ambar px-4 py-1.5 text-xs font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
                 >
                   {sincronizando ? "Sincronizando..." : "Sincronizar agora"}
                 </button>

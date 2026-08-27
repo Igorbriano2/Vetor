@@ -90,7 +90,7 @@ export default function NovaAnaliseWizard({ onFechar }: { onFechar: () => void }
             <div className="mt-6 flex items-center gap-3">
               <Link
                 href={`/missoes/${missionId}`}
-                className="rounded-full bg-ambar px-4 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte"
+                className="btn-tactile rounded-full bg-ambar px-4 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte"
               >
                 Acompanhar
               </Link>
@@ -139,7 +139,7 @@ export default function NovaAnaliseWizard({ onFechar }: { onFechar: () => void }
               <button
                 onClick={confirmar}
                 disabled={status === "enviando"}
-                className="rounded-full bg-ambar px-5 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
+                className="btn-tactile rounded-full bg-ambar px-5 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
               >
                 {status === "enviando" ? "Criando..." : "Confirmar"}
               </button>

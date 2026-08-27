@@ -11,7 +11,7 @@ export default function NovoProjetoBotao({ clienteId }: { clienteId: string }) {
       <button
         type="button"
         onClick={() => setAberto(true)}
-        className="btn-glow rounded-full bg-ambar px-4 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte"
+        className="btn-glow btn-tactile rounded-full bg-ambar px-4 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte"
       >
         + Novo projeto
       </button>

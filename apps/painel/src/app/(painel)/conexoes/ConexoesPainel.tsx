@@ -113,7 +113,7 @@ export default function ConexoesPainel({ conexoesIniciais }: { conexoesIniciais:
           <button
             onClick={confirmarSelecao}
             disabled={confirmando}
-            className="mt-4 rounded-full bg-ambar px-5 py-2 text-xs font-semibold text-petroleo disabled:opacity-50"
+            className="mt-4 btn-tactile rounded-full bg-ambar px-5 py-2 text-xs font-semibold text-petroleo disabled:opacity-50"
           >
             {confirmando
               ? "Confirmando..."

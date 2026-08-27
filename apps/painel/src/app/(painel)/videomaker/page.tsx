@@ -60,7 +60,7 @@ export default async function VideomakerPage() {
           </div>
           <Link
             href="/videomaker/editor"
-            className="mt-1 shrink-0 rounded-full bg-ambar px-4 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte"
+            className="mt-1 shrink-0 btn-tactile rounded-full bg-ambar px-4 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte"
           >
             + Novo vídeo
           </Link>

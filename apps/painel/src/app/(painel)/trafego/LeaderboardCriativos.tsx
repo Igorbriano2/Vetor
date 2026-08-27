@@ -71,7 +71,7 @@ export default function LeaderboardCriativos({ criativos }: { criativos: Criativ
           {ranqueados.map((c, i) => (
             <div key={c.id} className="overflow-hidden rounded-xl panel">
               <div className="flex items-center justify-between px-2 pt-2">
-                <span className="flex size-5 items-center justify-center rounded-full bg-ambar/15 text-[10px] font-semibold text-ambar">{i + 1}</span>
+                <span className="flex size-5 items-center justify-center btn-tactile rounded-full bg-ambar/15 text-[10px] font-semibold text-ambar">{i + 1}</span>
               </div>
               <div className="flex aspect-square items-center justify-center overflow-hidden bg-petroleo/60">
                 {c.thumbnailUrl ? (

@@ -427,7 +427,7 @@ function UploadForm({
         />
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <label className="cursor-pointer rounded-full bg-ambar px-4 py-2 text-xs font-semibold text-petroleo transition hover:bg-ambar-forte">
+        <label className="cursor-pointer btn-tactile rounded-full bg-ambar px-4 py-2 text-xs font-semibold text-petroleo transition hover:bg-ambar-forte">
           {enviando ? "Enviando..." : "Enviar arquivo"}
           <input
             type="file"

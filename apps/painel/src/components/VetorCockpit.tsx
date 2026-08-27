@@ -802,7 +802,7 @@ export default function VetorCockpit({
                 <div className="mt-2 flex gap-2">
                   <button
                     onClick={confirmarAvisoVozEGravar}
-                    className="rounded-full bg-ambar px-3 py-1.5 text-[11px] font-semibold text-petroleo hover:bg-ambar-forte"
+                    className="btn-tactile rounded-full bg-ambar px-3 py-1.5 text-[11px] font-semibold text-petroleo hover:bg-ambar-forte"
                   >
                     Entendi, continuar
                   </button>
@@ -876,7 +876,7 @@ export default function VetorCockpit({
               <button
                 onClick={() => enviarTexto()}
                 disabled={enviando || gravando || (!texto.trim() && anexos.filter((a) => a.status === "pronto").length === 0) || anexos.some((a) => a.status === "enviando")}
-                className="rounded-full bg-ambar px-5 py-2.5 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
+                className="btn-tactile rounded-full bg-ambar px-5 py-2.5 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
               >
                 Enviar
               </button>

@@ -108,7 +108,7 @@ export default function VideomakerUpload({ clienteId }: { clienteId: string }) {
         <button
           onClick={enviar}
           disabled={enviando || !arquivo || !instrucao.trim()}
-          className="rounded-full bg-ambar px-5 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
+          className="btn-tactile rounded-full bg-ambar px-5 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
         >
           {enviando ? "Enviando..." : "Pedir ao Vetor"}
         </button>

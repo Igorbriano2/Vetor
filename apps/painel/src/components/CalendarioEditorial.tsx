@@ -219,7 +219,7 @@ export default function CalendarioEditorial({ clienteId }: { clienteId: string }
               </option>
             ))}
           </select>
-          <button onClick={montarPlanejamentoDoMes} className="rounded-full bg-ambar px-3.5 py-1.5 text-xs font-semibold text-petroleo hover:bg-ambar-forte">
+          <button onClick={montarPlanejamentoDoMes} className="btn-tactile rounded-full bg-ambar px-3.5 py-1.5 text-xs font-semibold text-petroleo hover:bg-ambar-forte">
             Montar planejamento do mês
           </button>
         </div>

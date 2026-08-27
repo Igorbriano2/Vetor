@@ -110,7 +110,7 @@ export default function NovoVideoProjectPage() {
             type="button"
             onClick={criar}
             disabled={criando}
-            className="w-full rounded-full bg-ambar px-5 py-2.5 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
+            className="w-full btn-tactile rounded-full bg-ambar px-5 py-2.5 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
           >
             {criando ? "Criando..." : "Criar e abrir editor"}
           </button>

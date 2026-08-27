@@ -260,14 +260,14 @@ export default function OnboardingWizard({ clienteId, perfilInicial, brandKitIni
           <button
             onClick={finalizarOnboarding}
             disabled={enviandoParaVetor}
-            className="rounded-full bg-ambar px-6 py-2.5 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
+            className="btn-tactile rounded-full bg-ambar px-6 py-2.5 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
           >
             {enviandoParaVetor ? "Enviando pro Vetor..." : "Concluir e pedir diagnóstico inicial"}
           </button>
         ) : (
           <button
             onClick={avancar}
-            className="rounded-full bg-ambar px-6 py-2.5 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte"
+            className="btn-tactile rounded-full bg-ambar px-6 py-2.5 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte"
           >
             Salvar e continuar
           </button>

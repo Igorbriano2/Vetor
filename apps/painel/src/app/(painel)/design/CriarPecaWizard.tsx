@@ -210,7 +210,7 @@ export default function CriarPecaWizard({
             <div className="mt-6 flex items-center gap-3">
               <Link
                 href={`/missoes/${missionId}`}
-                className="rounded-full bg-ambar px-4 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte"
+                className="btn-tactile rounded-full bg-ambar px-4 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte"
               >
                 Acompanhar e aprovar
               </Link>
@@ -427,7 +427,7 @@ export default function CriarPecaWizard({
                 <button
                   onClick={() => setPasso((p) => p + 1)}
                   disabled={(passo === 1 && !podeAvancarPasso1) || (passo === 3 && !podeAvancarPasso3)}
-                  className="rounded-full bg-ambar px-5 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
+                  className="btn-tactile rounded-full bg-ambar px-5 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
                 >
                   Continuar
                 </button>
@@ -435,7 +435,7 @@ export default function CriarPecaWizard({
                 <button
                   onClick={confirmar}
                   disabled={status === "enviando"}
-                  className="rounded-full bg-ambar px-5 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
+                  className="btn-tactile rounded-full bg-ambar px-5 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
                 >
                   {status === "enviando" ? "Criando..." : "Confirmar e criar"}
                 </button>

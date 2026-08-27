@@ -160,7 +160,7 @@ export default function VetorIntentCard({
         <button
           onClick={confirmarMissao}
           disabled={status === "enviando"}
-          className="mt-4 w-full rounded-full bg-ambar px-5 py-2.5 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
+          className="mt-4 w-full btn-tactile rounded-full bg-ambar px-5 py-2.5 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
         >
           {status === "enviando" ? "Confirmando..." : "Confirmar missão"}
         </button>

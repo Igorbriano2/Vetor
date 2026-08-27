@@ -155,7 +155,7 @@ export default function AnaliticoView({
                     <div key={c.agente} className="flex items-center gap-2">
                       <span className="w-24 shrink-0 text-xs text-areia/70">{RÓTULO_AGENTE[c.agente] ?? c.agente}</span>
                       <div className="h-2 flex-1 overflow-hidden rounded-full bg-petroleo">
-                        <div className="h-full rounded-full bg-ambar" style={{ width: `${Math.max(4, (c.centavos / maiorCusto) * 100)}%` }} />
+                        <div className="h-full btn-tactile rounded-full bg-ambar" style={{ width: `${Math.max(4, (c.centavos / maiorCusto) * 100)}%` }} />
                       </div>
                       <span className="w-16 shrink-0 text-right font-mono text-xs text-areia">{centavosParaReais(c.centavos)}</span>
                     </div>

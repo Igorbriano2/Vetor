@@ -21,7 +21,7 @@ export default function NovoProjetoCanvasBotao({ clienteId }: { clienteId: strin
     <button
       onClick={criar}
       disabled={criando}
-      className="rounded-full bg-ambar px-4 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
+      className="btn-tactile rounded-full bg-ambar px-4 py-2 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
     >
       {criando ? "Criando..." : "+ Novo projeto"}
     </button>
