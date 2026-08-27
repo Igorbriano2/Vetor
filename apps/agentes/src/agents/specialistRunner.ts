@@ -45,6 +45,7 @@ import {
   atualizarTimelineDoVideoProject,
   montarCaptionTrackDeSegmentos,
   atualizarCaptionsDoVideoProject,
+  atualizarProxyDoVideoProject,
   atualizarPreviewDoVideoProject,
   atualizarRenderFinalDoVideoProject,
 } from "../negocio/videoProjects.js";
@@ -733,7 +734,6 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
           .eq("cliente_id", ctx.clienteId)
           .single();
         if (erroProjeto || !projeto) throw new Error(`video_project não encontrado pra esse cliente: ${erroProjeto?.message ?? videoProjectId}`);
-        if (!projeto.proxy_storage_path) throw new Error("video_project ainda não tem proxy — rode editar_video_timeline primeiro.");
 
         // Lê a timeline ATUAL inteira (inclusive qualquer edição já feita
         // pelo cliente no editor manual ou pelo ChatCut via autosave) — não
@@ -779,6 +779,22 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
 
         const asset = await buscarAtivoPorId(assetId);
         if (!asset) throw new Error("Ativo de vídeo de origem não encontrado.");
+
+        // Rascunho criado direto no editor manual ("+ Novo vídeo") nunca
+        // passa por editar_video_timeline, então nunca ganha um proxy —
+        // finalizar_video recusava esses rascunhos mesmo com clipes reais
+        // prontos pra render (achado da auditoria pré-demo). Gera o proxy
+        // agora, sob demanda, a partir do primeiro clip.
+        const proxyExistente = projeto.proxy_storage_path as string | null;
+        const proxyStoragePath: string = proxyExistente
+          ? proxyExistente
+          : await (async () => {
+              const proxyGerado = await executarEstagioIdempotente(videoProjectId, ctx.clienteId, "proxy", () =>
+                gerarProxyDeVideo({ bucket: "brand-assets", storagePath: asset.storagePath, clienteId: ctx.clienteId }),
+              );
+              await atualizarProxyDoVideoProject(videoProjectId, proxyGerado.storagePath);
+              return proxyGerado.storagePath;
+            })();
 
         const largura = timelineAtual.settings?.width ?? asset.width ?? 1080;
         const altura = timelineAtual.settings?.height ?? asset.height ?? 1920;
@@ -828,7 +844,7 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
               // transcrição antes desta mudança).
               const trecho = await renderizarVideoFinal({
                 bucket: "artifacts",
-                storagePath: projeto.proxy_storage_path as string,
+                storagePath: proxyStoragePath,
                 clienteId: ctx.clienteId,
                 trimInMs,
                 trimOutMs,
@@ -862,7 +878,7 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
           ? await executarEstagioIdempotente(videoProjectId, ctx.clienteId, "preview", () =>
               renderizarVideoFinal({
                 bucket: "artifacts",
-                storagePath: projeto.proxy_storage_path as string,
+                storagePath: proxyStoragePath,
                 clienteId: ctx.clienteId,
                 trimInMs,
                 trimOutMs,

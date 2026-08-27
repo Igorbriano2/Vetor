@@ -215,6 +215,21 @@ export async function atualizarCaptionsDoVideoProject(videoProjectId: string, ca
   if (error) throw new Error(`Falha ao gravar captions no video_project: ${error.message}`);
 }
 
+// Preenche o proxy de um video_project que nunca passou por
+// editar_video_timeline (rascunho criado direto no editor manual via "+
+// Novo vídeo") — achado da auditoria pré-demo: finalizar_video recusava
+// esses rascunhos com "ainda não tem proxy" mesmo quando a timeline já
+// tinha clipes de verdade prontos pra render. Chamado sob demanda por
+// finalizar_video antes de gerar legenda/preview, nunca sobrescreve uma
+// timeline já existente (só o campo do proxy).
+export async function atualizarProxyDoVideoProject(videoProjectId: string, proxyStoragePath: string): Promise<void> {
+  const { error } = await supabase
+    .from("video_projects")
+    .update({ proxy_storage_path: proxyStoragePath, updated_at: new Date().toISOString() })
+    .eq("id", videoProjectId);
+  if (error) throw new Error(`Falha ao gravar o proxy do video_project: ${error.message}`);
+}
+
 // Grava o preview (mesma timeline do editor, renderizado — nunca uma
 // versão paralela). Chamado pelo estágio "preview".
 export async function atualizarPreviewDoVideoProject(videoProjectId: string, previewStoragePath: string): Promise<void> {

@@ -148,7 +148,10 @@ export async function planejarEdicoesTimeline(
       "clipe da faixa de vídeo') e você traduz isso em operações estruturadas reais sobre a timeline atual. " +
       "Nunca invente um clip_id ou track_id que não esteja no resumo fornecido — se o pedido referenciar algo que " +
       "não existe ou for ambíguo demais (ex: 'remove o clipe ruim' sem dizer qual), pergunte no campo `resposta` " +
-      "em vez de chutar uma operação. Prefira o mínimo de operações que resolve o pedido.\n\n" +
+      "em vez de chutar uma operação. Prefira o mínimo de operações que resolve o pedido. Você só edita a " +
+      "timeline (cortar/mover/acelerar/remover clip, ajustar faixas) — nunca renderiza nem exporta nada. Se o " +
+      "cliente pedir pra finalizar/exportar/renderizar o vídeo, devolva `operacoes: []` e no campo `resposta` " +
+      "diga pra clicar no botão 'Finalizar vídeo' no topo do editor.\n\n" +
       formatarResumoTimeline(resumo),
     messages: [...mensagensAnteriores, { role: "user", content: mensagem }],
     tools: [APLICAR_EDICOES_TOOL],

@@ -14,8 +14,10 @@
 // não roda nada.
 
 import { useCallback, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { readApiResponse } from "@/lib/api/readApiResponse";
 import type { AudioMix, CaptionTrack, TimelineDocument, TrackKind, VideoProjectStatus } from "@/lib/video/timelineTypes";
 import type { ClipMidiaResolvida } from "@/lib/video/resolveClipUrls";
 import * as ops from "@/lib/video/timelineOps";
@@ -25,6 +27,11 @@ import VideoPreviewPlayer from "./VideoPreviewPlayer";
 import MediaLibraryPanel, { duracaoPadraoPorMime, type AtivoDeMidia } from "./MediaLibraryPanel";
 import CaptionsAndAudioPanel from "./CaptionsAndAudioPanel";
 import ChatCutPanel from "./ChatCutPanel";
+
+interface RespostaMissao {
+  missionId: string;
+  idempotente: boolean;
+}
 
 export interface VideoProjectInicial {
   id: string;
@@ -64,6 +71,9 @@ export default function VideoProjectEditor({ projeto }: { projeto: VideoProjectI
   const [status] = useState(projeto.status);
   const [salvando, setSalvando] = useState(false);
   const [criandoVersao, setCriandoVersao] = useState(false);
+  const [finalizando, setFinalizando] = useState(false);
+  const [missaoFinalizacao, setMissaoFinalizacao] = useState<string | null>(null);
+  const [erroFinalizar, setErroFinalizar] = useState<string | null>(null);
   const [ultimoSalvamento, setUltimoSalvamento] = useState<string | null>(null);
   const salvarTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -163,6 +173,47 @@ export default function VideoProjectEditor({ projeto }: { projeto: VideoProjectI
     if (!error && data) router.push(`/videomaker/editor/${data.id as string}`);
   }
 
+  // Achado da auditoria pré-demo: não existia NENHUM jeito explícito de
+  // disparar o render final — só um botão desabilitado e um chat (ChatCut)
+  // que admite não saber renderizar. Este botão cria uma missão real de
+  // verdade (mesmo caminho de aprovação de Design/Estratégia), com uma
+  // etapa que chama finalizar_video_com_legendas pra ESTE video_project_id
+  // — nunca finge um render, só entrega quando o agente realmente rodar.
+  async function finalizarVideo() {
+    setFinalizando(true);
+    setErroFinalizar(null);
+    try {
+      const plano = {
+        titulo: `Finalizar vídeo — ${projeto.title}`,
+        objetivo: "Renderizar o MP4 final do vídeo já editado na timeline.",
+        criterioSucesso: ["Cliente recebe o MP4 final (com legendas, quando disponíveis) refletindo a timeline editada"],
+        etapas: [
+          {
+            chave: "finalizar",
+            agente: "video",
+            tarefa:
+              `Finalize o vídeo com video_project_id "${projeto.id}" chamando finalizar_video_com_legendas com esse ` +
+              "video_project_id. A edição na timeline já está pronta (clipes, cortes e faixas definidos pelo cliente) " +
+              "— só falta renderizar o MP4 final de verdade.",
+            dependeDe: [],
+            ferramentas: ["finalizar_video_com_legendas"],
+          },
+        ],
+      };
+      const res = await fetch("/api/missoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plano }),
+      });
+      const data = await readApiResponse<RespostaMissao>(res);
+      setMissaoFinalizacao(data.missionId);
+    } catch (err) {
+      setErroFinalizar(err instanceof Error ? err.message : "Não consegui pedir a finalização agora.");
+    } finally {
+      setFinalizando(false);
+    }
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -175,6 +226,7 @@ export default function VideoProjectEditor({ projeto }: { projeto: VideoProjectI
           </p>
           {ultimoSalvamento && <p className="text-xs text-areia/40">Salvo automaticamente às {ultimoSalvamento}</p>}
           {salvando && <p className="text-xs text-menta">Salvando...</p>}
+          {erroFinalizar && <p className="text-xs text-coral">{erroFinalizar}</p>}
         </div>
         <div className="flex gap-2">
           <button type="button" onClick={desfazer} disabled={historico.length === 0} className="rounded-lg border border-areia/15 px-3 py-1.5 text-xs hover:bg-areia/5 disabled:opacity-30">
@@ -195,14 +247,22 @@ export default function VideoProjectEditor({ projeto }: { projeto: VideoProjectI
             >
               Baixar vídeo final
             </a>
+          ) : missaoFinalizacao ? (
+            <Link
+              href={`/missoes/${missaoFinalizacao}`}
+              className="rounded-lg border border-ambar/30 px-3 py-1.5 text-xs text-ambar hover:bg-ambar/10"
+            >
+              Finalizando — ver missão
+            </Link>
           ) : (
             <button
               type="button"
-              disabled
-              title="Vídeo final ainda não foi renderizado pelo agente (estágio final_render) — nunca finge um render que não rodou."
-              className="rounded-lg border border-areia/10 px-3 py-1.5 text-xs text-areia/30"
+              onClick={finalizarVideo}
+              disabled={finalizando}
+              title="Pede ao agente pra renderizar o MP4 final de verdade, a partir da timeline atual."
+              className="rounded-lg border border-menta/30 px-3 py-1.5 text-xs text-menta hover:bg-menta/10 disabled:opacity-50"
             >
-              Vídeo final (ainda não renderizado)
+              {finalizando ? "Pedindo..." : "Finalizar vídeo"}
             </button>
           )}
         </div>
