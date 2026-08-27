@@ -784,17 +784,28 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
         // passa por editar_video_timeline, então nunca ganha um proxy —
         // finalizar_video recusava esses rascunhos mesmo com clipes reais
         // prontos pra render (achado da auditoria pré-demo). Gera o proxy
-        // agora, sob demanda, a partir do primeiro clip.
+        // agora, sob demanda, a partir do primeiro clip — só quando ele é
+        // vídeo de verdade (o gerador de proxy usa ffprobe pra pegar
+        // duração real, e uma imagem estática não tem isso). O proxy só
+        // serve pra atalho de legendas/preview de 1 clip só — nunca é
+        // exigido pelo final_render em si, então uma falha aqui nunca pode
+        // derrubar a finalização inteira.
         const proxyExistente = projeto.proxy_storage_path as string | null;
-        const proxyStoragePath: string = proxyExistente
-          ? proxyExistente
-          : await (async () => {
-              const proxyGerado = await executarEstagioIdempotente(videoProjectId, ctx.clienteId, "proxy", () =>
-                gerarProxyDeVideo({ bucket: "brand-assets", storagePath: asset.storagePath, clienteId: ctx.clienteId }),
-              );
-              await atualizarProxyDoVideoProject(videoProjectId, proxyGerado.storagePath);
-              return proxyGerado.storagePath;
-            })();
+        let proxyStoragePath: string | null = proxyExistente;
+        if (!proxyStoragePath && primeiroClip.kind === "video") {
+          try {
+            const proxyGerado = await executarEstagioIdempotente(videoProjectId, ctx.clienteId, "proxy", () =>
+              gerarProxyDeVideo({ bucket: "brand-assets", storagePath: asset.storagePath, clienteId: ctx.clienteId }),
+            );
+            proxyStoragePath = proxyGerado.storagePath;
+            await atualizarProxyDoVideoProject(videoProjectId, proxyStoragePath);
+          } catch {
+            // executarEstagioIdempotente já persistiu o erro real no
+            // estágio "proxy" (visível em video_pipeline_stages) — segue
+            // sem esse atalho, captions/preview de 1 clip ficam pulados.
+            proxyStoragePath = null;
+          }
+        }
 
         const largura = timelineAtual.settings?.width ?? asset.width ?? 1080;
         const altura = timelineAtual.settings?.height ?? asset.height ?? 1920;
@@ -830,9 +841,16 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
         // (achado real: vídeo de teste sem faixa de áudio decodificável
         // fazia a missão inteira travar antes desta mudança, mesmo o corte
         // e o render não tendo nada a ver com áudio).
-        const captionsResultado = !assemblyAiConfigurado()
+        const captionsResultado = !assemblyAiConfigurado() || !proxyStoragePath
           ? await (async () => {
-              await pularEstagio(videoProjectId, ctx.clienteId, "captions", "ASSEMBLYAI_API_KEY não configurada neste ambiente.");
+              await pularEstagio(
+                videoProjectId,
+                ctx.clienteId,
+                "captions",
+                !proxyStoragePath
+                  ? "Sem proxy (primeiro clip não é vídeo) — legenda automática pulada."
+                  : "ASSEMBLYAI_API_KEY não configurada neste ambiente.",
+              );
               return { captionTrack: captionTrackVazia };
             })()
           : await executarEstagioIdempotente(videoProjectId, ctx.clienteId, "captions", async () => {
@@ -844,7 +862,7 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
               // transcrição antes desta mudança).
               const trecho = await renderizarVideoFinal({
                 bucket: "artifacts",
-                storagePath: proxyStoragePath,
+                storagePath: proxyStoragePath as string, // guardado pelo ternário acima (assemblyAiConfigurado/soUmClip && proxyStoragePath)
                 clienteId: ctx.clienteId,
                 trimInMs,
                 trimOutMs,
@@ -868,17 +886,16 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
         const soUmClip = clipesResolvidos.length === 1;
 
         // Estágio "preview" — mesma timeline (trim + legendas) do final.
-        // Com 1 clip só, continua vindo do PROXY (leve, rápido — mesmo
-        // comportamento de sempre). Com mais de 1 clip, gerar um preview
-        // separado do proxy duplicaria o processamento pesado do concat
-        // multi-clip (o proxy só existe pro primeiro asset) — o preview
-        // aponta pro mesmo resultado do final_render nesse caso, calculado
-        // logo abaixo.
-        const preview = soUmClip
+        // Com 1 clip só E proxy disponível, continua vindo do PROXY (leve,
+        // rápido — mesmo comportamento de sempre). Sem proxy (primeiro
+        // clip é imagem) ou com mais de 1 clip, o preview aponta pro mesmo
+        // resultado do final_render, calculado logo abaixo — nunca trava
+        // a finalização por falta de um atalho opcional.
+        const preview = soUmClip && proxyStoragePath
           ? await executarEstagioIdempotente(videoProjectId, ctx.clienteId, "preview", () =>
               renderizarVideoFinal({
                 bucket: "artifacts",
-                storagePath: proxyStoragePath,
+                storagePath: proxyStoragePath as string, // guardado pelo ternário acima (assemblyAiConfigurado/soUmClip && proxyStoragePath)
                 clienteId: ctx.clienteId,
                 trimInMs,
                 trimOutMs,
