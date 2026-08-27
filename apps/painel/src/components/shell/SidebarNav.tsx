@@ -165,10 +165,11 @@ function ListaNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
                 key={item.href}
                 href={item.href}
                 onClick={onNavigate}
-                className={`mono-label rounded-lg px-3 py-2 transition ${
+                className={`mono-label flex items-center gap-2.5 rounded-lg px-3 py-2 transition ${
                   ativo ? "bg-menta/10 text-menta" : "text-areia-2 hover:bg-areia/5 hover:text-areia"
                 }`}
               >
+                <span className="shrink-0 opacity-80">{ÍCONE_POR_HREF[item.href]}</span>
                 {item.label}
               </Link>
             );
