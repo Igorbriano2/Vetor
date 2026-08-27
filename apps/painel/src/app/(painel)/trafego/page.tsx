@@ -33,7 +33,7 @@ export default async function TrafegoPage() {
         .eq("cliente_id", clienteId)
         .eq("provider", "meta_ads")
         .eq("status", "connected")
-        .maybeSingle(),
+        .limit(1),
       supabase
         .from("criativos_trafego")
         .select("id, nome, thumbnail_url, metricas, updated_at")
@@ -53,7 +53,7 @@ export default async function TrafegoPage() {
           <TrafegoPainel
             campanhasIniciais={campanhasTrafego ?? []}
             historicoAnalises={analisesTrafego ?? []}
-            contaConectada={!!conexaoMeta}
+            contaConectada={(conexaoMeta?.length ?? 0) > 0}
             criativosIniciais={criativosTrafego ?? []}
           />
         </div>

@@ -34,7 +34,7 @@ export default async function AnaliticoPage() {
     { data: agentRuns },
   ] = await Promise.all([
     supabase.from("campanhas_trafego").select("id, metricas, status").eq("cliente_id", clienteId),
-    supabase.from("connections").select("status").eq("cliente_id", clienteId).eq("provider", "meta_ads").eq("status", "connected").maybeSingle(),
+    supabase.from("connections").select("status").eq("cliente_id", clienteId).eq("provider", "meta_ads").eq("status", "connected").limit(1),
     supabase.from("artifacts").select("id, department, type").eq("cliente_id", clienteId),
     supabase
       .from("artifacts")
@@ -101,7 +101,7 @@ export default async function AnaliticoPage() {
 
   return (
     <AnaliticoView
-      trafego={{ ...metricasTrafego, contaConectada: !!conexaoMeta }}
+      trafego={{ ...metricasTrafego, contaConectada: (conexaoMeta?.length ?? 0) > 0 }}
       criacoes7dias={criacoes7dias ?? 0}
       criacoesPorDepartamento={Array.from(criacoesPorDepartamento.entries()).map(([departamento, total]) => ({ departamento, total }))}
       missoesPorStatus={Array.from(missoesPorStatus.entries()).map(([status, total]) => ({ status, total }))}
