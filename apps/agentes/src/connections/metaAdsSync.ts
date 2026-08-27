@@ -28,8 +28,19 @@ interface InsightGraph {
   ctr?: string;
   cpc?: string;
   cpm?: string;
+  frequency?: string;
   actions?: Array<{ action_type: string; value: string }>;
+  action_values?: Array<{ action_type: string; value: string }>;
+  cost_per_action_type?: Array<{ action_type: string; value: string }>;
+  purchase_roas?: Array<{ action_type: string; value: string }>;
 }
+
+// Campos completos pedidos à Graph API pra alimentar o dashboard "todas as
+// métricas do Facebook Ads" — frequency/action_values/cost_per_action_type/
+// purchase_roas são os que faltavam pra calcular CPA, receita, ROAS e ROI
+// reais (antes só vinha o básico de gasto/alcance/cliques).
+const CAMPOS_INSIGHTS =
+  "spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,action_values,cost_per_action_type,purchase_roas";
 
 interface AdGraph {
   id: string;
@@ -45,6 +56,45 @@ const ACTION_TYPES_COMPRA = ["purchase", "omni_purchase", "offsite_conversion.fb
 export function extrairCompras(insight: InsightGraph | undefined): number {
   if (!insight?.actions) return 0;
   return insight.actions.filter((a) => ACTION_TYPES_COMPRA.includes(a.action_type)).reduce((soma, a) => soma + Number(a.value ?? 0), 0);
+}
+
+// Receita real (valor monetário das compras, não a contagem) — vem de
+// action_values, o campo irmão de actions com o valor de cada conversão.
+// Sem isso não dá pra calcular ROAS/ROI honestos, só CPA.
+export function extrairReceita(insight: InsightGraph | undefined): number {
+  if (!insight?.action_values) return 0;
+  return insight.action_values.filter((a) => ACTION_TYPES_COMPRA.includes(a.action_type)).reduce((soma, a) => soma + Number(a.value ?? 0), 0);
+}
+
+// ROAS nativo do Meta quando disponível (purchase_roas — já vem calculado
+// pela própria Graph API a partir do pixel/CAPI); cai pro cálculo manual
+// receita/gasto só quando o campo nativo não veio (conta sem pixel de
+// compra configurado, por exemplo) — nunca inventa um ROAS de 0 quando
+// simplesmente não há gasto ainda (retorna null, o chamador decide como
+// mostrar "sem dado" vs "zero").
+export function calcularRoas(insight: InsightGraph | undefined, receita: number, gasto: number): number | null {
+  const nativo = insight?.purchase_roas?.find((a) => ACTION_TYPES_COMPRA.includes(a.action_type));
+  if (nativo) return Number(nativo.value);
+  if (gasto <= 0) return null;
+  return receita / gasto;
+}
+
+// ROI em percentual: (receita - gasto) / gasto. Sempre a partir da receita
+// real (extrairReceita), nunca do ROAS nativo isolado (evita duas fontes
+// de verdade divergentes pro mesmo número).
+export function calcularRoi(receita: number, gasto: number): number | null {
+  if (gasto <= 0) return null;
+  return (receita - gasto) / gasto;
+}
+
+// Custo por compra (CPA) — usa o campo nativo cost_per_action_type quando
+// disponível (mais preciso, considera atribuição da própria Meta); cai pro
+// cálculo manual gasto/compras só como fallback.
+export function calcularCustoPorCompra(insight: InsightGraph | undefined, gasto: number, compras: number): number | null {
+  const nativo = insight?.cost_per_action_type?.find((a) => ACTION_TYPES_COMPRA.includes(a.action_type));
+  if (nativo) return Number(nativo.value);
+  if (compras <= 0) return null;
+  return gasto / compras;
 }
 
 export function mapearStatus(statusMeta: string): string {
@@ -217,6 +267,24 @@ async function gerarAnaliseDoGestor(campanhas: CampanhaGraph[], metricasPorCampa
   }
 }
 
+// Achata o insight bruto da Graph API + as métricas derivadas (receita,
+// ROAS, ROI, CPA, compras) num único objeto JSONB — persistido assim tanto
+// em campanhas_trafego quanto em criativos_trafego, pra o dashboard nunca
+// precisar recalcular no cliente a partir do formato bruto da Meta.
+function montarMetricasCompletas(insight: InsightGraph): Record<string, unknown> {
+  const gasto = Number(insight.spend ?? 0);
+  const compras = extrairCompras(insight);
+  const receita = extrairReceita(insight);
+  return {
+    ...insight,
+    compras,
+    receita,
+    roas: calcularRoas(insight, receita, gasto),
+    roi: calcularRoi(receita, gasto),
+    custo_por_compra: calcularCustoPorCompra(insight, gasto, compras),
+  };
+}
+
 // Design V2 (auditoria Gravyx) — busca os anúncios reais de uma campanha
 // (id, nome, thumbnail do criativo) + insights por anúncio, e persiste em
 // criativos_trafego (migration 0039). Fail-closed silencioso: se a chamada
@@ -233,7 +301,7 @@ async function sincronizarCriativosDaCampanha(clienteId: string, campanhaId: str
 
     for (const anuncio of anuncios) {
       const resInsights = await fetch(
-        graphApiUrl(`/${anuncio.id}/insights?fields=spend,impressions,clicks,ctr,cpc,cpm,actions&date_preset=last_30d`) +
+        graphApiUrl(`/${anuncio.id}/insights?fields=${CAMPOS_INSIGHTS}&date_preset=last_30d`) +
           `&access_token=${encodeURIComponent(accessToken)}`,
       );
       const insightsBody = resInsights.ok ? ((await resInsights.json()) as { data: InsightGraph[] }) : { data: [] };
@@ -246,7 +314,7 @@ async function sincronizarCriativosDaCampanha(clienteId: string, campanhaId: str
           meta_ad_id: anuncio.id,
           nome: anuncio.name,
           thumbnail_url: anuncio.creative?.thumbnail_url ?? null,
-          metricas: insight ? { ...insight, compras: extrairCompras(insight) } : {},
+          metricas: insight ? montarMetricasCompletas(insight) : {},
           updated_at: new Date().toISOString(),
         },
         { onConflict: "meta_ad_id" },
@@ -271,12 +339,12 @@ export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSi
   const campanhas = ((await resCampanhas.json()) as { data: CampanhaGraph[] }).data ?? [];
 
   let sincronizadas = 0;
-  const metricasAgregadas = { spend: 0, impressions: 0, reach: 0, clicks: 0, compras: 0 };
+  const metricasAgregadas = { spend: 0, impressions: 0, reach: 0, clicks: 0, compras: 0, receita: 0 };
   const metricasPorCampanha: Array<{ nome: string; insight: InsightGraph | undefined }> = [];
 
   for (const campanha of campanhas) {
     const resInsights = await fetch(
-      graphApiUrl(`/${campanha.id}/insights?fields=spend,impressions,reach,clicks,ctr,cpc,cpm,actions&date_preset=last_30d`) +
+      graphApiUrl(`/${campanha.id}/insights?fields=${CAMPOS_INSIGHTS}&date_preset=last_30d`) +
         `&access_token=${encodeURIComponent(conexao.accessToken)}`,
     );
     const insightsBody = resInsights.ok ? ((await resInsights.json()) as { data: InsightGraph[] }) : { data: [] };
@@ -289,6 +357,7 @@ export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSi
       metricasAgregadas.reach += Number(insight.reach ?? 0);
       metricasAgregadas.clicks += Number(insight.clicks ?? 0);
       metricasAgregadas.compras += extrairCompras(insight);
+      metricasAgregadas.receita += extrairReceita(insight);
     }
 
     const orcamentoCentavos = campanha.daily_budget
@@ -306,7 +375,7 @@ export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSi
           nome: campanha.name,
           status: mapearStatus(campanha.status),
           orcamento_centavos: orcamentoCentavos,
-          metricas: insight ? { ...insight, compras: extrairCompras(insight) } : {},
+          metricas: insight ? montarMetricasCompletas(insight) : {},
           updated_at: new Date().toISOString(),
         },
         { onConflict: "meta_campaign_id" },
@@ -326,11 +395,18 @@ export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSi
 
   const analiseGestor = await gerarAnaliseDoGestor(campanhas, metricasPorCampanha);
 
+  const metricasUsadas = {
+    ...metricasAgregadas,
+    roas: metricasAgregadas.spend > 0 ? metricasAgregadas.receita / metricasAgregadas.spend : null,
+    roi: metricasAgregadas.spend > 0 ? (metricasAgregadas.receita - metricasAgregadas.spend) / metricasAgregadas.spend : null,
+    custo_por_compra: metricasAgregadas.compras > 0 ? metricasAgregadas.spend / metricasAgregadas.compras : null,
+  };
+
   const { data: analise, error: erroAnalise } = await supabase
     .from("trafego_analises")
     .insert({
       cliente_id: clienteId,
-      metricas_usadas: metricasAgregadas,
+      metricas_usadas: metricasUsadas,
       diagnostico:
         analiseGestor?.resumoExecutivo ??
         (campanhas.length === 0

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import StatusBadge from "@/components/StatusBadge";
@@ -48,6 +48,61 @@ function centavosParaReais(centavos: number | null): string {
   return (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+function reais(valor: number | null): string {
+  if (valor == null) return "—";
+  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function percentual(valor: number | null, casas = 2): string {
+  if (valor == null) return "—";
+  return `${valor.toFixed(casas)}%`;
+}
+
+// Dashboard "todas as métricas do Facebook Ads" (pedido explícito) — cada
+// entrada é uma métrica selecionável independentemente, igual ao Reportei.
+// Sempre ordenado igual (ordem desta lista), independente da ordem que o
+// cliente marcou — evita o grid "pular" métrica de posição a cada reload.
+type KpiId = "investimento" | "impressoes" | "alcance" | "cliques" | "ctr" | "cpc" | "cpm" | "frequencia" | "compras" | "custo_por_compra" | "receita" | "roas" | "roi";
+
+const CHAVE_LOCALSTORAGE_METRICAS = "vetor:trafego:metricas-visiveis";
+
+// Ordem canônica de TODAS as métricas — usada tanto pro seletor quanto pra
+// nunca deixar o grid de KPIs "pular de posição" conforme o que o cliente
+// marca/desmarca (ordem sempre a mesma, só o subconjunto visível muda).
+const ORDEM_METRICAS: KpiId[] = [
+  "investimento",
+  "impressoes",
+  "alcance",
+  "cliques",
+  "ctr",
+  "cpc",
+  "cpm",
+  "frequencia",
+  "compras",
+  "custo_por_compra",
+  "receita",
+  "roas",
+  "roi",
+];
+
+const METRICAS_PADRAO: KpiId[] = ["investimento", "impressoes", "cliques", "ctr", "cpc", "compras", "roas", "roi"];
+
+const LABEL_METRICA: Record<KpiId, string> = {
+  investimento: "Investimento",
+  impressoes: "Impressões",
+  alcance: "Alcance",
+  cliques: "Cliques",
+  ctr: "CTR médio",
+  cpc: "CPC médio",
+  cpm: "CPM médio",
+  frequencia: "Frequência média",
+  compras: "Compras",
+  custo_por_compra: "Custo por compra (CPA)",
+  receita: "Receita",
+  roas: "ROAS",
+  roi: "ROI",
+};
+
 // Design V2 (auditoria Gravyx — módulo "Performance") — reduzido de 4 pra 3
 // abas: "Conexões" virou uma linha de status fixa no topo (era uma aba
 // quase vazia, só um link) em vez de disputar espaço com as abas de
@@ -76,7 +131,21 @@ const CAMPANHAS_DEMO: Campanha[] = [
     nome: "[DEMO] Combo Sexta — Feed + Stories",
     status: "ativa",
     orcamento_centavos: 5000,
-    metricas: { spend: "142.30", impressions: "18420", reach: "12100", clicks: "612", ctr: "3.32", cpc: "0.23", cpm: "7.72", compras: 9 },
+    metricas: {
+      spend: "142.30",
+      impressions: "18420",
+      reach: "12100",
+      clicks: "612",
+      ctr: "3.32",
+      cpc: "0.23",
+      cpm: "7.72",
+      frequency: "1.52",
+      compras: 9,
+      receita: 810,
+      roas: 5.69,
+      roi: 4.69,
+      custo_por_compra: 15.81,
+    },
     updated_at: new Date().toISOString(),
   },
   {
@@ -84,7 +153,21 @@ const CAMPANHAS_DEMO: Campanha[] = [
     nome: "[DEMO] Retargeting — Carrinho abandonado",
     status: "ativa",
     orcamento_centavos: 3000,
-    metricas: { spend: "88.10", impressions: "9310", reach: "6420", clicks: "301", ctr: "3.23", cpc: "0.29", cpm: "9.46", compras: 4 },
+    metricas: {
+      spend: "88.10",
+      impressions: "9310",
+      reach: "6420",
+      clicks: "301",
+      ctr: "3.23",
+      cpc: "0.29",
+      cpm: "9.46",
+      frequency: "1.45",
+      compras: 4,
+      receita: 320,
+      roas: 3.63,
+      roi: 2.63,
+      custo_por_compra: 22.03,
+    },
     updated_at: new Date().toISOString(),
   },
   {
@@ -92,7 +175,21 @@ const CAMPANHAS_DEMO: Campanha[] = [
     nome: "[DEMO] Lançamento produto novo",
     status: "pausada",
     orcamento_centavos: 8000,
-    metricas: { spend: "0.00", impressions: "0", reach: "0", clicks: "0", ctr: "0", cpc: "0", cpm: "0", compras: 0 },
+    metricas: {
+      spend: "0.00",
+      impressions: "0",
+      reach: "0",
+      clicks: "0",
+      ctr: "0",
+      cpc: "0",
+      cpm: "0",
+      frequency: "0",
+      compras: 0,
+      receita: 0,
+      roas: null,
+      roi: null,
+      custo_por_compra: null,
+    },
     updated_at: new Date().toISOString(),
   },
 ];
@@ -155,7 +252,34 @@ export default function TrafegoPainel({
   const [sincronizando, setSincronizando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [campanhaExpandida, setCampanhaExpandida] = useState<string | null>(null);
+  const [metricasVisiveis, setMetricasVisiveis] = useState<KpiId[]>(METRICAS_PADRAO);
+  const [seletorAberto, setSeletorAberto] = useState(false);
   const router = useRouter();
+
+  // Preferência é por navegador/dispositivo (localStorage), não por conta
+  // — mesma lógica de "estilo Reportei" pedida: cada pessoa que abre o
+  // painel escolhe o próprio recorte de métricas, sem afetar o que os
+  // outros usuários daquele cliente veem.
+  useEffect(() => {
+    const salvo = window.localStorage.getItem(CHAVE_LOCALSTORAGE_METRICAS);
+    if (!salvo) return;
+    try {
+      const lista = JSON.parse(salvo) as string[];
+      const validas = lista.filter((id): id is KpiId => id in LABEL_METRICA);
+      if (validas.length > 0) setMetricasVisiveis(validas);
+    } catch {
+      // localStorage corrompido/formato antigo — ignora e mantém o padrão.
+    }
+  }, []);
+
+  function alternarMetrica(id: KpiId) {
+    setMetricasVisiveis((atual) => {
+      const novo = atual.includes(id) ? atual.filter((m) => m !== id) : [...atual, id];
+      const ordenado = ORDEM_METRICAS.filter((m) => novo.includes(m));
+      window.localStorage.setItem(CHAVE_LOCALSTORAGE_METRICAS, JSON.stringify(ordenado));
+      return ordenado;
+    });
+  }
 
   // Dataset DEMO só entra em jogo quando não há nada real ainda — assim
   // que existir 1 campanha real sincronizada, os dados reais tomam conta,
@@ -197,9 +321,33 @@ export default function TrafegoPainel({
   const totalReach = campanhas.reduce((s, c) => s + Number(c.metricas?.reach ?? 0), 0);
   const totalClicks = campanhas.reduce((s, c) => s + Number(c.metricas?.clicks ?? 0), 0);
   const totalCompras = campanhas.reduce((s, c) => s + Number(c.metricas?.compras ?? 0), 0);
-  const ctrMedio = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) : null;
-  const cpcMedio = totalClicks > 0 ? (totalSpend / totalClicks).toFixed(2) : null;
-  const cpmMedio = totalImpressions > 0 ? ((totalSpend / totalImpressions) * 1000).toFixed(2) : null;
+  const totalReceita = campanhas.reduce((s, c) => s + Number(c.metricas?.receita ?? 0), 0);
+  const ctrMedio = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : null;
+  const cpcMedio = totalClicks > 0 ? totalSpend / totalClicks : null;
+  const cpmMedio = totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : null;
+  const custoPorCompraMedio = totalCompras > 0 ? totalSpend / totalCompras : null;
+  const roasMedio = totalSpend > 0 ? totalReceita / totalSpend : null;
+  const roiMedio = totalSpend > 0 ? ((totalReceita - totalSpend) / totalSpend) * 100 : null;
+  const frequenciasValidas = campanhas.map((c) => Number(c.metricas?.frequency ?? NaN)).filter((v) => !Number.isNaN(v));
+  const frequenciaMedia = frequenciasValidas.length > 0 ? frequenciasValidas.reduce((a, b) => a + b, 0) / frequenciasValidas.length : null;
+
+  // Um único objeto de "valor calculado" por métrica — o grid de KPIs e o
+  // seletor de métricas leem daqui, nunca duplicam a conta em dois lugares.
+  const valorDaMetrica: Record<KpiId, string> = {
+    investimento: reais(totalSpend),
+    impressoes: totalImpressions.toLocaleString("pt-BR"),
+    alcance: totalReach.toLocaleString("pt-BR"),
+    cliques: totalClicks.toLocaleString("pt-BR"),
+    ctr: percentual(ctrMedio),
+    cpc: reais(cpcMedio),
+    cpm: reais(cpmMedio),
+    frequencia: frequenciaMedia != null ? frequenciaMedia.toFixed(2) : "—",
+    compras: totalCompras.toLocaleString("pt-BR"),
+    custo_por_compra: reais(custoPorCompraMedio),
+    receita: reais(totalReceita),
+    roas: roasMedio != null ? `${roasMedio.toFixed(2)}x` : "—",
+    roi: percentual(roiMedio, 1),
+  };
 
   // Alertas derivados de dado real (nunca uma meta/threshold fabricada
   // sem base) — campanha pausada com orçamento reservado é um sinal
@@ -249,36 +397,71 @@ export default function TrafegoPainel({
 
       {aba === "visao_geral" && (
         <div className="mt-6 space-y-5">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-areia/50">
               {analise && !usandoDemo ? `Última sincronização: ${new Date(analise.created_at).toLocaleString("pt-BR")}` : usandoDemo ? "Dados de demonstração" : "Ainda não sincronizado."}
             </p>
-            {contaConectada && (
-              <button
-                onClick={sincronizar}
-                disabled={sincronizando}
-                className="rounded-full bg-ambar px-4 py-1.5 text-xs font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
-              >
-                {sincronizando ? "Sincronizando..." : "Sincronizar agora"}
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <button
+                  onClick={() => setSeletorAberto((v) => !v)}
+                  className="rounded-full border border-areia/15 px-4 py-1.5 text-xs text-areia/70 transition hover:border-menta/40 hover:text-menta"
+                >
+                  Personalizar métricas
+                </button>
+                {seletorAberto && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setSeletorAberto(false)} />
+                    <div className="absolute right-0 z-20 mt-2 w-64 rounded-2xl border border-areia/15 bg-petroleo-2 p-3 shadow-xl">
+                      <p className="mono-label mb-2 text-areia/40">Métricas visíveis</p>
+                      <div className="max-h-72 space-y-1 overflow-y-auto">
+                        {ORDEM_METRICAS.map((id) => (
+                          <label key={id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-areia hover:bg-areia/5">
+                            <input
+                              type="checkbox"
+                              checked={metricasVisiveis.includes(id)}
+                              onChange={() => alternarMetrica(id)}
+                              className="h-3.5 w-3.5 accent-menta"
+                            />
+                            {LABEL_METRICA[id]}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+              {contaConectada && (
+                <button
+                  onClick={sincronizar}
+                  disabled={sincronizando}
+                  className="rounded-full bg-ambar px-4 py-1.5 text-xs font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
+                >
+                  {sincronizando ? "Sincronizando..." : "Sincronizar agora"}
+                </button>
+              )}
+            </div>
           </div>
           {erro && <p className="text-xs text-coral">{erro}</p>}
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            {[
-              { label: "Investimento", valor: `R$ ${totalSpend.toFixed(2)}` },
-              { label: "Impressões", valor: totalImpressions.toLocaleString("pt-BR") },
-              { label: "Cliques", valor: totalClicks.toLocaleString("pt-BR") },
-              { label: "CTR médio", valor: ctrMedio ? `${ctrMedio}%` : "—" },
-              { label: "CPC médio", valor: cpcMedio ? `R$ ${cpcMedio}` : "—" },
-              { label: "CPM médio", valor: cpmMedio ? `R$ ${cpmMedio}` : "—" },
-            ].map((kpi) => (
-              <div key={kpi.label} className="rounded-xl border border-areia/10 bg-petroleo-2/60 p-3">
-                <p className="font-mono text-[10px] uppercase tracking-wide text-areia/40">{kpi.label}</p>
-                <p className="mt-1 text-lg font-semibold text-areia">{kpi.valor}</p>
-              </div>
-            ))}
+            {metricasVisiveis.length === 0 ? (
+              <p className="col-span-full text-xs text-areia/40">
+                Nenhuma métrica selecionada — escolha ao menos uma em &ldquo;Personalizar métricas&rdquo;.
+              </p>
+            ) : (
+              metricasVisiveis.map((id) => {
+                const destacarRoi = id === "roi" && roiMedio != null;
+                return (
+                  <div key={id} className="rounded-xl border border-areia/10 bg-petroleo-2/60 p-3">
+                    <p className="font-mono text-[10px] uppercase tracking-wide text-areia/40">{LABEL_METRICA[id]}</p>
+                    <p className={`mt-1 text-lg font-semibold ${destacarRoi ? (roiMedio! >= 0 ? "text-menta" : "text-coral") : "text-areia"}`}>
+                      {valorDaMetrica[id]}
+                    </p>
+                  </div>
+                );
+              })
+            )}
           </div>
 
           {/* Design V2 (auditoria Gravyx) — ranking de criativos, pedido
@@ -332,10 +515,20 @@ export default function TrafegoPainel({
                       {typeof c.metricas?.spend === "string" && <span>Gasto (30d): R$ {c.metricas.spend}</span>}
                       {typeof c.metricas?.impressions === "string" && <span>Impressões: {c.metricas.impressions}</span>}
                       {typeof c.metricas?.reach === "string" && <span>Alcance: {c.metricas.reach}</span>}
+                      {typeof c.metricas?.frequency === "string" && <span>Frequência: {c.metricas.frequency}</span>}
                       {typeof c.metricas?.clicks === "string" && <span>Cliques: {c.metricas.clicks}</span>}
                       {typeof c.metricas?.ctr === "string" && <span>CTR: {c.metricas.ctr}%</span>}
                       {typeof c.metricas?.cpc === "string" && <span>CPC: R$ {c.metricas.cpc}</span>}
                       {typeof c.metricas?.cpm === "string" && <span>CPM: R$ {c.metricas.cpm}</span>}
+                      {typeof c.metricas?.compras === "number" && <span>Compras: {c.metricas.compras}</span>}
+                      {typeof c.metricas?.custo_por_compra === "number" && <span>CPA: {reais(c.metricas.custo_por_compra as number)}</span>}
+                      {typeof c.metricas?.receita === "number" && <span>Receita: {reais(c.metricas.receita as number)}</span>}
+                      {typeof c.metricas?.roas === "number" && <span>ROAS: {(c.metricas.roas as number).toFixed(2)}x</span>}
+                      {typeof c.metricas?.roi === "number" && (
+                        <span className={(c.metricas.roi as number) >= 0 ? "text-menta" : "text-coral"}>
+                          ROI: {((c.metricas.roi as number) * 100).toFixed(1)}%
+                        </span>
+                      )}
                     </div>
                     <p className="mt-3 text-[11px] text-areia/30">
                       Drill-down por criativo agora disponível na Visão geral (ranking Top 5) — por conjunto de anúncios ainda não.
