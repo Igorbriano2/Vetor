@@ -114,7 +114,7 @@ function Secao({
       <div className="mt-3 space-y-3">
         {itens.length ? (
           itens.map((l) => (
-            <div key={l.id} className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur">
+            <div key={l.id} className="rounded-2xl panel p-4">
               <div className="flex items-center justify-between gap-4">
                 <p className="font-medium text-areia">{l.titulo}</p>
                 <StatusBadge status={l.status} />
@@ -131,7 +131,7 @@ function Secao({
             </div>
           ))
         ) : (
-          <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+          <p className="rounded-2xl panel p-4 text-sm text-areia/40">
             Nada por aqui.
           </p>
         )}

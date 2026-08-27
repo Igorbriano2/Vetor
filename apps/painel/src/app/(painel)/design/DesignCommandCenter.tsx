@@ -165,7 +165,7 @@ export default function DesignCommandCenter({
                 <Link
                   key={e.id}
                   href={`/missoes/${e.missionId}`}
-                  className="flex items-center justify-between gap-4 rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur transition hover:border-menta/40"
+                  className="flex items-center justify-between gap-4 rounded-2xl card-lift panel p-4"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm text-areia">{e.tarefa}</p>
@@ -186,7 +186,7 @@ export default function DesignCommandCenter({
                 <Link
                   key={c.id}
                   href={`/missoes/${c.id}`}
-                  className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur transition hover:border-menta/40"
+                  className="rounded-2xl card-lift panel p-4"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-medium text-areia">{c.titulo}</p>
@@ -201,7 +201,7 @@ export default function DesignCommandCenter({
               ))}
             </div>
           ) : (
-            <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+            <p className="rounded-2xl panel p-4 text-sm text-areia/40">
               Nenhuma campanha de Design ainda — crie uma peça nova ou abra o Planejamento pra gerar as peças de um
               calendário.
             </p>
@@ -216,7 +216,7 @@ export default function DesignCommandCenter({
                 <Link
                   key={p.id}
                   href={`/design/editor/${p.id}`}
-                  className="group overflow-hidden rounded-xl border border-areia/10 bg-petroleo-2/60 transition hover:border-menta/40"
+                  className="group overflow-hidden rounded-xl card-lift panel"
                 >
                   <div className="flex aspect-square items-center justify-center bg-petroleo">
                     {p.thumbnailUrl ? (
@@ -238,7 +238,7 @@ export default function DesignCommandCenter({
               ))}
             </div>
           ) : (
-            <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+            <p className="rounded-2xl panel p-4 text-sm text-areia/40">
               Nenhum projeto editável ainda — crie sua primeira peça acima.
             </p>
           )}
@@ -249,7 +249,7 @@ export default function DesignCommandCenter({
           {prompts.length > 0 ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {prompts.map((p) => (
-                <div key={p.id} className="flex items-start gap-3 rounded-2xl border border-areia/10 bg-petroleo-2/60 p-3 backdrop-blur">
+                <div key={p.id} className="flex items-start gap-3 rounded-2xl panel p-3">
                   <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-petroleo">
                     {p.thumbnailUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -269,7 +269,7 @@ export default function DesignCommandCenter({
               ))}
             </div>
           ) : (
-            <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+            <p className="rounded-2xl panel p-4 text-sm text-areia/40">
               Nenhum prompt salvo ainda — toda peça que você gerar aqui entra automaticamente nessa lista.
             </p>
           )}
@@ -285,14 +285,14 @@ export default function DesignCommandCenter({
           {referencias.length > 0 ? (
             <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
               {referencias.map((r) => (
-                <div key={r.id} className="rounded-xl border border-areia/10 bg-petroleo-2/60 p-3">
+                <div key={r.id} className="rounded-xl panel p-3">
                   <p className="truncate text-xs font-medium text-areia">{r.title}</p>
                   {r.description && <p className="mt-1 line-clamp-2 text-[11px] text-areia/40">{r.description}</p>}
                 </div>
               ))}
             </div>
           ) : (
-            <p className="mt-3 rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+            <p className="mt-3 rounded-2xl panel p-4 text-sm text-areia/40">
               Você ainda não tem referências salvas —{" "}
               <Link href="/referencias" className="text-menta hover:underline">
                 comece adicionando uma

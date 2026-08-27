@@ -34,7 +34,7 @@ function CardMissao({ m }: { m: Missao }) {
   return (
     <Link
       href={`/missoes/${m.id}`}
-      className="card-lift block rounded-xl border border-areia/10 bg-petroleo-2/60 p-3 backdrop-blur"
+      className="card-lift block rounded-xl panel p-3"
     >
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-medium text-areia">{m.titulo}</p>
@@ -69,7 +69,7 @@ export default function MissoesView({ missoes }: { missoes: Missao[] }) {
       </div>
 
       {!missoes.length ? (
-        <p className="mt-6 rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+        <p className="mt-6 rounded-2xl panel p-4 text-sm text-areia/40">
           Nenhuma missão ainda. Peça algo pro Vetor no chat do dashboard pra começar.
         </p>
       ) : visao === "kanban" ? (
@@ -99,7 +99,7 @@ export default function MissoesView({ missoes }: { missoes: Missao[] }) {
             <Link
               key={m.id}
               href={`/missoes/${m.id}`}
-              className="block rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur transition hover:border-menta/40"
+              className="block rounded-2xl card-lift panel p-4"
             >
               <div className="flex items-center justify-between gap-4">
                 <p className="font-medium text-areia">{m.titulo}</p>

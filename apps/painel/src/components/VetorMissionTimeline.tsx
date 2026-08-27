@@ -205,7 +205,7 @@ export default function VetorMissionTimeline({
             : null;
 
         return (
-          <div key={etapa.id} className="relative rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur">
+          <div key={etapa.id} className="relative rounded-2xl panel p-4">
             <span
               className={`absolute top-5 -left-[25px] size-2 rounded-full ${COR_STATUS[etapa.status] ?? "bg-areia/20"}`}
             />

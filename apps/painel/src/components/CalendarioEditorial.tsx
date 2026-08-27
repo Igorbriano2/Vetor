@@ -285,13 +285,13 @@ export default function CalendarioEditorial({ clienteId }: { clienteId: string }
       {!carregando && view === "lista" && (
         <div className="mt-4 space-y-2">
           {itensFiltrados.length === 0 && (
-            <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">Nenhum item neste mês ainda.</p>
+            <p className="rounded-2xl panel p-4 text-sm text-areia/40">Nenhum item neste mês ainda.</p>
           )}
           {itensFiltrados.map((item) => (
             <button
               key={item.id}
               onClick={() => setItemAberto(item)}
-              className="flex w-full items-center justify-between gap-3 rounded-xl border border-areia/10 bg-petroleo-2/60 p-3 text-left transition hover:border-menta/30"
+              className="flex w-full items-center justify-between gap-3 rounded-xl panel p-3 text-left transition hover:border-menta/30"
             >
               <div>
                 <p className="text-sm text-areia">{item.titulo}</p>

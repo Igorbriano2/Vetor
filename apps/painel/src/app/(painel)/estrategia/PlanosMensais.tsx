@@ -27,7 +27,7 @@ export interface PlanoMensal {
 export default function PlanosMensais({ planos }: { planos: PlanoMensal[] }) {
   if (planos.length === 0) {
     return (
-      <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+      <p className="rounded-2xl panel p-4 text-sm text-areia/40">
         Nenhum planejamento mensal ainda — peça pro Vetor no chat.
       </p>
     );
@@ -40,7 +40,7 @@ export default function PlanosMensais({ planos }: { planos: PlanoMensal[] }) {
         const calendario = Array.isArray(meta.calendario) ? meta.calendario : [];
 
         return (
-          <div key={p.id} className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-5 backdrop-blur">
+          <div key={p.id} className="rounded-2xl panel p-5">
             <div className="flex items-center justify-between gap-3">
               <p className="font-medium text-areia">{p.title}</p>
               {meta.periodo && (

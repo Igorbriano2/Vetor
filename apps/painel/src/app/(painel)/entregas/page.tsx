@@ -55,7 +55,7 @@ export default async function EntregasPage() {
               {entregas.map((e) => (
                 <div
                   key={e.id}
-                  className="flex items-center justify-between gap-4 rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur"
+                  className="flex items-center justify-between gap-4 rounded-2xl panel p-4"
                 >
                   <div>
                     <p className="font-medium text-areia">{e.tipo}</p>

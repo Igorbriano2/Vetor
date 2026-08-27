@@ -175,7 +175,7 @@ export default function TemplatesPainel({ clienteId, templatesIniciais }: { clie
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {templates.length === 0 && (
-          <p className="col-span-full rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+          <p className="col-span-full rounded-2xl panel p-4 text-sm text-areia/40">
             Nenhum template ainda — guarde o primeiro acima.
           </p>
         )}
@@ -183,7 +183,7 @@ export default function TemplatesPainel({ clienteId, templatesIniciais }: { clie
           const temReceita = Object.keys(t.receita ?? {}).length > 0;
           const gradiente = GRADIENTE_POR_DEPARTAMENTO[t.department ?? ""] ?? "from-areia/10 to-petroleo";
           return (
-            <div key={t.id} className="flex flex-col overflow-hidden rounded-2xl border border-areia/10 bg-petroleo-2/60">
+            <div key={t.id} className="flex flex-col overflow-hidden rounded-2xl panel">
               <div className={`flex aspect-video items-center justify-center bg-gradient-to-br ${gradiente} p-3 text-center`}>
                 {t.thumbnailUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element

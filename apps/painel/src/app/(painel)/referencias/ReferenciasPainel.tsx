@@ -424,7 +424,7 @@ export default function ReferenciasPainel({
           <p className="mono-label mb-3 text-areia/50">Biblioteca curada do Vetor</p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {CATEGORIAS_CURADAS.map((c) => (
-              <div key={c.nome} className="overflow-hidden rounded-2xl border border-areia/10 bg-petroleo-2/60">
+              <div key={c.nome} className="overflow-hidden rounded-2xl panel">
                 <div className={`flex aspect-video items-center justify-center bg-gradient-to-br ${c.cor} p-3 text-center`}>
                   <span className="text-sm font-semibold text-areia">{c.nome}</span>
                 </div>
@@ -511,7 +511,7 @@ export default function ReferenciasPainel({
 
           <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {filtrados.length === 0 && (
-              <p className="col-span-full rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+              <p className="col-span-full rounded-2xl panel p-4 text-sm text-areia/40">
                 Nenhuma referência sua ainda — adicione uma acima.
               </p>
             )}
@@ -538,7 +538,7 @@ export default function ReferenciasPainel({
           <p className="mono-label mb-3 text-areia/50">Salvas</p>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {itensSalvos.length === 0 && (
-              <p className="col-span-full rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+              <p className="col-span-full rounded-2xl panel p-4 text-sm text-areia/40">
                 Nenhuma referência salva ainda — toque na estrela de um card em &ldquo;Minhas referências&rdquo; pra
                 guardar aqui.
               </p>
@@ -567,14 +567,14 @@ export default function ReferenciasPainel({
             Para esta campanha{colecaoDaCampanha ? ` — ${colecaoDaCampanha.nome}` : ""}
           </p>
           {!colecaoDaCampanha ? (
-            <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+            <p className="rounded-2xl panel p-4 text-sm text-areia/40">
               Nenhuma coleção criada ainda — crie uma em &ldquo;Minhas referências&rdquo; pra agrupar referências de
               uma campanha específica. Mostramos aqui a coleção mais recente assim que existir uma.
             </p>
           ) : (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {itensDaCampanha.length === 0 && (
-                <p className="col-span-full rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+                <p className="col-span-full rounded-2xl panel p-4 text-sm text-areia/40">
                   Essa coleção ainda não tem nenhuma referência — adicione uma pelo seletor &ldquo;+ coleção&rdquo; em
                   um card de &ldquo;Minhas referências&rdquo;.
                 </p>
@@ -774,7 +774,7 @@ function ColecoesPainel({ colecoes, onCriar }: { colecoes: Colecao[]; onCriar: (
   const [nome, setNome] = useState("");
 
   return (
-    <div className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-5">
+    <div className="rounded-2xl panel p-5">
       <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-areia/60">Coleções</h2>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {colecoes.length === 0 && <p className="text-xs text-areia/40">Nenhuma coleção ainda.</p>}
@@ -831,7 +831,7 @@ function ReferenciaCard({
   const podeAnalisar = item.isVideo || item.isImage;
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-2xl border border-areia/10 bg-petroleo-2/60">
+    <div className="flex flex-col overflow-hidden rounded-2xl panel">
       <button
         type="button"
         onClick={() => onAbrirDetalhe(item)}

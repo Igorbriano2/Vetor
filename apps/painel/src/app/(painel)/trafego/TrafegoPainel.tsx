@@ -266,6 +266,7 @@ export default function TrafegoPainel({
     try {
       const lista = JSON.parse(salvo) as string[];
       const validas = lista.filter((id): id is KpiId => id in LABEL_METRICA);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (validas.length > 0) setMetricasVisiveis(validas);
     } catch {
       // localStorage corrompido/formato antigo — ignora e mantém o padrão.
@@ -453,7 +454,7 @@ export default function TrafegoPainel({
               metricasVisiveis.map((id) => {
                 const destacarRoi = id === "roi" && roiMedio != null;
                 return (
-                  <div key={id} className="rounded-xl border border-areia/10 bg-petroleo-2/60 p-3">
+                  <div key={id} className="rounded-xl panel p-3">
                     <p className="font-mono text-[10px] uppercase tracking-wide text-areia/40">{LABEL_METRICA[id]}</p>
                     <p className={`mt-1 text-lg font-semibold ${destacarRoi ? (roiMedio! >= 0 ? "text-menta" : "text-coral") : "text-areia"}`}>
                       {valorDaMetrica[id]}
@@ -473,7 +474,7 @@ export default function TrafegoPainel({
           <FunilConversao impressoes={totalImpressions} alcance={totalReach} cliques={totalClicks} compras={totalCompras} />
 
           {serieGasto.length > 1 && (
-            <div className="rounded-xl border border-areia/10 bg-petroleo-2/60 p-3">
+            <div className="rounded-xl panel p-3">
               <p className="font-mono text-[10px] uppercase tracking-wide text-areia/40">Evolução do investimento</p>
               <svg viewBox="0 0 100 28" className="mt-2 h-10 w-full" preserveAspectRatio="none">
                 <polyline
@@ -503,7 +504,7 @@ export default function TrafegoPainel({
         <div className="mt-6 space-y-3">
           {campanhas.length ? (
             campanhas.map((c) => (
-              <div key={c.id} className="rounded-2xl border border-areia/10 bg-petroleo-2/60 backdrop-blur">
+              <div key={c.id} className="rounded-2xl panel">
                 <button onClick={() => setCampanhaExpandida((atual) => (atual === c.id ? null : c.id))} className="flex w-full items-center justify-between gap-4 p-4 text-left">
                   <p className="font-medium text-areia">{c.nome}</p>
                   <StatusBadge status={c.status} />
@@ -538,7 +539,7 @@ export default function TrafegoPainel({
               </div>
             ))
           ) : (
-            <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">Nenhuma campanha registrada ainda.</p>
+            <p className="rounded-2xl panel p-4 text-sm text-areia/40">Nenhuma campanha registrada ainda.</p>
           )}
         </div>
       )}
@@ -546,12 +547,12 @@ export default function TrafegoPainel({
       {aba === "gestor" && (
         <div className="mt-6 space-y-4">
           {!analise ? (
-            <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+            <p className="rounded-2xl panel p-4 text-sm text-areia/40">
               Nenhuma análise ainda — sincronize suas campanhas na Visão geral pra gerar a primeira.
             </p>
           ) : (
             <>
-              <div className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4">
+              <div className="rounded-2xl panel p-4">
                 <p className="mono-label text-areia/40">Resumo executivo</p>
                 <p className="mt-1.5 text-sm text-areia/80">{analise.diagnostico}</p>
               </div>
@@ -583,7 +584,7 @@ export default function TrafegoPainel({
                   <p className="mono-label text-areia/40">Recomendações priorizadas</p>
                   <div className="mt-2 space-y-2">
                     {(analise.recomendacoes ?? []).map((r, i) => (
-                      <div key={i} className="rounded-xl border border-areia/10 bg-petroleo-2/60 p-3">
+                      <div key={i} className="rounded-xl panel p-3">
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-sm font-medium text-areia">{r.titulo}</p>
                           <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] ${COR_CONFIANCA[r.confianca]}`}>{r.confianca}</span>

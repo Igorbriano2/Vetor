@@ -28,8 +28,6 @@ interface Mensagem {
   texto: string;
 }
 
-const LABEL_FAIXA: Record<string, string> = { video: "Vídeo", image: "Imagem", audio: "Áudio", captions: "Legendas", voiceover: "Locução", effects: "Efeitos" };
-
 // Reduz o TimelineDocument completo (que carrega keyframes/transform/
 // transições) pro subconjunto que o modelo precisa pra decidir operações —
 // nunca manda bytes de mídia, nunca manda mais contexto do que o
@@ -147,7 +145,7 @@ export default function ChatCutPanel({ timeline, onAplicar }: { timeline: Timeli
   }
 
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-areia/10 bg-petroleo-2/60">
+    <div className="flex h-full flex-col rounded-2xl panel">
       <div className="border-b border-areia/10 px-3 py-2.5">
         <p className="text-sm font-medium text-areia">ChatCut</p>
         <p className="text-[11px] text-areia/40">Peça ajustes na timeline em português — cortar, mover, acelerar, remover faixa.</p>

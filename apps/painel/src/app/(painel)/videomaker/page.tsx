@@ -76,7 +76,7 @@ export default async function VideomakerPage() {
                   <Link
                     key={p.id as string}
                     href={`/videomaker/editor/${p.id}`}
-                    className="group overflow-hidden rounded-xl border border-areia/10 bg-petroleo-2/60 p-3 transition hover:border-menta/40"
+                    className="group overflow-hidden rounded-xl card-lift panel p-3"
                   >
                     <p className="truncate text-sm text-areia">{p.title as string}</p>
                     <p className="mt-1 text-[11px] text-areia/40">

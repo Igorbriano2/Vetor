@@ -289,7 +289,7 @@ export default function BancoDeImagensPainel({
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {filtrados.length === 0 && (
-          <p className="col-span-full rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+          <p className="col-span-full rounded-2xl panel p-4 text-sm text-areia/40">
             Nenhum ativo encontrado — envie o primeiro acima.
           </p>
         )}
@@ -475,7 +475,7 @@ function AssetCard({
   const [descricao, setDescricao] = useState(asset.descricao ?? "");
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-areia/10 bg-petroleo-2/60">
+    <div className="overflow-hidden rounded-2xl panel">
       {asset.url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={asset.url} alt={asset.nome} className="h-32 w-full object-cover" />

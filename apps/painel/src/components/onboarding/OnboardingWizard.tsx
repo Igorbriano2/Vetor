@@ -231,7 +231,7 @@ export default function OnboardingWizard({ clienteId, perfilInicial, brandKitIni
         <span>{salvando ? "salvando..." : ultimoSalvamento ? "salvo" : ""}</span>
       </div>
 
-      <div className="mt-8 space-y-5 rounded-2xl border border-areia/10 bg-petroleo-2/60 p-6 backdrop-blur">
+      <div className="mt-8 space-y-5 rounded-2xl panel p-6">
         {etapa === "identidade" && <EtapaIdentidade perfil={perfil} setPerfil={setPerfil} />}
         {etapa === "contato" && <EtapaContato perfil={perfil} setPerfil={setPerfil} />}
         {etapa === "operacao" && <EtapaOperacao perfil={perfil} setPerfil={setPerfil} />}

@@ -119,7 +119,7 @@ export default async function MissaoDetalhePage({ params }: { params: Promise<{ 
         )}
 
         {Array.isArray(missao.criterio_sucesso) && missao.criterio_sucesso.length > 0 && (
-          <div className="mt-3 rounded-xl border border-areia/10 bg-petroleo-2/60 p-3">
+          <div className="mt-3 rounded-xl panel p-3">
             <p className="font-mono text-[10px] uppercase tracking-wide text-areia/40">Critério de sucesso</p>
             <ul className="mt-1 space-y-1 text-xs text-areia/70">
               {missao.criterio_sucesso.map((c: string, i: number) => (

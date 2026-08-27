@@ -80,7 +80,7 @@ export default function EstrategiaCommandCenter({
                 <Link
                   key={e.id}
                   href={`/missoes/${e.missionId}`}
-                  className="flex items-center justify-between gap-4 rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur transition hover:border-menta/40"
+                  className="flex items-center justify-between gap-4 rounded-2xl card-lift panel p-4"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm text-areia">{e.tarefa}</p>
@@ -101,7 +101,7 @@ export default function EstrategiaCommandCenter({
                 <Link
                   key={c.id}
                   href={`/missoes/${c.id}`}
-                  className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur transition hover:border-menta/40"
+                  className="rounded-2xl card-lift panel p-4"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-medium text-areia">{c.titulo}</p>
@@ -116,7 +116,7 @@ export default function EstrategiaCommandCenter({
               ))}
             </div>
           ) : (
-            <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+            <p className="rounded-2xl panel p-4 text-sm text-areia/40">
               Nenhuma análise estratégica ainda — peça uma nova acima.
             </p>
           )}
@@ -130,7 +130,7 @@ export default function EstrategiaCommandCenter({
                 <Link
                   key={h.id}
                   href={`/missoes/${h.id}`}
-                  className="block rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur transition hover:border-menta/40"
+                  className="block rounded-2xl card-lift panel p-4"
                 >
                   <p className="font-medium text-areia">{h.titulo}</p>
                   <p className="mt-1 text-sm text-areia/70">
@@ -147,7 +147,7 @@ export default function EstrategiaCommandCenter({
               ))}
             </div>
           ) : (
-            <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+            <p className="rounded-2xl panel p-4 text-sm text-areia/40">
               Nenhuma missão com hipótese registrada ainda.
             </p>
           )}
@@ -172,7 +172,7 @@ export default function EstrategiaCommandCenter({
               ))}
             </div>
           ) : (
-            <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+            <p className="rounded-2xl panel p-4 text-sm text-areia/40">
               Nenhuma rota estratégica entregue ainda — peça uma análise com uma rota de ação acima.
             </p>
           )}

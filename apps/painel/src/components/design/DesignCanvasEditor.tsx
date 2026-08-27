@@ -406,7 +406,7 @@ export default function DesignCanvasEditor({
         {!pronto && <p className="text-xs text-areia/40">Carregando editor...</p>}
       </div>
 
-      <div className="w-56 shrink-0 space-y-3 rounded-xl border border-areia/10 bg-petroleo-2/60 p-3">
+      <div className="w-56 shrink-0 space-y-3 rounded-xl panel p-3">
         <p className="mono-label text-areia/50">Propriedades</p>
         {!objetoSelecionado && <p className="text-xs text-areia/40">Selecione um elemento no canvas.</p>}
         {selecaoEhLogo && (

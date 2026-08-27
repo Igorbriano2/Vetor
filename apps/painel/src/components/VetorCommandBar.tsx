@@ -197,7 +197,7 @@ export default function VetorCommandBar() {
   }
 
   return (
-    <div className="rounded-3xl border border-areia/10 bg-petroleo-2/60 p-5 backdrop-blur">
+    <div className="rounded-3xl panel p-5">
       <div className="flex items-center justify-between">
         <VetorCore estado={enviando ? "executing" : "idle"} compact />
         <span className="font-mono text-[11px] uppercase tracking-wide text-areia/30">Fale com o Vetor</span>

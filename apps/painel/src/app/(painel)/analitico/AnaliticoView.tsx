@@ -90,17 +90,17 @@ export default function AnaliticoView({
         </p>
 
         <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur">
+          <div className="rounded-2xl panel p-4">
             <p className="mono-label text-areia/40">Investido em tráfego</p>
             <p className="mt-1 font-mono text-xl text-areia">R$ {FORMATADOR.format(trafego.spend)}</p>
             <p className="mt-0.5 text-[11px] text-areia/40">{trafego.contaConectada ? "conta conectada" : "conta não conectada"}</p>
           </div>
-          <div className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur">
+          <div className="rounded-2xl panel p-4">
             <p className="mono-label text-areia/40">Criações (7 dias)</p>
             <p className="mt-1 font-mono text-xl text-areia">{criacoes7dias}</p>
             <p className="mt-0.5 text-[11px] text-areia/40">design, vídeo, social, tráfego</p>
           </div>
-          <div className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur">
+          <div className="rounded-2xl panel p-4">
             <p className="mono-label text-areia/40">Custo de operação</p>
             <p className="mt-1 font-mono text-xl text-areia">{centavosParaReais(custoTotalCentavos)}</p>
             <p className="mt-0.5 text-[11px] text-areia/40">
@@ -108,7 +108,7 @@ export default function AnaliticoView({
               {chamadasSemCusto > 0 && ` · ${chamadasSemCusto} sem custo apurado`}
             </p>
           </div>
-          <div className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur">
+          <div className="rounded-2xl panel p-4">
             <p className="mono-label text-areia/40">Compras atribuídas</p>
             <p className="mt-1 font-mono text-xl text-areia">{FORMATADOR.format(trafego.compras)}</p>
             <p className="mt-0.5 text-[11px] text-areia/40">{FORMATADOR.format(trafego.clicks)} cliques no total</p>
@@ -124,7 +124,7 @@ export default function AnaliticoView({
               </Link>
             </div>
             {criacoesPorDepartamento.length > 0 ? (
-              <div className="space-y-2 rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur">
+              <div className="space-y-2 rounded-2xl panel p-4">
                 {criacoesPorDepartamento
                   .sort((a, b) => b.total - a.total)
                   .map((c) => (
@@ -141,14 +141,14 @@ export default function AnaliticoView({
                   ))}
               </div>
             ) : (
-              <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">Nenhuma criação ainda.</p>
+              <p className="rounded-2xl panel p-4 text-sm text-areia/40">Nenhuma criação ainda.</p>
             )}
           </section>
 
           <section>
             <p className="mono-label mb-3 text-areia/50">Custo por especialista</p>
             {custoPorAgente.length > 0 ? (
-              <div className="space-y-2 rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur">
+              <div className="space-y-2 rounded-2xl panel p-4">
                 {custoPorAgente
                   .sort((a, b) => b.centavos - a.centavos)
                   .map((c) => (
@@ -162,7 +162,7 @@ export default function AnaliticoView({
                   ))}
               </div>
             ) : (
-              <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">Nenhuma chamada com custo apurado ainda.</p>
+              <p className="rounded-2xl panel p-4 text-sm text-areia/40">Nenhuma chamada com custo apurado ainda.</p>
             )}
           </section>
         </div>
@@ -177,14 +177,14 @@ export default function AnaliticoView({
           {missoesPorStatus.length > 0 ? (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {missoesPorStatus.map((m) => (
-                <div key={m.status} className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-3 text-center backdrop-blur">
+                <div key={m.status} className="rounded-2xl panel p-3 text-center">
                   <p className="font-mono text-lg text-areia">{m.total}</p>
                   <p className="mt-0.5 text-[10px] uppercase tracking-wide text-areia/40">{m.status}</p>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">Nenhuma missão ainda.</p>
+            <p className="rounded-2xl panel p-4 text-sm text-areia/40">Nenhuma missão ainda.</p>
           )}
         </section>
 
@@ -195,7 +195,7 @@ export default function AnaliticoView({
               {etapasPorAgente
                 .sort((a, b) => b.total - a.total)
                 .map((e) => (
-                  <div key={e.agente} className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur">
+                  <div key={e.agente} className="rounded-2xl panel p-4">
                     <p className="text-sm font-medium text-areia">{RÓTULO_AGENTE[e.agente] ?? e.agente}</p>
                     <p className="mt-1 text-xs text-areia/40">
                       {e.total} etapa{e.total === 1 ? "" : "s"} · {e.concluidas} concluída{e.concluidas === 1 ? "" : "s"}
@@ -205,7 +205,7 @@ export default function AnaliticoView({
                 ))}
             </div>
           ) : (
-            <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">Nenhuma etapa executada ainda.</p>
+            <p className="rounded-2xl panel p-4 text-sm text-areia/40">Nenhuma etapa executada ainda.</p>
           )}
         </section>
       </div>

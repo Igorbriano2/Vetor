@@ -94,7 +94,7 @@ export default function ConexoesPainel({ conexoesIniciais }: { conexoesIniciais:
             {pendentes.map((p) => (
               <label
                 key={p.id}
-                className="flex cursor-pointer items-center gap-3 rounded-xl border border-areia/10 bg-petroleo-2/60 p-3 text-sm text-areia"
+                className="flex cursor-pointer items-center gap-3 rounded-xl panel p-3 text-sm text-areia"
               >
                 <input
                   type="checkbox"
@@ -134,7 +134,7 @@ export default function ConexoesPainel({ conexoesIniciais }: { conexoesIniciais:
       {SERVICOS.map(({ id, label }) => {
         const conexao = conexoes.find((c) => c.provider === id && c.status === "connected");
         return (
-          <div key={id} className="flex items-center justify-between rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur">
+          <div key={id} className="flex items-center justify-between rounded-2xl panel p-4">
             <div>
               <p className="text-sm font-medium text-areia">{label}</p>
               {conexao ? (

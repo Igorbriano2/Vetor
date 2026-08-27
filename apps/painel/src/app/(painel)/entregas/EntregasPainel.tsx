@@ -24,7 +24,7 @@ export default function EntregasPainel({ campanhas }: { campanhas: CampanhaDeEnt
 
   if (campanhas.length === 0) {
     return (
-      <p className="mt-6 rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+      <p className="mt-6 rounded-2xl panel p-4 text-sm text-areia/40">
         Nada por aqui ainda.
       </p>
     );
@@ -35,7 +35,7 @@ export default function EntregasPainel({ campanhas }: { campanhas: CampanhaDeEnt
       {campanhas.map((c) => {
         const aberta = campanhaAberta === (c.missionId ?? "sem-campanha");
         return (
-          <div key={c.missionId ?? "sem-campanha"} className="overflow-hidden rounded-2xl border border-areia/10 bg-petroleo-2/60">
+          <div key={c.missionId ?? "sem-campanha"} className="overflow-hidden rounded-2xl panel">
             <button
               onClick={() => setCampanhaAberta(aberta ? null : (c.missionId ?? "sem-campanha"))}
               className="flex w-full items-center gap-4 p-4 text-left transition hover:bg-petroleo-3/30"

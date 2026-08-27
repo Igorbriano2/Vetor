@@ -69,7 +69,7 @@ export default function LeaderboardCriativos({ criativos }: { criativos: Criativ
       ) : (
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
           {ranqueados.map((c, i) => (
-            <div key={c.id} className="overflow-hidden rounded-xl border border-areia/10 bg-petroleo-2/60">
+            <div key={c.id} className="overflow-hidden rounded-xl panel">
               <div className="flex items-center justify-between px-2 pt-2">
                 <span className="flex size-5 items-center justify-center rounded-full bg-ambar/15 text-[10px] font-semibold text-ambar">{i + 1}</span>
               </div>

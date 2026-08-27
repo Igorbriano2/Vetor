@@ -27,7 +27,7 @@ function StatGrid({ stats }: { stats: RotaEstrategica["diagnostico"]["stats"] })
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       {stats.map((s, i) => (
-        <div key={i} className="rounded-xl border border-areia/10 bg-petroleo-2/60 p-3">
+        <div key={i} className="rounded-xl panel p-3">
           <p className="text-[11px] font-medium text-areia/40">{s.label}</p>
           <p className={`mt-1 font-mono text-xl font-bold ${s.alerta ? "text-coral" : "text-areia"}`}>{s.valor}</p>
           {s.nota && <p className="mt-0.5 text-[11px] text-areia/40">{s.nota}</p>}
@@ -99,7 +99,7 @@ export default function RotaEstrategicaView({ rota }: { rota: RotaEstrategica })
             <div className="grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
               <p className="text-sm text-areia/70">{renderComNegrito(rota.empresa.resumo)}</p>
               {(rota.empresa.endereco || rota.empresa.horarios || rota.empresa.canais?.length) && (
-                <div className="rounded-xl border border-areia/10 bg-petroleo-2/60 p-4">
+                <div className="rounded-xl panel p-4">
                   <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[13px]">
                     {rota.empresa.endereco && (
                       <>
@@ -170,7 +170,7 @@ export default function RotaEstrategicaView({ rota }: { rota: RotaEstrategica })
             <SectionHead numero={proximaSecao()} titulo="Estratégia" />
             <div className="grid gap-3 sm:grid-cols-2">
               {rota.estrategia.map((c, i) => (
-                <div key={i} className="relative overflow-hidden rounded-xl border border-areia/10 bg-petroleo-2/60 p-4">
+                <div key={i} className="relative overflow-hidden rounded-xl panel p-4">
                   <div className="absolute inset-x-0 top-0 h-[3px]" style={{ background: CORES_CAMPANHA[i % CORES_CAMPANHA.length] }} />
                   <p className="font-mono text-[11px] font-medium text-areia/40">{c.kicker}</p>
                   <h3 className="mt-1 flex items-center gap-2 text-[15px] font-semibold text-areia">
@@ -274,7 +274,7 @@ export default function RotaEstrategicaView({ rota }: { rota: RotaEstrategica })
             <SectionHead numero={proximaSecao()} titulo="Como acompanhar e decidir" />
             <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
               {rota.metricas.map((m, i) => (
-                <div key={i} className="rounded-xl border border-areia/10 bg-petroleo-2/60 p-3.5">
+                <div key={i} className="rounded-xl panel p-3.5">
                   <h4 className="text-[13px] font-semibold text-areia">{m.nome}</h4>
                   <p className="mt-1 text-[12px] text-areia/50">{m.contexto}</p>
                   <p className="mt-1.5 font-mono text-[12px] font-semibold text-menta">{m.meta}</p>

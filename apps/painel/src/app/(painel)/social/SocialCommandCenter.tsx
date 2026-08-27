@@ -76,7 +76,7 @@ export default function SocialCommandCenter({
                 <Link
                   key={e.id}
                   href={`/missoes/${e.missionId}`}
-                  className="flex items-center justify-between gap-4 rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur transition hover:border-menta/40"
+                  className="flex items-center justify-between gap-4 rounded-2xl card-lift panel p-4"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm text-areia">{e.tarefa}</p>
@@ -97,7 +97,7 @@ export default function SocialCommandCenter({
                 <Link
                   key={c.id}
                   href={`/missoes/${c.id}`}
-                  className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur transition hover:border-menta/40"
+                  className="rounded-2xl card-lift panel p-4"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-medium text-areia">{c.titulo}</p>
@@ -112,7 +112,7 @@ export default function SocialCommandCenter({
               ))}
             </div>
           ) : (
-            <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+            <p className="rounded-2xl panel p-4 text-sm text-areia/40">
               Nenhuma campanha de conteúdo ainda — peça um post novo acima.
             </p>
           )}
@@ -123,7 +123,7 @@ export default function SocialCommandCenter({
           {copies.length > 0 ? (
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               {copies.map((c) => (
-                <div key={c.id} className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 backdrop-blur">
+                <div key={c.id} className="rounded-2xl panel p-4">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-medium text-areia">{c.title}</p>
                     {c.missionId && (
@@ -142,7 +142,7 @@ export default function SocialCommandCenter({
               ))}
             </div>
           ) : (
-            <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+            <p className="rounded-2xl panel p-4 text-sm text-areia/40">
               Nenhuma legenda entregue ainda — peça um post novo acima.
             </p>
           )}

@@ -28,7 +28,7 @@ export default function FunilConversao({ impressoes, alcance, cliques, compras }
   ];
 
   return (
-    <div className="rounded-xl border border-areia/10 bg-petroleo-2/60 p-3">
+    <div className="rounded-xl panel p-3">
       <p className="font-mono text-[10px] uppercase tracking-wide text-areia/40">Funil de conversão</p>
       <p className="mt-0.5 text-[11px] text-areia/40">Cada etapa do tráfego pago. Taxa entre etapas indica onde o usuário desiste.</p>
       <div className="mt-3 space-y-2">

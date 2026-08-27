@@ -36,7 +36,7 @@ export default async function CreativeCanvasHubPage() {
 
         <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {(projetos ?? []).length === 0 && (
-            <p className="col-span-full rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">
+            <p className="col-span-full rounded-2xl panel p-4 text-sm text-areia/40">
               Nenhum projeto de canvas ainda — crie o primeiro acima.
             </p>
           )}
@@ -44,7 +44,7 @@ export default async function CreativeCanvasHubPage() {
             <Link
               key={p.id}
               href={`/criacoes/canvas/${p.id}`}
-              className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 transition hover:border-menta/30"
+              className="rounded-2xl panel p-4 transition hover:border-menta/30"
             >
               <p className="text-sm font-semibold text-areia">{p.title}</p>
               <p className="mt-1 font-mono text-[10px] uppercase tracking-wide text-areia/40">{p.status}</p>

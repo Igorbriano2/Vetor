@@ -28,7 +28,7 @@ export default function ArtifactLibrary({
   vazio: string;
 }) {
   if (artefatos.length === 0) {
-    return <p className="rounded-2xl border border-areia/10 bg-petroleo-2/60 p-4 text-sm text-areia/40">{vazio}</p>;
+    return <p className="rounded-2xl panel p-4 text-sm text-areia/40">{vazio}</p>;
   }
 
   return (
@@ -37,7 +37,7 @@ export default function ArtifactLibrary({
         <div
           key={a.id}
           style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
-          className="card-lift fade-in-up flex flex-col overflow-hidden rounded-2xl border border-areia/10 bg-petroleo-2/60 backdrop-blur"
+          className="card-lift fade-in-up flex flex-col overflow-hidden rounded-2xl panel"
         >
           {a.type === "image" && a.url && (
             // eslint-disable-next-line @next/next/no-img-element
