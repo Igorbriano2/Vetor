@@ -24,6 +24,7 @@ import ClipPropertiesPanel from "./ClipPropertiesPanel";
 import VideoPreviewPlayer from "./VideoPreviewPlayer";
 import MediaLibraryPanel, { duracaoPadraoPorMime, type AtivoDeMidia } from "./MediaLibraryPanel";
 import CaptionsAndAudioPanel from "./CaptionsAndAudioPanel";
+import ChatCutPanel from "./ChatCutPanel";
 
 export interface VideoProjectInicial {
   id: string;
@@ -207,7 +208,7 @@ export default function VideoProjectEditor({ projeto }: { projeto: VideoProjectI
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-4 gap-3">
         <div className="col-span-2 space-y-3">
           <VideoPreviewPlayer
             clip={clipSelecionado}
@@ -260,6 +261,8 @@ export default function VideoProjectEditor({ projeto }: { projeto: VideoProjectI
           />
           <MediaLibraryPanel clienteId={projeto.clienteId} faixaSelecionadaId={selectedTrackId} onAdicionar={adicionarAtivoNaFaixa} />
         </div>
+
+        <ChatCutPanel timeline={timeline} onAplicar={aplicar} />
       </div>
     </div>
   );
