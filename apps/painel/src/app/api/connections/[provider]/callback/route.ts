@@ -34,6 +34,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!res.ok) {
       return NextResponse.redirect(new URL(`/configuracoes/negocio?erro=falha_${provider}`, request.url));
     }
+    const corpo = (await res.json()) as { pendentesDeSelecao?: boolean };
+    if (corpo.pendentesDeSelecao) {
+      return NextResponse.redirect(new URL("/configuracoes/negocio?aba=conexoes&selecionar_contas=1", request.url));
+    }
     return NextResponse.redirect(new URL(`/configuracoes/negocio?conectado=${provider}`, request.url));
   } catch (err) {
     console.error(`Erro no callback de conexão "${provider}":`, err);

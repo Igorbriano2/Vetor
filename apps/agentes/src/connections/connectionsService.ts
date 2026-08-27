@@ -196,11 +196,19 @@ async function graphGet<T>(path: string, accessToken: string): Promise<T | null>
 // 2) Recebe o callback (code+state), valida, troca por token de longa
 // duração, descobre os ativos reais e grava uma connection por ativo. Nunca
 // loga o token em claro.
+//
+// Um login da Meta pode devolver TODOS os ativos que a conta autenticada
+// administra — numa agência isso pode ser dezenas de contas de anúncio de
+// negócios sem nenhuma relação com o cliente atual do Vetor. Por isso, quando
+// há mais de um ativo descoberto, eles entram como status "pending" (nunca
+// "connected" direto) — o cliente confirma na tela de Conexões quais são
+// realmente dele antes de qualquer dado ou permissão valer pra valer. Ver
+// listarConexoesPendentes/confirmarConexoesSelecionadas.
 export async function concluirConexao(
   provider: ConnectionProvider,
   code: string,
   state: string,
-): Promise<{ clienteId: string; status: "connected"; ativos: number }> {
+): Promise<{ clienteId: string; status: "connected"; ativos: number; pendentesDeSelecao: boolean }> {
   const estado = await validarEConsumirState(provider, state);
   const tokenCurto = await trocarCodePorTokenCurto(provider, code, estado.redirectUri);
   const { token, expiresInSeconds } = await trocarPorTokenLongaDuracao(provider, tokenCurto);
@@ -216,6 +224,19 @@ export async function concluirConexao(
       externalAccountId: "conta-sem-ativos",
       displayName: "Login autorizado (sem página/conta vinculada ainda)",
       scopes: PROVIDER_CONFIG.facebook.scopes,
+      status: "connected",
+    });
+  } else if (ativos.length === 1) {
+    // Um único ativo descoberto: sem ambiguidade nenhuma, confirma direto.
+    const ativo = ativos[0];
+    await gravarConexao(ativo.provider, estado.clienteId, {
+      accessToken: token,
+      expiresInSeconds,
+      externalAccountId: ativo.externalAccountId,
+      externalAssetId: ativo.externalAssetId,
+      displayName: ativo.displayName,
+      scopes: PROVIDER_CONFIG.facebook.scopes,
+      status: "connected",
     });
   } else {
     for (const ativo of ativos) {
@@ -226,11 +247,12 @@ export async function concluirConexao(
         externalAssetId: ativo.externalAssetId,
         displayName: ativo.displayName,
         scopes: PROVIDER_CONFIG.facebook.scopes,
+        status: "pending",
       });
     }
   }
 
-  return { clienteId: estado.clienteId, status: "connected", ativos: ativos.length };
+  return { clienteId: estado.clienteId, status: "connected", ativos: ativos.length, pendentesDeSelecao: ativos.length > 1 };
 }
 
 interface DadosConexao {
@@ -241,6 +263,7 @@ interface DadosConexao {
   externalAssetId?: string;
   displayName?: string;
   scopes: string[];
+  status: "connected" | "pending";
 }
 
 async function gravarConexao(provider: ConnectionProvider, clienteId: string, dados: DadosConexao): Promise<void> {
@@ -259,7 +282,7 @@ async function gravarConexao(provider: ConnectionProvider, clienteId: string, da
       encrypted_access_token: criptografarToken(dados.accessToken),
       encrypted_refresh_token: dados.refreshToken ? criptografarToken(dados.refreshToken) : null,
       expires_at: expiresAt,
-      status: "connected",
+      status: dados.status,
       last_validated_at: new Date().toISOString(),
       consent_given_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -267,6 +290,54 @@ async function gravarConexao(provider: ConnectionProvider, clienteId: string, da
     { onConflict: "cliente_id,provider,external_account_id" },
   );
   if (error) throw new Error(`Falha ao gravar conexão "${provider}": ${error.message}`);
+}
+
+// Ativos descobertos num login com mais de uma conta/página — o cliente
+// ainda não confirmou quais são dele. Nunca usados por sincronizarTrafego/
+// descobrirAtivos (que só olham status "connected").
+export async function listarConexoesPendentes(clienteId: string) {
+  const { data, error } = await supabase
+    .from("connections")
+    .select("id, provider, display_name, external_account_id")
+    .eq("cliente_id", clienteId)
+    .eq("status", "pending")
+    .order("provider", { ascending: true });
+  if (error) throw new Error(`Falha ao listar conexões pendentes: ${error.message}`);
+  return data ?? [];
+}
+
+// Confirma quais das conexões pendentes deste cliente são de fato dele
+// ("connected") — todas as outras pendentes viram "revoked" (nunca ficam
+// pending pra sempre, nunca viram connected por omissão).
+export async function confirmarConexoesSelecionadas(clienteId: string, idsConfirmados: string[]): Promise<void> {
+  const agora = new Date().toISOString();
+  const confirmadosSet = new Set(idsConfirmados);
+
+  const { data: pendentes, error: erroListar } = await supabase
+    .from("connections")
+    .select("id")
+    .eq("cliente_id", clienteId)
+    .eq("status", "pending");
+  if (erroListar) throw new Error(`Falha ao ler conexões pendentes: ${erroListar.message}`);
+
+  const idsParaConectar = (pendentes ?? []).map((p) => p.id as string).filter((id) => confirmadosSet.has(id));
+  const idsParaDescartar = (pendentes ?? []).map((p) => p.id as string).filter((id) => !confirmadosSet.has(id));
+
+  if (idsParaConectar.length > 0) {
+    const { error } = await supabase
+      .from("connections")
+      .update({ status: "connected", updated_at: agora })
+      .in("id", idsParaConectar);
+    if (error) throw new Error(`Falha ao confirmar conexões selecionadas: ${error.message}`);
+  }
+
+  if (idsParaDescartar.length > 0) {
+    const { error } = await supabase
+      .from("connections")
+      .update({ status: "revoked", updated_at: agora })
+      .in("id", idsParaDescartar);
+    if (error) throw new Error(`Falha ao descartar conexões não selecionadas: ${error.message}`);
+  }
 }
 
 // Embedded Signup (WhatsApp) via SDK — caminho alternativo ao Login do
@@ -300,6 +371,7 @@ export async function concluirWhatsappEmbeddedSignup(
     externalAssetId: phoneNumberId,
     displayName: `WABA ${wabaId}`,
     scopes: PROVIDER_CONFIG.whatsapp.scopes,
+    status: "connected",
   });
 
   return { status: "connected" };

@@ -1,12 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface Conexao {
   provider: string;
   status: string;
   display_name: string | null;
   updated_at: string;
+}
+
+interface ConexaoPendente {
+  id: string;
+  provider: string;
+  display_name: string | null;
+  external_account_id: string | null;
 }
 
 const SERVICOS: Array<{ id: string; label: string }> = [
@@ -16,9 +23,25 @@ const SERVICOS: Array<{ id: string; label: string }> = [
   { id: "whatsapp", label: "WhatsApp Business" },
 ];
 
+const LABEL_PROVIDER: Record<string, string> = Object.fromEntries(SERVICOS.map((s) => [s.id, s.label]));
+
 export default function ConexoesPainel({ conexoesIniciais }: { conexoesIniciais: Conexao[] }) {
   const [conexoes, setConexoes] = useState(conexoesIniciais);
   const [desconectando, setDesconectando] = useState<string | null>(null);
+  const [pendentes, setPendentes] = useState<ConexaoPendente[] | null>(null);
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [confirmando, setConfirmando] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/connections/pendentes")
+      .then((res) => (res.ok ? res.json() : { pendentes: [] }))
+      .then((corpo: { pendentes?: ConexaoPendente[] }) => {
+        const lista = corpo.pendentes ?? [];
+        setPendentes(lista);
+        setSelecionados(new Set(lista.map((p) => p.id)));
+      })
+      .catch(() => setPendentes([]));
+  }, []);
 
   async function desconectar(provider: string) {
     setDesconectando(provider);
@@ -32,8 +55,75 @@ export default function ConexoesPainel({ conexoesIniciais }: { conexoesIniciais:
     }
   }
 
+  function alternarSelecao(id: string) {
+    setSelecionados((atual) => {
+      const novo = new Set(atual);
+      if (novo.has(id)) novo.delete(id);
+      else novo.add(id);
+      return novo;
+    });
+  }
+
+  async function confirmarSelecao() {
+    setConfirmando(true);
+    try {
+      const res = await fetch("/api/connections/confirmar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selecionados) }),
+      });
+      if (res.ok) {
+        window.location.reload();
+      }
+    } finally {
+      setConfirmando(false);
+    }
+  }
+
   return (
     <div className="mt-8 space-y-3">
+      {pendentes && pendentes.length > 0 && (
+        <div className="rounded-2xl border border-ambar/30 bg-ambar/5 p-5">
+          <p className="text-sm font-semibold text-ambar">Confirme quais contas são deste negócio</p>
+          <p className="mt-1 text-xs text-areia/60">
+            O login da Meta trouxe {pendentes.length} conta(s)/página(s) que essa conta administra. Marque só as que
+            pertencem a este negócio — as demais são descartadas, não ficam vinculadas a este workspace.
+          </p>
+
+          <div className="mt-4 space-y-2">
+            {pendentes.map((p) => (
+              <label
+                key={p.id}
+                className="flex cursor-pointer items-center gap-3 rounded-xl border border-areia/10 bg-petroleo-2/60 p-3 text-sm text-areia"
+              >
+                <input
+                  type="checkbox"
+                  checked={selecionados.has(p.id)}
+                  onChange={() => alternarSelecao(p.id)}
+                  className="h-4 w-4 accent-ambar"
+                />
+                <span className="font-mono text-[10px] uppercase tracking-wide text-areia/40">
+                  {LABEL_PROVIDER[p.provider] ?? p.provider}
+                </span>
+                <span className="flex-1">{p.display_name ?? p.external_account_id ?? "sem nome"}</span>
+              </label>
+            ))}
+          </div>
+
+          <button
+            onClick={confirmarSelecao}
+            disabled={confirmando}
+            className="mt-4 rounded-full bg-ambar px-5 py-2 text-xs font-semibold text-petroleo disabled:opacity-50"
+          >
+            {confirmando
+              ? "Confirmando..."
+              : selecionados.size === 0
+                ? "Descartar todas"
+                : `Confirmar ${selecionados.size} selecionada(s)`}
+          </button>
+        </div>
+      )}
+
       <a
         href="/api/connections/facebook/start"
         className="block rounded-xl border border-ambar/30 bg-ambar/10 p-4 text-center text-sm font-semibold text-ambar transition hover:bg-ambar/20"

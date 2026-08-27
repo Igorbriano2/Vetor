@@ -5,6 +5,8 @@ import {
   concluirConexao,
   concluirWhatsappEmbeddedSignup,
   listarConexoes,
+  listarConexoesPendentes,
+  confirmarConexoesSelecionadas,
   revogarConexao,
   EstadoOAuthInvalidoError,
 } from "../connections/connectionsService.js";
@@ -85,6 +87,35 @@ connectionsRouter.post("/:provider/exchange", async (req, res) => {
     // Nunca logar req.body inteiro aqui — pode conter o code — só a causa.
     console.error(`Erro ao concluir conexão "${provider}":`, err instanceof Error ? err.message : err);
     res.status(500).json({ error: "Falha ao concluir conexão" });
+  }
+});
+
+connectionsRouter.get("/pendentes", async (req, res) => {
+  const cliente_id = req.query.cliente_id;
+  if (typeof cliente_id !== "string") {
+    res.status(400).json({ error: "cliente_id é obrigatório" });
+    return;
+  }
+  try {
+    res.json({ pendentes: await listarConexoesPendentes(cliente_id) });
+  } catch (err) {
+    console.error("Erro ao listar conexões pendentes:", err instanceof Error ? err.message : err);
+    res.status(500).json({ error: "Falha ao listar conexões pendentes" });
+  }
+});
+
+connectionsRouter.post("/confirmar", async (req, res) => {
+  const { cliente_id, ids } = req.body ?? {};
+  if (!cliente_id || !Array.isArray(ids) || !ids.every((id) => typeof id === "string")) {
+    res.status(400).json({ error: "cliente_id e ids (lista de strings) são obrigatórios" });
+    return;
+  }
+  try {
+    await confirmarConexoesSelecionadas(cliente_id, ids);
+    res.json({ status: "ok" });
+  } catch (err) {
+    console.error("Erro ao confirmar conexões selecionadas:", err instanceof Error ? err.message : err);
+    res.status(500).json({ error: "Falha ao confirmar conexões selecionadas" });
   }
 });
 

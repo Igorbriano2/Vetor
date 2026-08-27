@@ -40,6 +40,13 @@ export async function GET(request: NextRequest) {
     if (!res.ok) {
       return NextResponse.redirect(`${PAINEL_URL}/configuracoes/negocio?erro=falha_facebook`);
     }
+    // Login trouxe mais de um ativo (comum quando a conta administra vários
+    // negócios) — manda pra tela de seleção em vez de dar como "conectado"
+    // direto, pra não misturar dados de negócios sem relação no cliente atual.
+    const corpo = (await res.json()) as { pendentesDeSelecao?: boolean };
+    if (corpo.pendentesDeSelecao) {
+      return NextResponse.redirect(`${PAINEL_URL}/configuracoes/negocio?aba=conexoes&selecionar_contas=1`);
+    }
     return NextResponse.redirect(`${PAINEL_URL}/configuracoes/negocio?conectado=facebook`);
   } catch (err) {
     console.error("Erro no callback do Login do Facebook para Empresas:", err);
