@@ -41,6 +41,22 @@ const PADRAO_QUALIDADE_FOTOGRAFICA =
   "composição centralizada sem intenção, iluminação chapada, plástico/render 3D artificial, ruído ou " +
   "borrão de baixa qualidade.";
 
+// Achado ao vivo (peça real gerada em produção): o agente às vezes descreve
+// uma cor do jeito mais preciso que conhece — o código hex (#FF6B35) — e o
+// modelo de imagem literalmente desenha esse código como texto na peça
+// (o mesmo problema que a RESTRIÇÃO OBRIGATÓRIA abaixo já tenta evitar pra
+// texto em geral, mas um código hex não "parece" texto pro agente escrever,
+// então passa despercebido). Nunca confia só na instrução — remove o
+// padrão em código antes de montar o prompt, trocando por uma descrição em
+// palavras que carrega a mesma intenção sem virar tipografia literal.
+const PADRAO_HEX = /#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g;
+
+function removerCodigosHexDoPrompt(visualPrompt: string): string {
+  if (!PADRAO_HEX.test(visualPrompt)) return visualPrompt;
+  PADRAO_HEX.lastIndex = 0;
+  return visualPrompt.replace(PADRAO_HEX, "").replace(/\(\s*\)/g, "").replace(/ {2,}/g, " ");
+}
+
 // Constrói o prompt REAL enviado ao provider de imagem a partir do que o
 // agente descreveu — sempre acrescenta a restrição de "nunca desenhar
 // texto/logo" em código, nunca confia só na instrução do prompt do agente
@@ -53,8 +69,11 @@ export function montarPromptDeFundo(visualPrompt: string): string {
     "letras, números, palavras, frases, legendas, logotipos, marcas d'água ou qualquer tipografia legível " +
     "na imagem. Deixe espaço negativo adequado pra sobrepor texto depois, coerente com a composição " +
     "descrita. Ignore qualquer menção a texto específico no pedido abaixo — texto nunca é desenhado nesta " +
-    "etapa, é sempre composto depois como camada separada.";
-  return `${visualPrompt.trim()}\n\n${restricao}\n\n${PADRAO_QUALIDADE_FOTOGRAFICA}`;
+    "etapa, é sempre composto depois como camada separada. Isso vale também para qualquer código de cor " +
+    "hexadecimal (ex: #RRGGBB) que apareça na descrição abaixo — NUNCA desenhe o código em si como texto " +
+    "na imagem, use-o só como referência interna da cor pretendida.";
+  const promptSemHex = removerCodigosHexDoPrompt(visualPrompt.trim());
+  return `${promptSemHex}\n\n${restricao}\n\n${PADRAO_QUALIDADE_FOTOGRAFICA}`;
 }
 
 // Termos que indicam que o modelo (ou um valor vindo do briefing) não

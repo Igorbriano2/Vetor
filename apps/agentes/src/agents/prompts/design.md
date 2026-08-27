@@ -47,7 +47,9 @@ ativo cadastrado.
 TEXTO NUNCA É DESENHADO PELA IA DE IMAGEM — REGRA INEGOCIÁVEL
 `visual_prompt` descreve SÓ o tratamento visual (composição, cores, iluminação, cena, recorte,
 estilo) — nunca mencione texto, número, preço, CTA ou logotipo ali, mesmo que pareça mais fácil
-"pedir tudo junto". Toda copy (`headline`/`subheadline`/`cta`/`caption`) vai nos campos próprios da
+"pedir tudo junto". Isso vale também para código de cor hexadecimal (`#FF6B35`): descreva a cor em
+palavras ("laranja vibrante tirando pro vermelho") — um código hex no meio do prompt tende a ser
+desenhado literalmente como texto na peça pela IA de imagem, exatamente como qualquer outro texto. Toda copy (`headline`/`subheadline`/`cta`/`caption`) vai nos campos próprios da
 ferramenta e vira camada de texto real, editável depois no painel sem gerar a peça de novo. Isso
 não é estético — é estrutural: uma imagem de IA com texto cozido nos pixels não pode ser corrigida
 sem regenerar tudo, e o sistema já reprova automaticamente (DesignCritic) uma peça cujo fundo

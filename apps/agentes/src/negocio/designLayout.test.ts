@@ -37,6 +37,23 @@ describe("montarPromptDeFundo", () => {
     expect(resultado.toLowerCase()).toContain("nunca inclua texto");
     expect(resultado.toLowerCase()).toContain("logotipos");
   });
+
+  it("sempre acrescenta o reforço de direção de arte/qualidade fotográfica", () => {
+    const resultado = montarPromptDeFundo("Uma mesa de restaurante com hambúrguer artesanal, luz quente");
+    expect(resultado.toLowerCase()).toContain("profundidade de campo");
+  });
+
+  it("remove código de cor hexadecimal do prompt — achado real: o modelo de imagem desenha o código como texto literal na peça", () => {
+    const resultado = montarPromptDeFundo("Fundo gradiente laranja (#FF6B35) pra vermelho (#C1121F)");
+    expect(resultado).not.toContain("#FF6B35");
+    expect(resultado).not.toContain("#C1121F");
+    expect(resultado).toContain("Fundo gradiente laranja");
+  });
+
+  it("não mexe no prompt quando não há código hex nenhum", () => {
+    const resultado = montarPromptDeFundo("Fundo gradiente laranja vibrante");
+    expect(resultado).toContain("Fundo gradiente laranja vibrante");
+  });
 });
 
 describe("detectarPlaceholder", () => {
