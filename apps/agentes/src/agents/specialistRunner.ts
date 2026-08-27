@@ -792,7 +792,7 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
         // derrubar a finalização inteira.
         const proxyExistente = projeto.proxy_storage_path as string | null;
         let proxyStoragePath: string | null = proxyExistente;
-        if (!proxyStoragePath && primeiroClip.kind === "video") {
+        if (!proxyStoragePath && (asset.mimeType ?? "").startsWith("video/")) {
           try {
             const proxyGerado = await executarEstagioIdempotente(videoProjectId, ctx.clienteId, "proxy", () =>
               gerarProxyDeVideo({ bucket: "brand-assets", storagePath: asset.storagePath, clienteId: ctx.clienteId }),
@@ -822,7 +822,13 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
             return {
               bucket: "brand-assets" as const,
               storagePath: ativo.storagePath,
-              tipo: c.kind,
+              // O tipo real vem do mime type do ATIVO, nunca do kind da
+              // faixa — achado ao vivo testando o botão Finalizar: nada no
+              // editor impede arrastar uma imagem pra dentro de uma faixa
+              // "vídeo", e nesse caso o kind da faixa mentia sobre o
+              // arquivo real (ffmpeg tentava ler uma foto como stream de
+              // vídeo com áudio, "matches no streams").
+              tipo: (ativo.mimeType ?? "").startsWith("image/") ? ("image" as const) : ("video" as const),
               trimInMs: c.trimInMs as number,
               trimOutMs: c.trimOutMs as number,
               speed: c.speed,
