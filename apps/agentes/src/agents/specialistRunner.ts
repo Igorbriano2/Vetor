@@ -4,7 +4,7 @@ import { supabase } from "../db/supabase.js";
 import { getSystemPrompt, type AgenteId } from "./prompts/index.js";
 import { buscarFerramenta } from "../tools/registry.js";
 import { gerarVideoAPartirDeImagem, VideoIndisponivelError } from "../integrations/higgsfield.js";
-import { gerarProxyDeVideo, renderizarVideoFinal } from "../integrations/renderService.js";
+import { gerarProxyDeVideo, renderizarVideoFinal, renderizarVideoFinalMultiClip } from "../integrations/renderService.js";
 import { transcreverComAssemblyAI, assemblyAiConfigurado } from "../integrations/assemblyai.js";
 import { gerarPerfilDeVideoDeReferencia } from "../negocio/referenceVideoAnalysis.js";
 import { gerarImagem, gerarImagemComReferencia, ImagemIndisponivelError, tamanhoOpenAI, type ReferenciaImagem } from "../integrations/imageProvider.js";
@@ -735,23 +735,74 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
         if (erroProjeto || !projeto) throw new Error(`video_project não encontrado pra esse cliente: ${erroProjeto?.message ?? videoProjectId}`);
         if (!projeto.proxy_storage_path) throw new Error("video_project ainda não tem proxy — rode editar_video_timeline primeiro.");
 
-        // Lê o clip real da timeline ATUAL (inclusive qualquer corte já
-        // feito pelo cliente no editor via autosave) — preview e final
-        // render precisam usar exatamente o mesmo trim, nunca dois valores
-        // diferentes (checkpoint da prova real do Videomaker).
+        // Lê a timeline ATUAL inteira (inclusive qualquer edição já feita
+        // pelo cliente no editor manual ou pelo ChatCut via autosave) — não
+        // só o primeiro clip da faixa de vídeo. Achado da auditoria do
+        // editor de vídeo (2026-08-27): até aqui só o primeiro clip era
+        // usado, então remover/adicionar/reordenar clipes na timeline não
+        // tinha efeito nenhum no vídeo final entregue — o editor e o
+        // ChatCut editavam uma estrutura que era, na prática, decorativa.
         const timelineAtual = projeto.timeline_json as {
-          tracks?: Array<{ kind?: string; clips?: Array<{ sourceAssetId?: string; trimInMs?: number; trimOutMs?: number }> }>;
+          tracks?: Array<{
+            kind?: string;
+            clips?: Array<{ sourceAssetId?: string; startMs?: number; trimInMs?: number; trimOutMs?: number; speed?: number; volume?: number }>;
+          }>;
+          settings?: { width?: number; height?: number; fps?: number };
         };
-        const trackVideo = timelineAtual.tracks?.find((t) => t.kind === "video");
-        const clip = trackVideo?.clips?.[0];
-        if (!clip?.sourceAssetId) throw new Error("Timeline sem clip de vídeo — nada pra finalizar.");
-        const assetId = clip.sourceAssetId;
-        const trimInMs = clip.trimInMs ?? 0;
-        const trimOutMs = clip.trimOutMs;
-        if (typeof trimOutMs !== "number") throw new Error("Clip sem trimOutMs definido — timeline inválida pra finalizar.");
+
+        // Só faixas de vídeo/imagem entram no vídeo final (áudio/locução
+        // ficam pra quando a mixagem de áudio — item separado do plano —
+        // existir; aplicar só o volume delas hoje sem ducking soaria pior
+        // que não aplicar nada). Uma linha do tempo só, ordenada por
+        // startMs — nunca tenta compor camadas simultâneas (picture-in-
+        // picture) nesta rodada, fora de escopo do achado original.
+        const clipesVisuais = (timelineAtual.tracks ?? [])
+          .filter((t) => t.kind === "video" || t.kind === "image")
+          .flatMap((t) => (t.clips ?? []).map((c) => ({ ...c, kind: t.kind as "video" | "image" })))
+          .sort((a, b) => (a.startMs ?? 0) - (b.startMs ?? 0));
+        if (clipesVisuais.length === 0) throw new Error("Timeline sem nenhum clip de vídeo/imagem — nada pra finalizar.");
+        for (const c of clipesVisuais) {
+          if (!c.sourceAssetId) throw new Error("Clip sem sourceAssetId — timeline inválida pra finalizar.");
+          if (typeof c.trimInMs !== "number" || typeof c.trimOutMs !== "number") {
+            throw new Error(`Clip ${c.sourceAssetId} sem trimInMs/trimOutMs — timeline inválida pra finalizar.`);
+          }
+        }
+
+        // Primeiro clip continua sendo a base do trecho de transcrição
+        // (via proxy, rápido) — a legenda é gerada a partir do áudio do
+        // vídeo principal, não precisa reprocessar a timeline inteira só
+        // pra extrair texto.
+        const primeiroClip = clipesVisuais[0]!;
+        const assetId = primeiroClip.sourceAssetId!;
+        const trimInMs = primeiroClip.trimInMs ?? 0;
+        const trimOutMs = primeiroClip.trimOutMs as number;
 
         const asset = await buscarAtivoPorId(assetId);
         if (!asset) throw new Error("Ativo de vídeo de origem não encontrado.");
+
+        const largura = timelineAtual.settings?.width ?? asset.width ?? 1080;
+        const altura = timelineAtual.settings?.height ?? asset.height ?? 1920;
+        const fps = timelineAtual.settings?.fps ?? 30;
+
+        // Resolve o ativo real de CADA clip (podem vir de assets
+        // diferentes — cada um foi adicionado à timeline via
+        // MediaLibraryPanel/ChatCut de forma independente) — nunca assume
+        // que todos compartilham o storagePath do primeiro.
+        const clipesResolvidos = await Promise.all(
+          clipesVisuais.map(async (c) => {
+            const ativo = c.sourceAssetId === assetId ? asset : await buscarAtivoPorId(c.sourceAssetId!);
+            if (!ativo) throw new Error(`Ativo de origem não encontrado pro clip ${c.sourceAssetId}.`);
+            return {
+              bucket: "brand-assets" as const,
+              storagePath: ativo.storagePath,
+              tipo: c.kind,
+              trimInMs: c.trimInMs as number,
+              trimOutMs: c.trimOutMs as number,
+              speed: c.speed,
+              volume: c.volume,
+            };
+          }),
+        );
 
         const captionTrackVazia = { cues: [] as Array<{ id: string; startMs: number; endMs: number; text: string }>, language: "pt-BR" as const };
 
@@ -798,35 +849,55 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
             });
 
         const cuesParaRender = captionsResultado.captionTrack.cues.map((c) => ({ startMs: c.startMs, endMs: c.endMs, text: c.text }));
+        const soUmClip = clipesResolvidos.length === 1;
 
-        // Estágio "preview" — mesma timeline (trim + legendas) do final,
-        // mas a partir do PROXY (leve, rápido) — nunca do original.
-        const preview = await executarEstagioIdempotente(videoProjectId, ctx.clienteId, "preview", () =>
-          renderizarVideoFinal({
-            bucket: "artifacts",
-            storagePath: projeto.proxy_storage_path as string,
-            clienteId: ctx.clienteId,
-            trimInMs,
-            trimOutMs,
-            captions: cuesParaRender,
-          }),
-        );
-        await atualizarPreviewDoVideoProject(videoProjectId, preview.storagePath);
+        // Estágio "preview" — mesma timeline (trim + legendas) do final.
+        // Com 1 clip só, continua vindo do PROXY (leve, rápido — mesmo
+        // comportamento de sempre). Com mais de 1 clip, gerar um preview
+        // separado do proxy duplicaria o processamento pesado do concat
+        // multi-clip (o proxy só existe pro primeiro asset) — o preview
+        // aponta pro mesmo resultado do final_render nesse caso, calculado
+        // logo abaixo.
+        const preview = soUmClip
+          ? await executarEstagioIdempotente(videoProjectId, ctx.clienteId, "preview", () =>
+              renderizarVideoFinal({
+                bucket: "artifacts",
+                storagePath: projeto.proxy_storage_path as string,
+                clienteId: ctx.clienteId,
+                trimInMs,
+                trimOutMs,
+                captions: cuesParaRender,
+              }),
+            )
+          : null;
+        if (preview) await atualizarPreviewDoVideoProject(videoProjectId, preview.storagePath);
 
-        // Estágio "final_render" — mesma timeline, mas a partir do
-        // ORIGINAL enviado pelo cliente (qualidade real de entrega, ver
-        // regra em apps/render/src/ffmpeg/finalRender.ts).
+        // Estágio "final_render" — a partir dos ORIGINAIS enviados pelo
+        // cliente (qualidade real de entrega). 1 clip: caminho antigo
+        // (renderizarVideoFinal, trim simples). Mais de 1 clip: concatena
+        // todos via renderizarVideoFinalMultiClip — implementação real da
+        // Fase 4 do prompt mestre (achado da auditoria do editor de vídeo).
         const renderFinal = await executarEstagioIdempotente(videoProjectId, ctx.clienteId, "final_render", () =>
-          renderizarVideoFinal({
-            bucket: "brand-assets",
-            storagePath: asset.storagePath,
-            clienteId: ctx.clienteId,
-            trimInMs,
-            trimOutMs,
-            captions: cuesParaRender,
-          }),
+          soUmClip
+            ? renderizarVideoFinal({
+                bucket: "brand-assets",
+                storagePath: asset.storagePath,
+                clienteId: ctx.clienteId,
+                trimInMs,
+                trimOutMs,
+                captions: cuesParaRender,
+              })
+            : renderizarVideoFinalMultiClip({
+                clienteId: ctx.clienteId,
+                clipes: clipesResolvidos,
+                width: largura,
+                height: altura,
+                fps,
+                captions: cuesParaRender,
+              }),
         );
         await atualizarRenderFinalDoVideoProject(videoProjectId, renderFinal.storagePath);
+        if (!preview) await atualizarPreviewDoVideoProject(videoProjectId, renderFinal.storagePath);
 
         await registrarUsoDeAtivo({
           clienteId: ctx.clienteId,
@@ -838,6 +909,11 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
           motivo: "Arquivo de origem enviado pelo cliente pra transcrição e render final.",
         });
 
+        // Soma a duração de TODOS os clipes (já ajustada por speed) —
+        // antes era só a do primeiro clip, agora reflete a timeline
+        // inteira, igual ao vídeo final concatenado.
+        const durationMs = clipesResolvidos.reduce((soma, c) => soma + (c.trimOutMs - c.trimInMs) / (c.speed ?? 1), 0);
+
         return {
           requestId: videoProjectId,
           sourceAssetIds: [assetId],
@@ -845,9 +921,9 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
             id: videoProjectId,
             timelineVersion: projeto.timeline_version as number,
             timelineJson: { ...timelineAtual, captions: captionsResultado.captionTrack },
-            durationMs: trimOutMs - trimInMs,
+            durationMs,
             captionsGeradas: captionsResultado.captionTrack,
-            previewStoragePath: preview.storagePath,
+            previewStoragePath: (preview ?? renderFinal).storagePath,
             outputStoragePath: renderFinal.storagePath,
           },
         };

@@ -93,6 +93,8 @@ export interface RenderFinalGerado {
 // Pede ao serviço de render o MP4 final de verdade (trim + legendas
 // queimadas, se houver) — sempre a partir do arquivo ORIGINAL enviado pelo
 // cliente, nunca do proxy (ver apps/render/src/ffmpeg/finalRender.ts).
+// Usado só pro trecho leve de transcrição (1 corte simples) — pra
+// finalizar a timeline de verdade, ver renderizarVideoFinalMultiClip.
 export async function renderizarVideoFinal(params: {
   bucket: "artifacts" | "brand-assets" | "uploads";
   storagePath: string;
@@ -112,6 +114,49 @@ export async function renderizarVideoFinal(params: {
     if (!res.ok) {
       const texto = await res.text();
       throw new RenderServiceIndisponivelError(`Falha ao renderizar vídeo final (${res.status}): ${texto}`);
+    }
+    return (await res.json()) as RenderFinalGerado;
+  } catch (err) {
+    throw err instanceof RenderServiceIndisponivelError
+      ? err
+      : new RenderServiceIndisponivelError(err instanceof Error ? err.message : "erro desconhecido ao chamar o serviço de render");
+  }
+}
+
+export interface ClipeParaRenderFinal {
+  bucket: "artifacts" | "brand-assets" | "uploads";
+  storagePath: string;
+  tipo: "video" | "image";
+  trimInMs: number;
+  trimOutMs: number;
+  speed?: number;
+  volume?: number;
+}
+
+// Implementação real da Fase 4 do prompt mestre — concatena TODOS os
+// clipes de TODAS as faixas de vídeo/imagem da timeline (na ordem dada),
+// cada um com seu próprio trim/speed/volume. Substitui renderizarVideoFinal
+// no estágio "final_render" quando a timeline tem mais de 1 clipe editável
+// (ver apps/render/src/routes/render.ts, POST /render/final-multi-clip).
+export async function renderizarVideoFinalMultiClip(params: {
+  clienteId: string;
+  clipes: ClipeParaRenderFinal[];
+  width: number;
+  height: number;
+  fps: number;
+  captions?: Array<{ startMs: number; endMs: number; text: string }>;
+}): Promise<RenderFinalGerado> {
+  const { baseUrl, token } = baseUrlEToken();
+
+  try {
+    const res = await fetch(`${baseUrl}/render/final-multi-clip`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal-token": token },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) {
+      const texto = await res.text();
+      throw new RenderServiceIndisponivelError(`Falha ao renderizar vídeo final multi-clipe (${res.status}): ${texto}`);
     }
     return (await res.json()) as RenderFinalGerado;
   } catch (err) {

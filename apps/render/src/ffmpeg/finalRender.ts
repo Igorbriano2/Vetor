@@ -4,12 +4,14 @@
 // cliente, nunca o proxy (proxy é só pra edição leve na timeline, ver
 // comentário em proxy.ts) — mais qualidade no entregável final.
 //
-// Escopo desta rodada (FASE 2 do plano de reconciliação): 1 clip de vídeo
-// com trim (corte simples) + legendas opcionais queimadas via filtro
-// `subtitles` (a fonte de verdade EDITÁVEL continua sendo os cues em
-// video_projects.timeline_json.captions — isso aqui só produz o MP4
-// entregável, nunca substitui os cues editáveis). Multi-clip/multi-track
-// (concat, transições, mixagem de áudio) fica pra Fase 4 do prompt mestre.
+// montarArgsFfmpegRenderFinal (abaixo) continua existindo pro caso de 1
+// trim simples — ainda usado pra gerar um trecho leve pra transcrição
+// (ver specialistRunner.ts, estágio "captions"), que nunca precisou da
+// timeline inteira. montarArgsFfmpegConcatMultiClip (fim do arquivo) é a
+// implementação real da Fase 4 do prompt mestre — concatena TODOS os
+// clipes de TODAS as faixas de vídeo/imagem da timeline, cada um com seu
+// próprio trim/speed/volume, é o que o estágio "final_render" usa quando
+// a timeline tem mais de 1 clipe.
 
 export interface OpcoesRenderFinal {
   inputPath: string;
@@ -40,6 +42,115 @@ export function montarArgsFfmpegRenderFinal(opcoes: OpcoesRenderFinal): string[]
     args.push("-vf", `subtitles=${escaparCaminhoParaFiltroSubtitles(opcoes.legendasSrtPath)}`);
   }
 
+  args.push(
+    "-c:v",
+    "libx264",
+    "-preset",
+    "medium",
+    "-crf",
+    "20",
+    "-c:a",
+    "aac",
+    "-b:a",
+    "160k",
+    "-movflags",
+    "+faststart",
+    opcoes.outputPath,
+  );
+
+  return args;
+}
+
+// O filtro `atempo` do ffmpeg só aceita fatores entre 0.5 e 2.0 — um clipe
+// em câmera lenta extrema (0.25x) ou acelerado além de 2x precisa de vários
+// `atempo` encadeados, nunca um valor fora do intervalo suportado (o ffmpeg
+// rejeita o filtro nesse caso, silenciosamente quebrando o áudio do clipe).
+export function decomporSpeedEmCadeiaAtempo(speed: number): string[] {
+  if (!(speed > 0)) throw new Error(`speed inválido pra atempo: ${speed}`);
+  const fatores: number[] = [];
+  let restante = speed;
+  while (restante > 2) {
+    fatores.push(2);
+    restante /= 2;
+  }
+  while (restante < 0.5) {
+    fatores.push(0.5);
+    restante /= 0.5;
+  }
+  fatores.push(restante);
+  return fatores.map((f) => `atempo=${f.toFixed(4)}`);
+}
+
+export interface ClipeParaConcat {
+  inputPath: string;
+  // Imagem entra via -loop 1 (sem trilha de áudio própria — um clipe de
+  // imagem na timeline vira silêncio real no trecho, nunca inventa áudio).
+  // "speed" não se aplica a um frame estático, é ignorado nesse caso.
+  tipo: "video" | "image";
+  trimInMs: number;
+  trimOutMs: number;
+  speed: number;
+  volume: number;
+}
+
+export interface OpcoesRenderFinalMultiClip {
+  clipes: ClipeParaConcat[];
+  outputPath: string;
+  legendasSrtPath?: string;
+  width: number;
+  height: number;
+  fps: number;
+}
+
+// Implementação real da Fase 4 do prompt mestre: concatena TODOS os clipes
+// de TODAS as faixas de vídeo/imagem da timeline, na ordem dada, cada um
+// com seu próprio trim/speed/volume — não só o primeiro clipe (era essa a
+// limitação documentada de montarArgsFfmpegRenderFinal acima). Sempre via
+// filter_complex, nunca o demuxer `concat` (que exige mesmo codec/
+// resolução/fps entre os arquivos de origem — não garantido aqui, cada
+// clipe pode vir de um asset diferente). scale+pad+setsar+fps em CADA
+// clipe força todos pro mesmo formato antes do concat — o filtro `concat`
+// falha ("sizes not the same") se os segmentos não baterem exatamente.
+export function montarArgsFfmpegConcatMultiClip(opcoes: OpcoesRenderFinalMultiClip): string[] {
+  if (opcoes.clipes.length === 0) throw new Error("montarArgsFfmpegConcatMultiClip chamado sem nenhum clipe.");
+
+  const args: string[] = ["-y"];
+  const filtros: string[] = [];
+  const labelsConcat: string[] = [];
+
+  opcoes.clipes.forEach((clipe, i) => {
+    const trimInSeg = clipe.trimInMs / 1000;
+    const trimOutSeg = clipe.trimOutMs / 1000;
+    const duracaoSeg = trimOutSeg - trimInSeg;
+    const formato = `scale=${opcoes.width}:${opcoes.height}:force_original_aspect_ratio=decrease,pad=${opcoes.width}:${opcoes.height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${opcoes.fps}`;
+
+    if (clipe.tipo === "image") {
+      args.push("-loop", "1", "-t", duracaoSeg.toFixed(3), "-i", clipe.inputPath);
+      filtros.push(`[${i}:v]${formato},setpts=PTS-STARTPTS[v${i}]`);
+      // Fonte de silêncio gerada (lavfi) — nunca um input real: o concat
+      // exige exatamente 1 stream de áudio por segmento, e imagem não tem
+      // trilha própria pra fornecer.
+      filtros.push(`anullsrc=channel_layout=stereo:sample_rate=44100:duration=${duracaoSeg.toFixed(3)}[a${i}]`);
+    } else {
+      args.push("-i", clipe.inputPath);
+      const cadeiaAtempo = clipe.speed !== 1 ? `${decomporSpeedEmCadeiaAtempo(clipe.speed).join(",")},` : "";
+      filtros.push(`[${i}:v]trim=start=${trimInSeg.toFixed(3)}:end=${trimOutSeg.toFixed(3)},setpts=(PTS-STARTPTS)/${clipe.speed},${formato}[v${i}]`);
+      filtros.push(`[${i}:a]atrim=start=${trimInSeg.toFixed(3)}:end=${trimOutSeg.toFixed(3)},asetpts=PTS-STARTPTS,${cadeiaAtempo}volume=${clipe.volume.toFixed(3)}[a${i}]`);
+    }
+
+    labelsConcat.push(`[v${i}][a${i}]`);
+  });
+
+  filtros.push(`${labelsConcat.join("")}concat=n=${opcoes.clipes.length}:v=1:a=1[vout][aout]`);
+
+  let mapaVideo = "[vout]";
+  if (opcoes.legendasSrtPath) {
+    filtros.push(`[vout]subtitles=${escaparCaminhoParaFiltroSubtitles(opcoes.legendasSrtPath)}[vlegendado]`);
+    mapaVideo = "[vlegendado]";
+  }
+
+  args.push("-filter_complex", filtros.join(";"));
+  args.push("-map", mapaVideo, "-map", "[aout]");
   args.push(
     "-c:v",
     "libx264",
