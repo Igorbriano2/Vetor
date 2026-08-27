@@ -26,23 +26,23 @@ export interface ProviderConfig {
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION ?? "v21.0";
 
-// Escopos exatamente como habilitados no app Meta "Vetor-App" (Ads Manager,
-// Páginas, Instagram, WhatsApp Business Platform) — nunca pedir escopo que o
-// app não tem caso de uso aprovado/configurado pra cobrir.
+// Escopos exatamente como habilitados no app Meta de teste ("Vetor Teste Dog
+// King Cambe", caso de uso "Criar e gerenciar anúncios com a API de
+// Marketing") — nunca pedir escopo que o app não tem caso de uso aprovado/
+// configurado pra cobrir. Confirmado ao vivo: pedir um escopo não habilitado
+// faz a Meta rejeitar o dialog inteiro com "Invalid Scopes" antes mesmo do
+// cliente ver a tela de consentimento — a lista anterior incluía
+// pages_manage_posts/pages_manage_metadata/instagram_*/whatsapp_* que não
+// existem mais no catálogo atual da Meta para este caso de uso (só
+// Marketing API está habilitado; Instagram/WhatsApp exigem seus próprios
+// casos de uso, ainda não configurados — reavaliar quando isso entrar em
+// escopo de verdade).
 const ESCOPOS_FACEBOOK_LOGIN_NEGOCIOS = [
   "ads_management",
   "ads_read",
   "business_management",
   "pages_show_list",
   "pages_read_engagement",
-  "pages_manage_posts",
-  "pages_manage_metadata",
-  "instagram_basic",
-  "instagram_manage_insights",
-  "instagram_manage_comments",
-  "instagram_content_publish",
-  "whatsapp_business_management",
-  "whatsapp_business_messaging",
 ];
 
 export const PROVIDER_CONFIG: Record<ConnectionProvider, ProviderConfig> = {
