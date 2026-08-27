@@ -19,6 +19,28 @@ export function mapearFormatoParaAspectRatio(formato: FormatoPeca, aspectRatioEx
   return aspectRatioExplicito;
 }
 
+// Reforço de qualidade fotográfica/cinematográfica — sempre aplicado em
+// código, nunca depende do agente (Claude, via prompts/design.md) lembrar
+// de escrever isso bem toda vez. Achado ao vivo: o `visual_prompt` do
+// agente costuma descrever CENA (o quê) mas raramente direção de arte real
+// (COMO fotografar) — sem isso, o modelo de imagem tende a um resultado
+// plano/genérico tipo banco de imagens datado, mesmo com uma boa descrição
+// de conteúdo. Mesmo princípio de produto que ferramentas comerciais de
+// geração (ex: refino automático de prompt com direção de câmera/luz antes
+// de gerar) — aqui é feito uma vez, em código, pra valer em toda peça.
+const PADRAO_QUALIDADE_FOTOGRAFICA =
+  "DIREÇÃO DE ARTE (aplique sempre, além da cena descrita acima): trate isto como uma fotografia " +
+  "publicitária profissional de agência premium, não uma ilustração ou render genérico. Iluminação " +
+  "intencional e controlada (luz de estúdio motivada ou luz natural de horário dourado — nunca flash " +
+  "direto achatado nem luz de teto genérica). Profundidade de campo real: sujeito principal nítido, " +
+  "fundo com leve desfoque óptico quando a composição pedir. Enquadramento com hierarquia visual clara " +
+  "(regra dos terços ou centralização deliberada — nunca um enquadramento acidental). Cores com grading " +
+  "coerente e contido (paleta consistente, sem saturação artificial nem contraste estourado). Textura e " +
+  "nitidez de sensor de câmera profissional full-frame, close o suficiente para mostrar detalhe e " +
+  "textura real do assunto. Evite explicitamente: aparência de banco de imagens genérico/datado, " +
+  "composição centralizada sem intenção, iluminação chapada, plástico/render 3D artificial, ruído ou " +
+  "borrão de baixa qualidade.";
+
 // Constrói o prompt REAL enviado ao provider de imagem a partir do que o
 // agente descreveu — sempre acrescenta a restrição de "nunca desenhar
 // texto/logo" em código, nunca confia só na instrução do prompt do agente
@@ -32,7 +54,7 @@ export function montarPromptDeFundo(visualPrompt: string): string {
     "na imagem. Deixe espaço negativo adequado pra sobrepor texto depois, coerente com a composição " +
     "descrita. Ignore qualquer menção a texto específico no pedido abaixo — texto nunca é desenhado nesta " +
     "etapa, é sempre composto depois como camada separada.";
-  return `${visualPrompt.trim()}\n\n${restricao}`;
+  return `${visualPrompt.trim()}\n\n${restricao}\n\n${PADRAO_QUALIDADE_FOTOGRAFICA}`;
 }
 
 // Termos que indicam que o modelo (ou um valor vindo do briefing) não
