@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function POST() {
+export async function POST(request: Request) {
+  const body = await request.json().catch(() => ({}));
+  const datePreset = typeof body?.date_preset === "string" ? body.date_preset : undefined;
+
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -20,7 +23,7 @@ export async function POST() {
   const res = await fetch(`${agentesUrl}/trafego/sincronizar`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-internal-token": internalToken },
-    body: JSON.stringify({ cliente_id: usuario.cliente_id }),
+    body: JSON.stringify({ cliente_id: usuario.cliente_id, date_preset: datePreset }),
   });
 
   const data = await res.json().catch(() => ({}));

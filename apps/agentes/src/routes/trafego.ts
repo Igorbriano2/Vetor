@@ -9,15 +9,21 @@ trafegoRouter.use(exigirAuthInterna);
 // Idempotente por natureza — sincronizar de novo só atualiza os valores
 // (upsert por meta_campaign_id) e cria uma nova linha de análise, nunca
 // duplica campanha nem quebra se chamado em sequência.
+const DATE_PRESETS_PERMITIDOS = new Set(["last_7d", "last_14d", "last_30d", "last_90d", "this_month", "last_month"]);
+
 trafegoRouter.post("/sincronizar", async (req, res) => {
-  const { cliente_id } = req.body ?? {};
+  const { cliente_id, date_preset } = req.body ?? {};
   if (typeof cliente_id !== "string") {
     res.status(400).json({ error: "cliente_id é obrigatório" });
     return;
   }
+  if (date_preset !== undefined && (typeof date_preset !== "string" || !DATE_PRESETS_PERMITIDOS.has(date_preset))) {
+    res.status(400).json({ error: `date_preset inválido — use um de: ${[...DATE_PRESETS_PERMITIDOS].join(", ")}` });
+    return;
+  }
 
   try {
-    const resultado = await sincronizarTrafego(cliente_id);
+    const resultado = await sincronizarTrafego(cliente_id, date_preset);
     res.json(resultado);
   } catch (err) {
     if (err instanceof ContaDeAnuncioNaoConectadaError) {

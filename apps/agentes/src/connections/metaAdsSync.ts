@@ -116,6 +116,15 @@ export function calcularCustoPorCompra(insight: InsightGraph | undefined, gasto:
   return gasto / compras;
 }
 
+const RÓTULO_DATE_PRESET: Record<string, string> = {
+  last_7d: "últimos 7 dias",
+  last_14d: "últimos 14 dias",
+  last_30d: "últimos 30 dias",
+  last_90d: "últimos 90 dias",
+  this_month: "este mês",
+  last_month: "mês passado",
+};
+
 export function mapearStatus(statusMeta: string): string {
   // campanhas_trafego.status não tem check constraint (0001_init.sql) —
   // mantém o vocabulário livre já usado no resto do produto.
@@ -243,7 +252,11 @@ const ANALISAR_TRAFEGO_TOOL: Anthropic.Tool = {
   },
 };
 
-async function gerarAnaliseDoGestor(campanhas: CampanhaGraph[], metricasPorCampanha: Array<{ nome: string; insight: InsightGraph | undefined }>): Promise<AnaliseGestor | null> {
+async function gerarAnaliseDoGestor(
+  campanhas: CampanhaGraph[],
+  metricasPorCampanha: Array<{ nome: string; insight: InsightGraph | undefined }>,
+  periodoLabel: string,
+): Promise<AnaliseGestor | null> {
   if (campanhas.length === 0) return null;
 
   try {
@@ -257,7 +270,7 @@ async function gerarAnaliseDoGestor(campanhas: CampanhaGraph[], metricasPorCampa
       system:
         "Você é o Gestor de Tráfego do VETOR, analisando campanhas reais de Meta Ads de um cliente de marketing. " +
         "Nunca invente número — use só os dados fornecidos. Seja direto, prático, e priorize recomendações por impacto real.",
-      messages: [{ role: "user", content: `Analise estas campanhas dos últimos 30 dias:\n${resumoCampanhas}` }],
+      messages: [{ role: "user", content: `Analise estas campanhas (${periodoLabel}):\n${resumoCampanhas}` }],
       tools: [ANALISAR_TRAFEGO_TOOL],
       tool_choice: { type: "tool", name: "registrar_analise_trafego" },
     });
@@ -310,7 +323,13 @@ function montarMetricasCompletas(insight: InsightGraph): Record<string, unknown>
 // falhar (permissão insuficiente do token, por exemplo), a campanha
 // continua sincronizada normalmente — só os criativos daquela campanha
 // ficam ausentes, nunca inventados.
-async function sincronizarCriativosDaCampanha(clienteId: string, campanhaId: string, metaCampaignId: string, accessToken: string): Promise<void> {
+async function sincronizarCriativosDaCampanha(
+  clienteId: string,
+  campanhaId: string,
+  metaCampaignId: string,
+  accessToken: string,
+  datePreset: string,
+): Promise<void> {
   try {
     const resAds = await fetchGraphApi(
       graphApiUrl(`/${metaCampaignId}/ads?fields=id,name,creative{thumbnail_url}&limit=20`) + `&access_token=${encodeURIComponent(accessToken)}`,
@@ -320,7 +339,7 @@ async function sincronizarCriativosDaCampanha(clienteId: string, campanhaId: str
 
     for (const anuncio of anuncios) {
       const resInsights = await fetchGraphApi(
-        graphApiUrl(`/${anuncio.id}/insights?fields=${CAMPOS_INSIGHTS}&date_preset=last_30d`) +
+        graphApiUrl(`/${anuncio.id}/insights?fields=${CAMPOS_INSIGHTS}&date_preset=${datePreset}`) +
           `&access_token=${encodeURIComponent(accessToken)}`,
       );
       const insightsBody = resInsights.ok ? ((await resInsights.json()) as { data: InsightGraph[] }) : { data: [] };
@@ -344,7 +363,14 @@ async function sincronizarCriativosDaCampanha(clienteId: string, campanhaId: str
   }
 }
 
-export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSincronizacao> {
+// date_preset aceita os valores nativos da Graph API (last_7d/last_14d/
+// last_30d/last_90d/this_month/last_month...) — nunca um range arbitrário
+// de datas nesta rodada (exigiria trocar date_preset por time_range em
+// todo lugar); default "last_30d" preserva o comportamento de sempre pra
+// quem não escolhe nada.
+const DATE_PRESET_PADRAO = "last_30d";
+
+export async function sincronizarTrafego(clienteId: string, datePreset: string = DATE_PRESET_PADRAO): Promise<ResultadoSincronizacao> {
   const conexao = await tokenAtivoDoCliente(clienteId);
   if (!conexao) throw new ContaDeAnuncioNaoConectadaError("Nenhuma conta de anúncios Meta conectada.");
 
@@ -363,7 +389,7 @@ export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSi
 
   for (const campanha of campanhas) {
     const resInsights = await fetchGraphApi(
-      graphApiUrl(`/${campanha.id}/insights?fields=${CAMPOS_INSIGHTS}&date_preset=last_30d`) +
+      graphApiUrl(`/${campanha.id}/insights?fields=${CAMPOS_INSIGHTS}&date_preset=${datePreset}`) +
         `&access_token=${encodeURIComponent(conexao.accessToken)}`,
     );
     const insightsBody = resInsights.ok ? ((await resInsights.json()) as { data: InsightGraph[] }) : { data: [] };
@@ -408,14 +434,16 @@ export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSi
     // dado no nível de campanha). Uma chamada extra por campanha — mesma
     // conta de anúncio, mesmo token, nunca um provider novo.
     if (campanhaSalva) {
-      await sincronizarCriativosDaCampanha(clienteId, campanhaSalva.id as string, campanha.id, conexao.accessToken);
+      await sincronizarCriativosDaCampanha(clienteId, campanhaSalva.id as string, campanha.id, conexao.accessToken, datePreset);
     }
   }
 
-  const analiseGestor = await gerarAnaliseDoGestor(campanhas, metricasPorCampanha);
+  const periodoLabel = RÓTULO_DATE_PRESET[datePreset] ?? datePreset;
+  const analiseGestor = await gerarAnaliseDoGestor(campanhas, metricasPorCampanha, periodoLabel);
 
   const metricasUsadas = {
     ...metricasAgregadas,
+    datePreset,
     roas: metricasAgregadas.spend > 0 ? metricasAgregadas.receita / metricasAgregadas.spend : null,
     roi: metricasAgregadas.spend > 0 ? (metricasAgregadas.receita - metricasAgregadas.spend) / metricasAgregadas.spend : null,
     custo_por_compra: metricasAgregadas.compras > 0 ? metricasAgregadas.spend / metricasAgregadas.compras : null,
@@ -430,7 +458,7 @@ export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSi
         analiseGestor?.resumoExecutivo ??
         (campanhas.length === 0
           ? "Nenhuma campanha ativa encontrada na conta conectada."
-          : `${campanhas.length} campanha(s) sincronizada(s), gasto total últimos 30 dias: R$ ${(metricasAgregadas.spend).toFixed(2)}.`),
+          : `${campanhas.length} campanha(s) sincronizada(s), gasto total (${periodoLabel}): R$ ${(metricasAgregadas.spend).toFixed(2)}.`),
       oportunidades: analiseGestor?.hipoteses ?? [],
       riscos: analiseGestor?.problemas ?? [],
       recomendacoes: analiseGestor?.recomendacoes ?? [],

@@ -67,6 +67,20 @@ type KpiId = "investimento" | "impressoes" | "alcance" | "cliques" | "ctr" | "cp
 
 const CHAVE_LOCALSTORAGE_METRICAS = "vetor:trafego:metricas-visiveis";
 
+// Pedido explícito do cliente: dar pra ele escolher o período das métricas
+// (não só um "últimos 30 dias" fixo). Valores nativos da Graph API — nunca
+// um range de datas arbitrário nesta rodada (exigiria time_range em vez de
+// date_preset em toda a cadeia).
+type DatePreset = "last_7d" | "last_14d" | "last_30d" | "last_90d" | "this_month" | "last_month";
+const OPCOES_PERIODO: { valor: DatePreset; label: string }[] = [
+  { valor: "last_7d", label: "Últimos 7 dias" },
+  { valor: "last_14d", label: "Últimos 14 dias" },
+  { valor: "last_30d", label: "Últimos 30 dias" },
+  { valor: "last_90d", label: "Últimos 90 dias" },
+  { valor: "this_month", label: "Este mês" },
+  { valor: "last_month", label: "Mês passado" },
+];
+
 // Ordem canônica de TODAS as métricas — usada tanto pro seletor quanto pra
 // nunca deixar o grid de KPIs "pular de posição" conforme o que o cliente
 // marca/desmarca (ordem sempre a mesma, só o subconjunto visível muda).
@@ -255,6 +269,7 @@ export default function TrafegoPainel({
   const [campanhaExpandida, setCampanhaExpandida] = useState<string | null>(null);
   const [metricasVisiveis, setMetricasVisiveis] = useState<KpiId[]>(METRICAS_PADRAO);
   const [seletorAberto, setSeletorAberto] = useState(false);
+  const [datePreset, setDatePreset] = useState<DatePreset>("last_30d");
   const router = useRouter();
 
   // Preferência é por navegador/dispositivo (localStorage), não por conta
@@ -296,7 +311,11 @@ export default function TrafegoPainel({
     setSincronizando(true);
     setErro(null);
     try {
-      const res = await fetch("/api/trafego/sincronizar", { method: "POST" });
+      const res = await fetch("/api/trafego/sincronizar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date_preset: datePreset }),
+      });
       if (res.status === 409) {
         setErro("Nenhuma conta de anúncios conectada ainda — conecte em Conexões.");
         return;
@@ -434,13 +453,27 @@ export default function TrafegoPainel({
                 )}
               </div>
               {contaConectada && (
-                <button
-                  onClick={sincronizar}
-                  disabled={sincronizando}
-                  className="btn-tactile rounded-full bg-ambar px-4 py-1.5 text-xs font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
-                >
-                  {sincronizando ? "Sincronizando..." : "Sincronizar agora"}
-                </button>
+                <>
+                  <select
+                    value={datePreset}
+                    onChange={(e) => setDatePreset(e.target.value as DatePreset)}
+                    disabled={sincronizando}
+                    className="rounded-full border border-areia/15 bg-petroleo-2 px-3 py-1.5 text-xs text-areia disabled:opacity-50"
+                  >
+                    {OPCOES_PERIODO.map((o) => (
+                      <option key={o.valor} value={o.valor}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={sincronizar}
+                    disabled={sincronizando}
+                    className="btn-tactile rounded-full bg-ambar px-4 py-1.5 text-xs font-semibold text-petroleo transition hover:bg-ambar-forte disabled:opacity-50"
+                  >
+                    {sincronizando ? "Sincronizando..." : "Sincronizar agora"}
+                  </button>
+                </>
               )}
             </div>
           </div>
