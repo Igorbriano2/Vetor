@@ -197,6 +197,24 @@ body {
   background-size: cover;
 }
 
+/* Redesign Apple-style (fase 3) — textura ambiente pro resto do painel
+   (todas as áreas exceto /vetor, que já tem o próprio vetor-starfield mais
+   expressivo). Estática (sem animação — este fundo fica visível o dia
+   inteiro atrás de um dashboard de trabalho, uma nebulosa girando seria
+   cansativa) e bem mais sutil que vetor-aurora (6%/5% de mistura vs 14%/
+   10%). position: fixed (não absolute) pra não rolar com o conteúdo — dá
+   sensação de profundidade atrás do painel, não um elemento decorativo
+   preso a um card específico. */
+@utility vetor-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 50% at 15% -10%, color-mix(in oklab, var(--color-electric) 6%, transparent), transparent 60%),
+    radial-gradient(ellipse 60% 45% at 100% 100%, color-mix(in oklab, var(--color-menta) 5%, transparent), transparent 65%);
+}
+
 /* ————— Movimento (portado de apps/landing) ————— */
 
 @keyframes vetor-core-pulse {
@@ -306,17 +324,28 @@ body {
   animation: vetor-aurora-drift 30s ease-in-out infinite;
 }
 
+/* Redesign Apple-style (fase 3) — profundidade 3D real no hover (perspective
+   + rotateX/rotateY sutil + translateZ), não só a elevação 2D (translateY)
+   que esta classe tinha antes. Ângulos bem menores que spatial-node
+   (0.6deg/1deg vs 1.5deg/2.5deg) de propósito: card-lift é usado em cards de
+   LISTA (dezenas por tela, mouse passa rápido) — um giro forte ali vira
+   ruído; spatial-node continua reservado pro Creative Canvas (poucos nodes
+   grandes, giro mais expressivo é o efeito desejado). will-change só entra
+   no :hover (nunca parado) — não promova pra layer de composição uma tela
+   inteira de cards fora de interação. */
 @utility card-lift {
+  transform: perspective(1000px) rotateX(0deg) rotateY(0deg) translateZ(0px);
   transition:
-    transform 200ms ease,
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
     border-color 200ms ease,
     background-color 200ms ease,
-    box-shadow 200ms ease;
+    box-shadow 220ms ease;
 
   &:hover {
-    transform: translateY(-3px);
+    transform: perspective(1000px) rotateX(0.6deg) rotateY(-1deg) translateZ(6px);
     border-color: color-mix(in oklab, var(--color-menta) 35%, transparent);
     box-shadow: 0 20px 40px -24px oklch(0 0 0 / 0.7);
+    will-change: transform;
   }
 }
 

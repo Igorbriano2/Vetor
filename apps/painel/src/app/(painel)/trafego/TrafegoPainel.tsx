@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import StatusBadge from "@/components/StatusBadge";
+import Card from "@/components/ui/Card";
 import { readApiResponse } from "@/lib/api/readApiResponse";
 import { salvarPrefillComando } from "@/lib/conversation";
 import FunilConversao from "./FunilConversao";
@@ -454,12 +455,12 @@ export default function TrafegoPainel({
               metricasVisiveis.map((id) => {
                 const destacarRoi = id === "roi" && roiMedio != null;
                 return (
-                  <div key={id} className="rounded-xl panel p-3">
+                  <Card key={id} radius="xl" className="p-3">
                     <p className="font-mono text-[10px] uppercase tracking-wide text-areia/40">{LABEL_METRICA[id]}</p>
                     <p className={`mt-1 text-lg font-semibold ${destacarRoi ? (roiMedio! >= 0 ? "text-menta" : "text-coral") : "text-areia"}`}>
                       {valorDaMetrica[id]}
                     </p>
-                  </div>
+                  </Card>
                 );
               })
             )}
@@ -474,7 +475,7 @@ export default function TrafegoPainel({
           <FunilConversao impressoes={totalImpressions} alcance={totalReach} cliques={totalClicks} compras={totalCompras} />
 
           {serieGasto.length > 1 && (
-            <div className="rounded-xl panel p-3">
+            <Card radius="xl" className="p-3">
               <p className="font-mono text-[10px] uppercase tracking-wide text-areia/40">Evolução do investimento</p>
               <svg viewBox="0 0 100 28" className="mt-2 h-10 w-full" preserveAspectRatio="none">
                 <polyline
@@ -484,7 +485,7 @@ export default function TrafegoPainel({
                   strokeWidth="1.5"
                 />
               </svg>
-            </div>
+            </Card>
           )}
 
           {alertas.length > 0 && (

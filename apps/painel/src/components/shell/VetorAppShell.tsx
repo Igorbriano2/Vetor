@@ -35,6 +35,11 @@ export default function VetorAppShell({
     // quando o layout (painel) deixa de renderizar).
     <VetorVoiceProvider>
       <div className="min-h-screen bg-petroleo text-areia">
+        {/* Redesign Apple-style (fase 3) — textura ambiente do resto do
+            painel; /vetor fica de fora porque já tem o próprio
+            vetor-starfield (mais expressivo, não dá pra sobrepor os dois
+            sem pesar visualmente). */}
+        {!recolhido && <div className="vetor-ambient" aria-hidden="true" />}
         <SidebarNav orgNome={orgNome} userNome={userNome} ehAdmin={ehAdmin} workspaceAtivoId={workspaceAtivoId} workspaces={workspaces} />
         <main className={recolhido ? "lg:pl-16" : "lg:pl-64"}>{children}</main>
       </div>
