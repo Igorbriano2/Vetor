@@ -1,4 +1,5 @@
 import Link from "next/link";
+import StatusBadge from "@/components/StatusBadge";
 
 interface Trafego {
   spend: number;
@@ -179,7 +180,9 @@ export default function AnaliticoView({
               {missoesPorStatus.map((m) => (
                 <div key={m.status} className="rounded-2xl panel p-3 text-center">
                   <p className="font-mono text-lg text-areia">{m.total}</p>
-                  <p className="mt-0.5 text-[10px] uppercase tracking-wide text-areia/40">{m.status}</p>
+                  <div className="mt-1.5 flex justify-center">
+                    <StatusBadge status={m.status} />
+                  </div>
                 </div>
               ))}
             </div>

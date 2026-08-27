@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import StatusBadge from "@/components/StatusBadge";
 import CalendarioEditorial from "@/components/CalendarioEditorial";
+import MiniMarkdown from "@/components/MiniMarkdown";
 import NovoConteudoWizard from "./NovoConteudoWizard";
 
 interface EtapaEmAndamento {
@@ -133,9 +134,9 @@ export default function SocialCommandCenter({
                     )}
                   </div>
                   {c.content && (
-                    <pre className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap font-sans text-xs text-areia/70">
-                      {c.content}
-                    </pre>
+                    <div className="mt-2 max-h-64 overflow-y-auto text-xs text-areia/70">
+                      <MiniMarkdown texto={c.content} />
+                    </div>
                   )}
                   <p className="mt-2 font-mono text-[10px] text-areia/30">{new Date(c.createdAt).toLocaleDateString("pt-BR")}</p>
                 </div>

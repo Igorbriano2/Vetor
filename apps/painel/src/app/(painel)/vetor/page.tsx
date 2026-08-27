@@ -86,7 +86,14 @@ export default async function DashboardPage() {
         .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
     ]);
 
-  const statusPorProvider = new Map((conexoes ?? []).map((c) => [c.provider as string, c.status as string]));
+  // Cada provider pode ter várias linhas em `connections` (histórico de
+  // contas conectadas/revogadas — comum em conta de agência com várias
+  // contas de anúncio). Nunca pega "a última linha lida" (ordem não é
+  // garantida pela query) — um provider está conectado se QUALQUER linha
+  // dele estiver com status "connected", nunca menos que isso.
+  const providersConectados = new Set(
+    (conexoes ?? []).filter((c) => c.status === "connected").map((c) => c.provider as string),
+  );
 
   // Agrupa created_at real em 7 baldes diários (hoje - 6 até hoje) — nunca
   // preenche um dia sem artefato com um valor fabricado, só com 0 real.
@@ -114,9 +121,9 @@ export default async function DashboardPage() {
       }}
       conexoes={{
         supabase: true,
-        metaAds: statusPorProvider.get("meta_ads") === "connected",
-        instagram: statusPorProvider.get("instagram") === "connected",
-        whatsapp: statusPorProvider.get("whatsapp") === "connected",
+        metaAds: providersConectados.has("meta_ads"),
+        instagram: providersConectados.has("instagram"),
+        whatsapp: providersConectados.has("whatsapp"),
       }}
       atividadeDiaria={atividadeDiaria}
       // A pedido explícito do dono do produto: a saudação toca toda vez que

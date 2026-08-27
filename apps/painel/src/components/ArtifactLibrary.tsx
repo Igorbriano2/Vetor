@@ -17,6 +17,16 @@ function comDownloadForcado(url: string): string {
   return url.includes("?") ? `${url}&download=` : `${url}?download=`;
 }
 
+// Preview de 2 linhas — não vale renderizar markdown completo aqui, só tira
+// os símbolos (#, **, -) que apareciam literais na tela antes de truncar.
+function semMarcacaoMarkdown(texto: string): string {
+  return texto
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/^[-*]\s+/gm, "")
+    .trim();
+}
+
 // Biblioteca visual reutilizada por Design/Videomaker/Entregas — mesma
 // lógica de card (thumbnail/preview, tipo, data, origem, status, ação),
 // só a query de artefatos que muda por página (ver fetchArtifacts).
@@ -60,7 +70,7 @@ export default function ArtifactLibrary({
               <StatusBadge status={a.status === "ready" ? "concluida" : a.status} />
             </div>
             <p className="text-sm font-medium text-areia">{a.title}</p>
-            {a.content && <p className="line-clamp-2 text-xs text-areia/50">{a.content}</p>}
+            {a.content && <p className="line-clamp-2 text-xs text-areia/50">{semMarcacaoMarkdown(a.content)}</p>}
             <div className="mt-auto flex items-center justify-between gap-2 pt-2">
               <span className="font-mono text-[10px] text-areia/30">{new Date(a.createdAt).toLocaleDateString("pt-BR")}</span>
               <div className="flex items-center gap-3">

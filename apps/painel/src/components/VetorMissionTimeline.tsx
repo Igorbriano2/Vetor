@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { readApiResponse } from "@/lib/api/readApiResponse";
 import { traduzirStatusDePeca, GRUPO_STATUS_PECA } from "@/lib/campanha/pecaStatus";
+import MiniMarkdown from "@/components/MiniMarkdown";
 
 interface MissionStep {
   id: string;
@@ -262,7 +263,9 @@ export default function VetorMissionTimeline({
                       <img src={art.url} alt={art.title} className="mt-2 max-h-64 rounded-lg" />
                     )}
                     {art.content && (
-                      <p className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap text-xs text-areia/70">{art.content}</p>
+                      <div className="mt-2 max-h-40 overflow-y-auto text-xs text-areia/70">
+                        <MiniMarkdown texto={art.content} />
+                      </div>
                     )}
                   </div>
                 ))}

@@ -38,7 +38,11 @@ export default async function DesignPage() {
       .select("id, tarefa, status, mission_id, missions(titulo)")
       .eq("cliente_id", clienteId)
       .eq("agente", "design")
-      .in("status", ["running", "awaiting_approval", "ready"])
+      // "failed" entra aqui de propósito — achado ao vivo: uma direção que
+      // falha some da tela sem explicação nenhuma, o cliente vê 2 de 3
+      // peças pedidas e não sabe por quê. Mostra com StatusBadge "Falhou"
+      // em vez de esconder.
+      .in("status", ["running", "awaiting_approval", "ready", "failed"])
       .order("created_at", { ascending: false })
       .limit(8),
     supabase.from("brand_kits").select("id").eq("cliente_id", clienteId).eq("is_atual", true).maybeSingle(),

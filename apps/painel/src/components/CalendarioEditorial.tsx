@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { salvarPrefillComando } from "@/lib/conversation";
+import MiniMarkdown from "@/components/MiniMarkdown";
 
 // Fase 5 do VETOR Manager V2 (docs/IMPLEMENTATION-AUDIT-V2.md) — calendário
 // mensal operacional real, substituindo o grid de day-cards extraído de
@@ -352,9 +353,10 @@ export default function CalendarioEditorial({ clienteId }: { clienteId: string }
                 </p>
               )}
               {itemAberto.copy && (
-                <p className="whitespace-pre-wrap">
-                  <span className="text-areia/40">Copy:</span> {itemAberto.copy}
-                </p>
+                <div>
+                  <span className="text-areia/40">Copy:</span>
+                  <MiniMarkdown texto={itemAberto.copy} className="mt-1" />
+                </div>
               )}
             </div>
 
