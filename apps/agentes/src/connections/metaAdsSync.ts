@@ -12,6 +12,25 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export class ContaDeAnuncioNaoConectadaError extends Error {}
 
+// Nenhum fetch pra Graph API nesta rodada tinha timeout — achado ao vivo
+// pré-demo: "Sincronizar agora" ficava pendurado pra sempre (sem erro, sem
+// dado) sempre que a Meta demorava/travava, porque o fetch nativo do Node
+// não tem timeout padrão nenhum. 15s é generoso pra uma chamada de API que
+// deveria responder em milissegundos — nunca deixa o usuário esperando sem
+// fim nem um estágio "travado" silencioso.
+const TIMEOUT_GRAPH_API_MS = 15_000;
+
+async function fetchGraphApi(url: string): Promise<Response> {
+  try {
+    return await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_GRAPH_API_MS) });
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new Error(`Graph API não respondeu em ${TIMEOUT_GRAPH_API_MS / 1000}s: ${url.split("?")[0]}`);
+    }
+    throw err;
+  }
+}
+
 interface CampanhaGraph {
   id: string;
   name: string;
@@ -293,14 +312,14 @@ function montarMetricasCompletas(insight: InsightGraph): Record<string, unknown>
 // ficam ausentes, nunca inventados.
 async function sincronizarCriativosDaCampanha(clienteId: string, campanhaId: string, metaCampaignId: string, accessToken: string): Promise<void> {
   try {
-    const resAds = await fetch(
+    const resAds = await fetchGraphApi(
       graphApiUrl(`/${metaCampaignId}/ads?fields=id,name,creative{thumbnail_url}&limit=20`) + `&access_token=${encodeURIComponent(accessToken)}`,
     );
     if (!resAds.ok) return;
     const anuncios = ((await resAds.json()) as { data: AdGraph[] }).data ?? [];
 
     for (const anuncio of anuncios) {
-      const resInsights = await fetch(
+      const resInsights = await fetchGraphApi(
         graphApiUrl(`/${anuncio.id}/insights?fields=${CAMPOS_INSIGHTS}&date_preset=last_30d`) +
           `&access_token=${encodeURIComponent(accessToken)}`,
       );
@@ -329,7 +348,7 @@ export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSi
   const conexao = await tokenAtivoDoCliente(clienteId);
   if (!conexao) throw new ContaDeAnuncioNaoConectadaError("Nenhuma conta de anúncios Meta conectada.");
 
-  const resCampanhas = await fetch(
+  const resCampanhas = await fetchGraphApi(
     graphApiUrl(`/${conexao.adAccountId}/campaigns?fields=id,name,status,daily_budget,lifetime_budget&limit=50`) +
       `&access_token=${encodeURIComponent(conexao.accessToken)}`,
   );
@@ -343,7 +362,7 @@ export async function sincronizarTrafego(clienteId: string): Promise<ResultadoSi
   const metricasPorCampanha: Array<{ nome: string; insight: InsightGraph | undefined }> = [];
 
   for (const campanha of campanhas) {
-    const resInsights = await fetch(
+    const resInsights = await fetchGraphApi(
       graphApiUrl(`/${campanha.id}/insights?fields=${CAMPOS_INSIGHTS}&date_preset=last_30d`) +
         `&access_token=${encodeURIComponent(conexao.accessToken)}`,
     );
