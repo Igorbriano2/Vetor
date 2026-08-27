@@ -150,7 +150,7 @@ export default function DesignCommandCenter({
             Usar um template
           </Link>
           <Link
-            href="/planejamento"
+            href="/estrategia"
             className="rounded-full border border-areia/15 px-5 py-2.5 text-sm text-areia/80 transition hover:border-menta/40 hover:text-menta"
           >
             Abrir uma campanha

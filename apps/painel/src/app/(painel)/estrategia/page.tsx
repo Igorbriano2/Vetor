@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 import type { RotaEstrategica } from "../planejamento/rotaEstrategicaTipos";
 import EstrategiaCommandCenter from "./EstrategiaCommandCenter";
+import type { PlanoMensal } from "./PlanosMensais";
 
 // Navegação por especialista — Estratégia ganha área própria (mesmo nível de
 // recurso que Design já tem): trabalho em andamento do agente `estrategia`,
@@ -9,6 +10,12 @@ import EstrategiaCommandCenter from "./EstrategiaCommandCenter";
 // Estratégicas já entregues (artifacts type=plan, metadata.formato=
 // rota_estrategica — mesmo filtro que /planejamento já usava pra decidir
 // quando renderizar RotaEstrategicaView).
+//
+// Reorganização de menus — /planejamento inteiro foi absorvido aqui (virou
+// redirect): os dois eram a mesma coisa de fundo (artifacts type=plan
+// gerados pelo agente estratégia), só com apresentação separada. "planos"
+// abaixo é o que sobra de type=plan quando não é uma rota estratégica —
+// planos mensais com calendário/indicadores, de onde nasce "gerar peças".
 export default async function EstrategiaPage() {
   const supabase = await createSupabaseServerClient();
   const ativo = await resolverClienteAtivo(supabase);
@@ -84,6 +91,19 @@ export default async function EstrategiaPage() {
     })
     .filter((r): r is { id: string; titulo: string; missionId: string | null; createdAt: string; rota: RotaEstrategica } => r !== null);
 
+  const planosMensais = (planos ?? [])
+    .filter((p) => {
+      const meta = (p.metadata as { formato?: string } | null) ?? {};
+      return meta.formato !== "rota_estrategica";
+    })
+    .map((p) => ({
+      id: p.id as string,
+      title: p.title as string,
+      mission_id: p.mission_id as string | null,
+      created_at: p.created_at as string,
+      metadata: p.metadata as PlanoMensal["metadata"],
+    }));
+
   return (
     <EstrategiaCommandCenter
       etapasEmAndamento={(etapasEmAndamento ?? []).map((e) => ({
@@ -101,6 +121,7 @@ export default async function EstrategiaPage() {
         criterioSucesso: (m.criterio_sucesso as string[] | null) ?? [],
       }))}
       rotas={rotas}
+      planosMensais={planosMensais}
     />
   );
 }

@@ -6,6 +6,7 @@ import StatusBadge from "@/components/StatusBadge";
 import RotaEstrategicaView from "../planejamento/RotaEstrategicaView";
 import type { RotaEstrategica } from "../planejamento/rotaEstrategicaTipos";
 import NovaAnaliseWizard from "./NovaAnaliseWizard";
+import PlanosMensais, { type PlanoMensal } from "./PlanosMensais";
 
 interface EtapaEmAndamento {
   id: string;
@@ -42,11 +43,13 @@ export default function EstrategiaCommandCenter({
   campanhas,
   hipoteses,
   rotas,
+  planosMensais,
 }: {
   etapasEmAndamento: EtapaEmAndamento[];
   campanhas: Campanha[];
   hipoteses: Hipotese[];
   rotas: Rota[];
+  planosMensais: PlanoMensal[];
 }) {
   const [wizardAberto, setWizardAberto] = useState(false);
 
@@ -56,8 +59,8 @@ export default function EstrategiaCommandCenter({
         <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
         <h1 className="mt-1 text-2xl font-bold text-areia">Estratégia</h1>
         <p className="mt-2 max-w-2xl text-sm text-areia/60">
-          Diagnóstico, hipóteses e rotas de ação do negócio. Peça uma análise nova, acompanhe o que está em andamento
-          ou reveja uma rota já entregue.
+          Diagnóstico, hipóteses, rotas de ação e planos mensais do negócio. Peça uma análise nova, acompanhe o que
+          está em andamento ou reveja o que já foi entregue.
         </p>
 
         <div className="mt-6 flex flex-wrap gap-3">
@@ -67,12 +70,6 @@ export default function EstrategiaCommandCenter({
           >
             + Nova análise estratégica
           </button>
-          <Link
-            href="/planejamento"
-            className="rounded-full border border-areia/15 px-5 py-2.5 text-sm text-areia/80 transition hover:border-menta/40 hover:text-menta"
-          >
-            Ver planejamento
-          </Link>
         </div>
 
         {etapasEmAndamento.length > 0 && (
@@ -179,6 +176,11 @@ export default function EstrategiaCommandCenter({
               Nenhuma rota estratégica entregue ainda — peça uma análise com uma rota de ação acima.
             </p>
           )}
+        </section>
+
+        <section className="mt-10">
+          <p className="mono-label mb-3 text-areia/50">Planos mensais</p>
+          <PlanosMensais planos={planosMensais} />
         </section>
       </div>
 

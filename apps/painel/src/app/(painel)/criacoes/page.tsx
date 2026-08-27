@@ -3,7 +3,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 import { buscarArtefatos, buscarVideosFinalizados } from "@/lib/artifacts/fetchArtifacts";
 import { agruparPorCampanha } from "@/lib/artifacts/agruparPorCampanha";
-import { buscarPecasEmProgresso } from "@/lib/artifacts/buscarPecasEmProgresso";
 import CriacoesGaleria from "./CriacoesGaleria";
 import NovoProjetoBotao from "./NovoProjetoBotao";
 
@@ -23,6 +22,12 @@ const ENTRADAS = [
 // dessas páginas (cada uma continua existindo e é reaproveitada como
 // destino de link ou como fonte de dado), só unifica onde o cliente chega
 // primeiro quando quer criar ou revisar algo visual.
+//
+// Reorganização de menus (achado ao vivo: a galeria de "em produção"/"com
+// falha" daqui duplicava exatamente o que já mora nos workspaces de /design
+// e /videomaker) — Criações não busca mais peça em progresso, só o que já
+// foi concluído (biblioteca finalizada + entregas por campanha). Quem quer
+// ver o trabalho em andamento de um agente específico vai no workspace dele.
 export default async function CriacoesPage() {
   const supabase = await createSupabaseServerClient();
   const ativo = await resolverClienteAtivo(supabase);
@@ -32,10 +37,9 @@ export default async function CriacoesPage() {
   }
   const clienteId = ativo.clienteId;
 
-  const [artefatos, videosFinalizados, progresso] = await Promise.all([
+  const [artefatos, videosFinalizados] = await Promise.all([
     buscarArtefatos(supabase, { departamentos: ["design", "videomaker", "conteudo"], clienteId }),
     buscarVideosFinalizados(supabase),
-    buscarPecasEmProgresso(supabase, clienteId),
   ]);
   const todosArtefatos = [...artefatos, ...videosFinalizados];
 
@@ -82,12 +86,7 @@ export default async function CriacoesPage() {
         <div className="mt-10">
           <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-areia/40">Biblioteca visual</h2>
           <div className="mt-3">
-            <CriacoesGaleria
-              artefatos={todosArtefatos}
-              campanhas={campanhas}
-              emProducao={progresso.emProducao}
-              comFalha={progresso.comFalha}
-            />
+            <CriacoesGaleria artefatos={todosArtefatos} campanhas={campanhas} />
           </div>
         </div>
       </div>

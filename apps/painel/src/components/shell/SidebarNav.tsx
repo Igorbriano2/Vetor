@@ -22,7 +22,6 @@ const GRUPOS_NAV: Array<{ titulo: string | null; itens: Array<{ href: string; la
       { href: "/videomaker", label: "Vídeo" },
       { href: "/social", label: "Social" },
       { href: "/trafego", label: "Tráfego" },
-      { href: "/planejamento", label: "Planejamento" },
       { href: "/analitico", label: "Analítico" },
       { href: "/criacoes", label: "Criações" },
       { href: "/configuracoes/negocio", label: "Negócio" },
@@ -106,12 +105,6 @@ const ÍCONE_POR_HREF: Record<string, React.ReactNode> = {
   "/trafego": (
     <svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden="true">
       <path d="M4 18V9M11 18V4M18 18v-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  ),
-  "/planejamento": (
-    <svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden="true">
-      <rect x="3.5" y="4.5" width="17" height="16" rx="2" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M3.5 9h17M8 3v3M16 3v3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   ),
   "/analitico": (

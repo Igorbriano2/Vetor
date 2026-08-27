@@ -3,10 +3,8 @@
 import { useMemo, useState } from "react";
 import ArtifactLibrary from "@/components/ArtifactLibrary";
 import EntregasPainel from "../entregas/EntregasPainel";
-import ProgressoCard from "./ProgressoCard";
 import type { ArtefatoBiblioteca } from "@/lib/artifacts/fetchArtifacts";
 import type { CampanhaDeEntregas } from "@/lib/artifacts/agruparPorCampanha";
-import type { PecaEmProgresso } from "@/lib/artifacts/buscarPecasEmProgresso";
 
 const STATUS_RASCUNHO = ["draft", "rascunho", "pending", "ready"];
 const STATUS_APROVADA = ["approved", "aprovado", "completed", "completed_with_caveats"];
@@ -25,9 +23,10 @@ type FiltroId = (typeof FILTROS)[number]["id"];
 
 // Design V2 (prompt "reconstrução seletiva") — Fase 1: galeria visual de
 // Criações. Continua a mesma base de dados de sempre (artefatos reais +
-// EntregasPainel pra campanhas), agora com busca, filtro por
-// campanha/workspace, e as duas faixas de estado real "Em produção"/"Com
-// falha" (nunca misturadas com "Concluídas" — critério 11 do Design V2).
+// EntregasPainel pra campanhas), agora com busca e filtro por
+// campanha/workspace. Só mostra peça concluída — "em produção"/"com falha"
+// foi removido daqui (reorganização de menus): esse estado já vive nos
+// workspaces de /design e /videomaker, mostrar aqui também era duplicação.
 // "Carrosséis" não é um artifacts.type próprio (schema: image/video/copy/
 // document/report/plan/campaign_snapshot) — o formato "carrossel" vem do
 // briefing (CriarPecaWizard) e fica só no título/descrição do artefato, daí
@@ -36,13 +35,9 @@ type FiltroId = (typeof FILTROS)[number]["id"];
 export default function CriacoesGaleria({
   artefatos,
   campanhas,
-  emProducao,
-  comFalha,
 }: {
   artefatos: ArtefatoBiblioteca[];
   campanhas: CampanhaDeEntregas[];
-  emProducao: PecaEmProgresso[];
-  comFalha: PecaEmProgresso[];
 }) {
   const [filtro, setFiltro] = useState<FiltroId>("todos");
   const [busca, setBusca] = useState("");
@@ -125,38 +120,9 @@ export default function CriacoesGaleria({
           <EntregasPainel campanhas={campanhas} />
         </div>
       ) : (
-        <>
-          {emProducao.length > 0 && (
-            <section className="mt-6">
-              <h3 className="font-mono text-[11px] font-semibold uppercase tracking-widest text-areia/40">
-                Em produção
-              </h3>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {emProducao.map((p) => (
-                  <ProgressoCard key={p.id} peca={p} />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {comFalha.length > 0 && (
-            <section className="mt-6">
-              <h3 className="font-mono text-[11px] font-semibold uppercase tracking-widest text-coral/70">Com falha</h3>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {comFalha.map((p) => (
-                  <ProgressoCard key={p.id} peca={p} falha />
-                ))}
-              </div>
-            </section>
-          )}
-
-          <section className="mt-6">
-            {(emProducao.length > 0 || comFalha.length > 0) && (
-              <h3 className="mb-3 font-mono text-[11px] font-semibold uppercase tracking-widest text-areia/40">Concluídas</h3>
-            )}
-            <ArtifactLibrary artefatos={filtrados} vazio="Nada por aqui ainda — crie uma peça ou um vídeo pra começar." />
-          </section>
-        </>
+        <section className="mt-6">
+          <ArtifactLibrary artefatos={filtrados} vazio="Nada por aqui ainda — crie uma peça ou um vídeo pra começar." />
+        </section>
       )}
     </div>
   );

@@ -971,8 +971,8 @@ export default function VetorCockpit({
           <Link href="/criacoes" className="mono-label text-areia/40 hover:text-areia">
             Criações
           </Link>
-          <Link href="/planejamento" className="mono-label text-areia/40 hover:text-areia">
-            Planejamento
+          <Link href="/estrategia" className="mono-label text-areia/40 hover:text-areia">
+            Estratégia
           </Link>
           <Link href="/configuracoes/negocio" className="mono-label text-areia/40 hover:text-areia">
             Negócio

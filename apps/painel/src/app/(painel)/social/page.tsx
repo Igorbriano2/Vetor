@@ -6,10 +6,9 @@ import SocialCommandCenter from "./SocialCommandCenter";
 // Navegação por especialista — Social ganha área própria (mesmo nível de
 // recurso que Design/Estratégia): trabalho em andamento do agente
 // `social-media`, copies/legendas já entregues (artifacts department=
-// "conteudo", mesmo filtro que Entregas já usa) e o calendário editorial
-// (continua também em /planejamento — Planejamento não fica vazio sem ele,
-// então não faz sentido remover de lá; aqui é conveniência de quem trabalha
-// o dia a dia de conteúdo social).
+// "conteudo", mesmo filtro que Entregas já usa) e o calendário editorial —
+// dono único do calendário agora (reorganização de menus: /planejamento
+// virou redirect pra /estrategia, que não mostrava calendário nenhum).
 export default async function SocialPage() {
   const supabase = await createSupabaseServerClient();
   const ativo = await resolverClienteAtivo(supabase);
