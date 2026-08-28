@@ -112,10 +112,14 @@ function Relogio() {
   return <span className="mono-label text-areia/50">{agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>;
 }
 
+// Menos cards, mais espaço por card (redesign: 8 painéis viravam ruído
+// visual competindo pela mesma atenção — reduzido a 6, cada um com mais
+// respiro e um traço de hierarquia real (a régua sob o título), não só
+// texto pequeno flutuando dentro de uma caixa.
 function PainelTelemetria({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
-    <div className="panel rounded-2xl p-3.5">
-      <p className="mono-label mb-2.5 text-areia/40">{titulo}</p>
+    <div className="panel rounded-2xl p-4">
+      <p className="mono-label mb-2.5 border-b border-areia/[0.06] pb-2 text-areia/45">{titulo}</p>
       {children}
     </div>
   );
@@ -553,35 +557,33 @@ export default function VetorCockpit({
 
   const ativo = estado !== "idle";
 
-  const painelAnaliseVoz = (
-    <PainelTelemetria titulo="Análise de voz">
+  // Achado ao vivo (redesign): "Análise de voz" e "Resposta de frequência"
+  // eram 2 cards quase idênticos (os dois só mostram "Sem áudio no
+  // momento" fora de uma sessão ativa) — virou 1 card só, que expande pra
+  // mostrar as 2 visualizações reais quando há áudio de verdade. O painel
+  // "Confiança" foi removido: nenhum valor de confiança de intenção é
+  // persistido hoje (ver docs/IMPLEMENTATION-AUDIT-V2.md seção 2) — em vez
+  // de um card que SEMPRE diz "aguardando" pra todo cliente, pra sempre,
+  // preferimos não prometer um dado que não existe ainda.
+  const painelVoz = (
+    <PainelTelemetria titulo="Voz">
       {gravando || estado === "speaking" ? (
-        <BarrasDeAmplitude valores={Array.from({ length: 10 }, (_, i) => Math.max(0.05, amplitude * (0.6 + 0.4 * Math.sin(i))))} cor="var(--color-menta)" />
+        <div className="space-y-2.5">
+          <BarrasDeAmplitude valores={Array.from({ length: 10 }, (_, i) => Math.max(0.05, amplitude * (0.6 + 0.4 * Math.sin(i))))} cor="var(--color-menta)" />
+          <BarrasDeAmplitude valores={bandasFrequencia} cor="var(--color-electric)" />
+        </div>
       ) : (
         <p className="text-[11px] text-areia/40">Sem áudio no momento</p>
       )}
     </PainelTelemetria>
   );
 
-  const painelFrequencia = (
-    <PainelTelemetria titulo="Resposta de frequência">
-      {gravando || estado === "speaking" ? (
-        <BarrasDeAmplitude valores={bandasFrequencia} cor="var(--color-electric)" />
-      ) : (
-        <p className="text-[11px] text-areia/40">Sem áudio no momento</p>
-      )}
-    </PainelTelemetria>
-  );
-
-  const painelConfianca = (
-    <PainelTelemetria titulo="Confiança">
-      {/* Nenhum valor de confiança de intenção é persistido hoje (ver
-          docs/IMPLEMENTATION-AUDIT-V2.md seção 2) — mostrar "aguardando"
-          honestamente é melhor que inventar um número. */}
-      <p className="text-[11px] text-areia/40">Aguardando sinal real de confiança</p>
-    </PainelTelemetria>
-  );
-
+  // "Status do sistema" reduzido aos 2 sinais que um dono de negócio
+  // realmente lê (o núcleo está ouvindo? o motor de planejamento está de
+  // pé?) — "reconhecimento de voz: manual (wake word indisponível)" e
+  // "memória e sincronização: ativo" eram detalhe de implementação
+  // interna vazando pra tela do cliente, nunca mudam, nunca são
+  // acionáveis por ele.
   const painelStatusSistema = (
     <PainelTelemetria titulo="Status do sistema">
       <div className="space-y-1 text-[11px]">
@@ -590,20 +592,8 @@ export default function VetorCockpit({
           <span className="text-menta">{LABEL_ESTADO[estado]}</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-areia/60">Reconhecimento de voz</span>
-          {/* Modelo ONNX de wake word ("Diga Vetor") ainda não instalado em
-              produção (ver apps/painel/src/lib/voice/providers/*) — nunca
-              fingir que está ativo; a captura manual pelo botão de
-              microfone continua funcionando normalmente. */}
-          <span className="text-areia/30">manual (wake word indisponível)</span>
-        </div>
-        <div className="flex items-center justify-between">
           <span className="text-areia/60">Motor de planejamento</span>
           <span className={estado === "error" ? "text-coral" : "text-menta"}>{estado === "error" ? "falha" : enviando ? "processando" : "ativo"}</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-areia/60">Memória e sincronização</span>
-          <span className="text-menta">ativo</span>
         </div>
       </div>
     </PainelTelemetria>
@@ -689,9 +679,7 @@ export default function VetorCockpit({
       {/* Conteúdo principal: telemetria | núcleo | telemetria */}
       <div className="relative z-10 mx-auto flex w-full max-w-[1500px] flex-1 flex-col gap-6 px-4 py-8 lg:flex-row lg:items-start lg:gap-4 lg:px-6 xl:gap-6">
         <aside className="hidden shrink-0 flex-col gap-3 lg:flex lg:w-48 xl:w-60">
-          {painelAnaliseVoz}
-          {painelFrequencia}
-          {painelConfianca}
+          {painelVoz}
           {painelStatusSistema}
         </aside>
 
@@ -948,9 +936,7 @@ export default function VetorCockpit({
               </button>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {painelAnaliseVoz}
-              {painelFrequencia}
-              {painelConfianca}
+              {painelVoz}
               {painelStatusSistema}
               {painelInsights}
               {painelAnalytics}
