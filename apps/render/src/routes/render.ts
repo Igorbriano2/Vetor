@@ -359,6 +359,14 @@ async function processarFinalMultiClip(
   // sem escrever "failed" na linha do job.
   let pastaTempParaLimpeza: string | undefined;
   try {
+    // Achado ao vivo (2026-08-28): sem essa escrita, a linha do job fica
+    // em "queued" tanto enquanto está genuinamente processando quanto se
+    // tiver travado/morrido — impossível distinguir os dois só olhando o
+    // banco. "processing" é o sinal de vida real: se nunca aparecer, o
+    // trabalho nem começou (bug antes daqui); se aparecer e nunca virar
+    // "done"/"failed", travou de verdade durante o processamento.
+    await supabase.from("render_jobs").update({ status: "processing", updated_at: new Date().toISOString() }).eq("id", jobId);
+
     const pastaTemp = await mkdtemp(join(tmpdir(), "vetor-render-multiclip-"));
     pastaTempParaLimpeza = pastaTemp;
     const caminhoSaida = join(pastaTemp, "final.mp4");
