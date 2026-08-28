@@ -56,7 +56,7 @@ function ehAtivo(pathname: string, href: string): boolean {
   return subRotas.some((sub) => pathname === sub || pathname.startsWith(`${sub}/`));
 }
 
-function VetorMark() {
+function VetorMark({ expandido }: { expandido: boolean }) {
   return (
     <div className="flex items-center gap-2.5">
       <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-menta/30 bg-menta/10">
@@ -64,48 +64,32 @@ function VetorMark() {
           <path d="M4 5l8 14 8-14" stroke="var(--color-menta)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </span>
-      <div>
+      <div className={`overflow-hidden whitespace-nowrap transition-opacity duration-150 ${expandido ? "opacity-100" : "opacity-0"}`}>
         <p className="text-gradient-menta text-sm font-bold tracking-wide">VETOR</p>
       </div>
     </div>
   );
 }
 
-// Rail recolhido (Fase 1 do VETOR Manager V2) — usado só na tela /vetor,
-// onde o núcleo fullscreen precisa do máximo de espaço horizontal. Mesmos 4
-// links, mesma lógica de destaque ativo (ehAtivo), só sem rótulo por
-// extenso — nunca uma navegação diferente, só uma apresentação mais
-// compacta da mesma.
-function RailNav({ pathname }: { pathname: string }) {
-  return (
-    <nav className="flex flex-col items-center gap-2">
-      {GRUPOS_NAV[0]!.itens.map((item) => {
-        const ativo = ehAtivo(pathname, item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            title={item.label}
-            aria-label={item.label}
-            className={`flex size-10 items-center justify-center rounded-lg transition ${
-              ativo ? "bg-menta/10 text-menta" : "text-areia-2 hover:bg-areia/5 hover:text-areia"
-            }`}
-          >
-            {ÍCONE_POR_HREF[item.href]}
-          </Link>
-        );
-      })}
-    </nav>
-  );
-}
-
-function ListaNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+// Trilho hover-expand (auditoria Magnific — mesmo comportamento do rail de
+// nodes do Creative Canvas, ver components/canvas/CreativeCanvasEditor.tsx):
+// no repouso é só ícones (w-16), passar o mouse expande pra w-64 com
+// rótulo. Um item de navegação só, nunca dois componentes (RailNav +
+// ListaNav) divergindo — elimina a bifurcação por rota que existia antes
+// (só /vetor recolhia; agora todo o app usa o mesmo trilho).
+function ItensNav({ pathname, expandido, onNavigate }: { pathname: string; expandido: boolean; onNavigate?: () => void }) {
   return (
     <nav className="flex flex-col gap-3">
       {GRUPOS_NAV.map((grupo, i) => (
         <div key={grupo.titulo ?? `grupo-${i}`} className="flex flex-col gap-0.5">
           {grupo.titulo && (
-            <p className="mt-1 px-3 font-mono text-[10px] uppercase tracking-widest text-areia/25">{grupo.titulo}</p>
+            <p
+              className={`mt-1 h-4 overflow-hidden whitespace-nowrap px-3 font-mono text-[10px] uppercase tracking-widest text-areia/25 transition-opacity duration-150 ${
+                expandido ? "opacity-100" : "opacity-0"
+              }`}
+            >
+              {grupo.titulo}
+            </p>
           )}
           {grupo.itens.map((item) => {
             const ativo = ehAtivo(pathname, item.href);
@@ -114,12 +98,13 @@ function ListaNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
                 key={item.href}
                 href={item.href}
                 onClick={onNavigate}
-                className={`mono-label flex items-center gap-2.5 rounded-lg px-3 py-2 transition ${
+                title={expandido ? undefined : item.label}
+                className={`mono-label flex items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-lg px-3 py-2 transition-colors ${
                   ativo ? "bg-menta/10 text-menta" : "text-areia-2 hover:bg-areia/5 hover:text-areia"
                 }`}
               >
                 <span className="shrink-0 opacity-80">{ÍCONE_POR_HREF[item.href]}</span>
-                {item.label}
+                <span className={`transition-opacity duration-150 ${expandido ? "opacity-100" : "opacity-0"}`}>{item.label}</span>
               </Link>
             );
           })}
@@ -144,62 +129,55 @@ export default function SidebarNav({
 }) {
   const pathname = usePathname();
   const [aberto, setAberto] = useState(false);
-  // Fase 1 do VETOR Manager V2 — só a tela /vetor recolhe pro rail de
-  // ícones (o núcleo fullscreen precisa do espaço); todas as outras áreas
-  // continuam com o menu completo, sem mudança nenhuma de comportamento.
-  const recolhido = pathname === "/vetor";
+  const [expandido, setExpandido] = useState(false);
 
   return (
     <>
-      {/* Desktop */}
-      {recolhido ? (
-        <aside className="panel fixed inset-y-0 left-0 z-30 hidden w-16 flex-col items-center gap-6 overflow-y-auto py-5 lg:flex">
-          <Link href="/vetor" aria-label="VETOR" className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-menta/30 bg-menta/10">
-            <svg viewBox="0 0 24 24" className="size-4" fill="none" aria-hidden="true">
-              <path d="M4 5l8 14 8-14" stroke="var(--color-menta)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </Link>
-          <RailNav pathname={pathname} />
-          <div className="mt-auto flex flex-col items-center gap-3">
-            <span className="relative flex size-2 items-center justify-center" title="Sistema online">
-              <span className="absolute inset-0 rounded-full bg-menta animate-core-pulse" />
-              <span className="relative size-1.5 rounded-full bg-menta" />
-            </span>
-            <LogoutButton compact />
-          </div>
-        </aside>
-      ) : (
-        <aside className="panel fixed inset-y-0 left-0 z-30 hidden w-64 flex-col gap-6 overflow-y-auto p-5 lg:flex">
-          <div>
-            <VetorMark />
+      {/* Desktop — trilho fixo w-16, expande pra w-64 no hover (overlay,
+          nunca empurra o conteúdo: <main> já reserva só o espaço do
+          repouso, ver VetorAppShell.tsx). */}
+      <aside
+        onMouseEnter={() => setExpandido(true)}
+        onMouseLeave={() => setExpandido(false)}
+        className={`panel fixed inset-y-0 left-0 z-40 hidden flex-col gap-6 overflow-hidden py-5 transition-[width] duration-200 ease-out lg:flex ${
+          expandido ? "w-64 px-5" : "w-16 px-3"
+        }`}
+      >
+        <div>
+          <VetorMark expandido={expandido} />
+          <div className={`overflow-hidden transition-opacity duration-150 ${expandido ? "opacity-100" : "opacity-0"}`}>
             {ehAdmin && workspaces.length > 0 ? (
               <WorkspaceSwitcher workspaceAtivoId={workspaceAtivoId} workspaces={workspaces} />
             ) : (
               <p className="mono-label mt-2 truncate">{orgNome ?? "sua empresa"}</p>
             )}
-            <div className="mt-3 flex items-center gap-2">
-              <span className="relative flex size-2 items-center justify-center">
-                <span className="absolute inset-0 rounded-full bg-menta animate-core-pulse" />
-                <span className="relative size-1.5 rounded-full bg-menta" />
-              </span>
-              <span className="mono-label">system online</span>
-            </div>
           </div>
-
-          <ListaNav pathname={pathname} />
-
-          <div className="mt-auto space-y-3">
-            <div className="space-y-3 border-t border-areia/10 pt-4">
-              <p className="mono-label truncate">{userNome ?? "conta"}</p>
-              <LogoutButton />
-            </div>
+          <div className="mt-3 flex items-center gap-2">
+            <span className="relative flex size-2 shrink-0 items-center justify-center">
+              <span className="absolute inset-0 rounded-full bg-menta animate-core-pulse" />
+              <span className="relative size-1.5 rounded-full bg-menta" />
+            </span>
+            <span className={`mono-label overflow-hidden whitespace-nowrap transition-opacity duration-150 ${expandido ? "opacity-100" : "opacity-0"}`}>
+              system online
+            </span>
           </div>
-        </aside>
-      )}
+        </div>
+
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+          <ItensNav pathname={pathname} expandido={expandido} />
+        </div>
+
+        <div className="space-y-3 border-t border-areia/10 pt-4">
+          <p className={`mono-label overflow-hidden truncate whitespace-nowrap transition-opacity duration-150 ${expandido ? "opacity-100" : "opacity-0"}`}>
+            {userNome ?? "conta"}
+          </p>
+          <LogoutButton compact={!expandido} />
+        </div>
+      </aside>
 
       {/* Mobile */}
       <div className="panel sticky top-0 z-30 flex items-center justify-between px-4 py-3 lg:hidden">
-        <VetorMark />
+        <VetorMark expandido={true} />
         <button
           onClick={() => setAberto(true)}
           aria-label="Abrir navegação"
@@ -216,7 +194,7 @@ export default function SidebarNav({
           <div className="absolute inset-0 bg-petroleo/80 backdrop-blur-sm" onClick={() => setAberto(false)} />
           <div className="panel absolute inset-y-0 left-0 flex w-72 flex-col gap-6 overflow-y-auto p-5">
             <div className="flex items-center justify-between">
-              <VetorMark />
+              <VetorMark expandido={true} />
               <button
                 onClick={() => setAberto(false)}
                 aria-label="Fechar navegação"
@@ -232,7 +210,7 @@ export default function SidebarNav({
             ) : (
               <p className="mono-label -mt-4 truncate">{orgNome ?? "sua empresa"}</p>
             )}
-            <ListaNav pathname={pathname} onNavigate={() => setAberto(false)} />
+            <ItensNav pathname={pathname} expandido={true} onNavigate={() => setAberto(false)} />
             <div className="mt-auto space-y-3">
               <div className="space-y-3 border-t border-areia/10 pt-4">
                 <p className="mono-label truncate">{userNome ?? "conta"}</p>

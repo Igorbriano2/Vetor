@@ -21,12 +21,13 @@ export default function VetorAppShell({
   workspaces?: Array<{ id: string; nome: string }>;
   children: React.ReactNode;
 }) {
-  // Fase 1 do VETOR Manager V2 — o padding do <main> precisa acompanhar a
-  // largura real da sidebar (SidebarNav.tsx decide sozinho quando recolher
-  // pro rail de ícones em /vetor); mantido em sincronia aqui pelo mesmo
-  // critério de rota, nunca uma medida solta.
+  // A sidebar agora é sempre um trilho de w-16 em repouso, expandindo pra
+  // w-64 no hover como overlay (SidebarNav.tsx) — nunca empurra o layout,
+  // então <main> reserva sempre o mesmo espaço do repouso, em toda rota
+  // (antes só /vetor recolhia; a diferença de /vetor aqui é só o fundo
+  // decorativo, que continua distinto por ter o próprio starfield).
   const pathname = usePathname();
-  const recolhido = pathname === "/vetor";
+  const ehVetor = pathname === "/vetor";
 
   return (
     // Instância única do assistente de voz por sessão — vive aqui (dentro do
@@ -39,9 +40,9 @@ export default function VetorAppShell({
             painel; /vetor fica de fora porque já tem o próprio
             vetor-starfield (mais expressivo, não dá pra sobrepor os dois
             sem pesar visualmente). */}
-        {!recolhido && <div className="vetor-ambient" aria-hidden="true" />}
+        {!ehVetor && <div className="vetor-ambient" aria-hidden="true" />}
         <SidebarNav orgNome={orgNome} userNome={userNome} ehAdmin={ehAdmin} workspaceAtivoId={workspaceAtivoId} workspaces={workspaces} />
-        <main className={recolhido ? "lg:pl-16" : "lg:pl-64"}>{children}</main>
+        <main className="lg:pl-16">{children}</main>
       </div>
     </VetorVoiceProvider>
   );

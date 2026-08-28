@@ -84,6 +84,7 @@ export default function CreativeCanvasEditor({ projectId, clienteId, tituloInici
   const [ultimoSalvamento, setUltimoSalvamento] = useState<string | null>(null);
   const [titulo, setTitulo] = useState(tituloInicial);
   const [salvandoReceita, setSalvandoReceita] = useState(false);
+  const [railExpandido, setRailExpandido] = useState(false);
   const [receitaSalva, setReceitaSalva] = useState(false);
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -506,23 +507,29 @@ export default function CreativeCanvasEditor({ projectId, clienteId, tituloInici
             </ReactFlow>
           </CanvasActionsContext.Provider>
 
-          {/* Trilho de ícones à esquerda (auditoria Magnific/Freepik) — cada
-              botão só mostra o ícone; passar o mouse revela um rótulo
-              flutuante ao lado (mesmo padrão do "+ Add" deles), nunca ocupa
-              espaço de tela permanente igual a cápsula de texto de antes. */}
+          {/* Trilho de ícones à esquerda (auditoria Magnific/Freepik) — mesmo
+              padrão hover-expand do menu principal (SidebarNav.tsx): em
+              repouso só ícones, passar o mouse expande o trilho inteiro e
+              revela o rótulo ao lado de cada um — nunca ocupa espaço de
+              tela permanente igual a cápsula de texto de antes. */}
           <div className="pointer-events-none absolute inset-y-0 left-4 z-10 flex items-center">
-            <div className="pointer-events-auto flex max-h-[calc(100%-2rem)] flex-col gap-1 overflow-y-auto rounded-2xl border border-areia/10 bg-petroleo-2/90 p-1.5 shadow-2xl">
+            <div
+              onMouseEnter={() => setRailExpandido(true)}
+              onMouseLeave={() => setRailExpandido(false)}
+              className={`pointer-events-auto flex max-h-[calc(100%-2rem)] flex-col gap-1 overflow-y-auto overflow-x-hidden rounded-2xl border border-areia/10 bg-petroleo-2/90 p-1.5 shadow-2xl transition-[width] duration-200 ease-out ${
+                railExpandido ? "w-44" : "w-11"
+              }`}
+            >
               {TIPOS_TOOLBAR.map((tipo) => (
                 <button
                   key={tipo}
                   onClick={() => adicionarNode(tipo)}
-                  className="group relative flex size-8 shrink-0 items-center justify-center rounded-lg transition hover:bg-areia/5"
+                  title={railExpandido ? undefined : RÓTULO_TIPO[tipo]}
+                  className="flex shrink-0 items-center gap-2 overflow-hidden whitespace-nowrap rounded-lg px-1.5 py-2 transition-colors hover:bg-areia/5"
                   style={{ color: COR_TIPO[tipo] }}
                 >
-                  <span className="size-4">{ICONE_TIPO[tipo]}</span>
-                  <span className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-lg border border-areia/10 bg-petroleo-3 px-2.5 py-1 text-xs text-areia opacity-0 shadow-xl transition group-hover:opacity-100">
-                    {RÓTULO_TIPO[tipo]}
-                  </span>
+                  <span className="size-4 shrink-0">{ICONE_TIPO[tipo]}</span>
+                  <span className={`text-xs transition-opacity duration-150 ${railExpandido ? "opacity-100" : "opacity-0"}`}>{RÓTULO_TIPO[tipo]}</span>
                 </button>
               ))}
             </div>
