@@ -36,6 +36,7 @@ const GRUPOS_NAV: Array<{ titulo: string | null; itens: Array<{ href: string; la
     itens: [
       { href: "/imagem", label: "Imagem" },
       { href: "/video-ia", label: "Vídeo IA" },
+      { href: "/voz", label: "Voz" },
     ],
   },
 ];

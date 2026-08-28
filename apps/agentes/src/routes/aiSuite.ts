@@ -33,6 +33,20 @@ aiSuiteRouter.get("/models", async (req, res) => {
   res.json({ modelos: kind ? modelos.filter((m) => m.kind === kind) : modelos });
 });
 
+// GET /ai-suite/voices?idioma=pt-BR — alimenta o modal "Biblioteca de
+// vozes" do Voice Generator (ver docs/arquitetura-suite-ia.md, Módulo 3).
+aiSuiteRouter.get("/voices", async (req, res) => {
+  const { idioma } = req.query;
+  let query = supabase.from("voices").select("id, provider_id, nome, idioma, genero, sotaque, preview_url");
+  if (typeof idioma === "string") query = query.eq("idioma", idioma);
+  const { data, error } = await query.order("idioma", { ascending: true }).limit(100);
+  if (error) {
+    res.status(500).json({ error: "Falha ao buscar vozes" });
+    return;
+  }
+  res.json({ voices: data ?? [] });
+});
+
 // GET /ai-suite/templates?mediaKind=image&niche=restaurante
 aiSuiteRouter.get("/templates", async (req, res) => {
   const { mediaKind, niche, cliente_id } = req.query;
