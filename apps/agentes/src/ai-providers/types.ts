@@ -35,6 +35,11 @@ export interface AIModel {
 export interface GenerationRequest {
   kind: MediaKind;
   modelId: string | "auto";
+  // Achado ao vivo: o ImageAdapter real precisa saber DE QUEM é o pedido
+  // pra buscar BrandKit/logo/Drive reais (ver pecaCompostaReal.ts) — nunca
+  // gera peça "genérica" quando existe marca real por trás. Opcional só
+  // porque o MockAdapter nunca precisou disso.
+  clienteId?: string;
   prompt?: string;
   negativePrompt?: string;
   referenceAssetIds?: string[];

@@ -138,6 +138,7 @@ aiSuiteRouter.post("/generate", async (req, res) => {
 
   const request: GenerationRequest = {
     kind,
+    clienteId: cliente_id,
     modelId: typeof body.modelId === "string" ? body.modelId : "auto",
     prompt: typeof body.prompt === "string" ? body.prompt : undefined,
     negativePrompt: typeof body.negativePrompt === "string" ? body.negativePrompt : undefined,

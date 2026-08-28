@@ -63,6 +63,7 @@ import {
   registrarUsoDeAtivo,
   type AssetDisponivel,
 } from "../negocio/businessAssets.js";
+import { mapearFormatoParaLogo, resolverFonteDoBrandKit, resolverCorPrimariaDoBrandKit } from "../negocio/brandKitResolver.js";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -1159,41 +1160,11 @@ const FERRAMENTA_GERACAO_POR_AGENTE: Partial<Record<AgenteId, FerramentaDeExecuc
 // que buscarLogoParaFormato já entende — reels_cover usa a mesma variante
 // de story (retrato), ad/custom caem no fallback "principal" da logo
 // (nunca ficam sem logo só por não ter uma variante específica cadastrada
-// pro formato novo).
-function mapearFormatoParaLogo(formato: FormatoPeca): string {
-  if (formato === "reels_cover") return "story";
-  if (formato === "ad") return "feed";
-  if (formato === "custom") return "generico";
-  return formato;
-}
-
-// Lê fonte/cor do BrandKit de forma defensiva — o schema de `fontes`/`cores`
-// é jsonb livre, sem shape fixo — nunca assume uma chave que pode não
-// existir, sempre cai num fallback seguro e nunca lança erro por causa
-// disso. Duas famílias, não uma: brandbooks reais (ex: Dog King) separam
-// fonte de título/destaque (headline, CTA — o que precisa "gritar") de
-// fonte de apoio (subheadline, caption — texto corrido, mais legível em
-// tamanho menor). Sem "apoio" cadastrado, cai pra mesma fonte do título
-// (nunca duas fontes por acidente quando só uma foi informada).
-function resolverFonteDoBrandKit(
-  brandKit: ContextoExecucaoFerramenta["brandKit"],
-): { fontFamilyTitulo: string; fontFamilyApoio: string; fallbackUsado: boolean } {
-  const fontes = brandKit?.fontes as { principal?: unknown; titulo?: unknown; apoio?: unknown } | null | undefined;
-  const candidataTitulo = fontes?.principal ?? fontes?.titulo;
-  if (typeof candidataTitulo === "string" && candidataTitulo.trim()) {
-    const titulo = candidataTitulo.trim();
-    const candidataApoio = fontes?.apoio;
-    const apoio = typeof candidataApoio === "string" && candidataApoio.trim() ? candidataApoio.trim() : titulo;
-    return { fontFamilyTitulo: titulo, fontFamilyApoio: apoio, fallbackUsado: false };
-  }
-  return { fontFamilyTitulo: "sans", fontFamilyApoio: "sans", fallbackUsado: true };
-}
-
-function resolverCorPrimariaDoBrandKit(brandKit: ContextoExecucaoFerramenta["brandKit"]): string | null {
-  const cores = brandKit?.cores as { primaria?: unknown; texto?: unknown } | null | undefined;
-  const candidata = cores?.primaria;
-  return typeof candidata === "string" && /^#[0-9a-fA-F]{3,6}$/.test(candidata.trim()) ? candidata.trim() : null;
-}
+// pro formato novo). mapearFormatoParaLogo/resolverFonteDoBrandKit/
+// resolverCorPrimariaDoBrandKit agora vivem em negocio/brandKitResolver.ts
+// (achado ao vivo: o ImageAdapter da suíte de IA — geração direta pelo
+// canvas, ver ai-providers/imageAdapter.ts — precisava dos mesmos
+// resolvedores; import daqui pra lá inverteria a direção de dependência).
 
 // Design profissional V1 (camadas reais) — orquestra o fluxo completo de
 // criar_peca_de_design: fundo gerado sem texto -> camadas reais de
