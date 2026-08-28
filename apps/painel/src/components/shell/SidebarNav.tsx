@@ -28,6 +28,13 @@ const GRUPOS_NAV: Array<{ titulo: string | null; itens: Array<{ href: string; la
       { href: "/configuracoes/negocio", label: "Negócio" },
     ],
   },
+  {
+    // Suíte de IA "estúdio direto" (docs/arquitetura-suite-ia.md) — segundo
+    // caminho de criação, paralelo ao fluxo de agente acima. Cresce fase a
+    // fase (Fase 3: Imagem; próximas fases acrescentam Vídeo/Voz/3D).
+    titulo: "Suíte de IA",
+    itens: [{ href: "/imagem", label: "Imagem" }],
+  },
 ];
 
 // Sub-rotas que continuam existindo fora da área (linkadas a partir do hub

@@ -12,6 +12,7 @@ import { metaWebhookRouter } from "./routes/metaWebhook.js";
 import { trafegoRouter } from "./routes/trafego.js";
 import { referenciasRouter } from "./routes/referencias.js";
 import { videoChatRouter } from "./routes/videoChat.js";
+import { aiSuiteRouter } from "./routes/aiSuite.js";
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use("/webhooks/meta", metaWebhookRouter);
 app.use("/trafego", trafegoRouter);
 app.use("/referencias", referenciasRouter);
 app.use("/video-chat", videoChatRouter);
+app.use("/ai-suite", aiSuiteRouter);
 
 const port = Number(process.env.PORT ?? 3333);
 app.listen(port, () => {

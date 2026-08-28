@@ -60,6 +60,13 @@ export const ÍCONE_POR_HREF: Record<string, React.ReactNode> = {
       <path d="M8.5 8V6a1.5 1.5 0 0 1 1.5-1.5h4A1.5 1.5 0 0 1 15.5 6v2" stroke="currentColor" strokeWidth="1.6" />
     </svg>
   ),
+  "/imagem": (
+    <svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden="true">
+      <rect x="3.5" y="4.5" width="17" height="15" rx="1.8" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="9" cy="10" r="1.6" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M4.5 16.5l4.5-4.5 3 3 3.5-3.5 5 5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  ),
   // Entradas do hub de Criações (/criacoes) — não são áreas de primeiro
   // nível da sidebar, só destinos do grid de atalhos, mas usam o mesmo
   // AreaIconBadge (mesma linguagem visual em todo canto que lista atalhos).
