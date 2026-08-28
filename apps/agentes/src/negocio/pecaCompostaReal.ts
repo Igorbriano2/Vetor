@@ -37,7 +37,11 @@ const EXTRAIR_CAMPOS_TOOL: Anthropic.Tool = {
   name: "campos_da_peca",
   description:
     "Decompõe o pedido em campos separados pra uma peça de design real: o tratamento visual de fundo/cena " +
-    "(nunca texto) e os textos que viram camadas reais.",
+    "(nunca texto) e os textos que viram camadas reais. A logo oficial é aplicada automaticamente pelo sistema " +
+    "sempre que o cliente tem uma cadastrada — se o pedido mencionar 'logo', 'marca no rodapé' ou algo do tipo, " +
+    "é só confirmação do que já vai acontecer sozinho: NUNCA repita essa instrução em nenhum campo de texto " +
+    "abaixo (headline/subheadline/cta/caption) — isso viraria a FRASE 'logo aqui' escrita na peça, em vez da " +
+    "logo de verdade. Frase sobre a logo sem nenhum outro conteúdo de texto = todos os campos de texto vazios.",
   input_schema: {
     type: "object",
     properties: {
@@ -47,10 +51,10 @@ const EXTRAIR_CAMPOS_TOOL: Anthropic.Tool = {
           "Descrição SÓ do tratamento visual de fundo/cena: composição, cores, iluminação, estilo, ambiente. " +
           "NUNCA mencione texto, número, preço, CTA ou logotipo aqui — isso vai nos campos separados abaixo.",
       },
-      headline: { type: "string", description: "Mensagem principal e curta da peça (2-6 palavras), se o pedido tiver uma." },
-      subheadline: { type: "string", description: "Informação de apoio curta, se houver." },
-      cta: { type: "string", description: "Chamada pra ação curta, se houver (ex: 'Peça já pelo WhatsApp')." },
-      caption: { type: "string", description: "Selo/legenda curta adicional, se houver (ex: 'Só hoje', preço)." },
+      headline: { type: "string", description: "Mensagem principal e curta da peça (2-6 palavras), se o pedido tiver uma. Nunca instrução sobre logo/marca." },
+      subheadline: { type: "string", description: "Informação de apoio curta, se houver. Nunca instrução sobre logo/marca." },
+      cta: { type: "string", description: "Chamada pra ação curta, se houver (ex: 'Peça já pelo WhatsApp'). Nunca instrução sobre logo/marca." },
+      caption: { type: "string", description: "Selo/legenda curta adicional, se houver (ex: 'Só hoje', preço). Nunca instrução sobre logo/marca." },
       estilo_visual: {
         type: "string",
         enum: ESTILOS_ARTE_DIRECAO as unknown as string[],
