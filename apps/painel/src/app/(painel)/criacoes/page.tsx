@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 import { buscarArtefatos, buscarVideosFinalizados } from "@/lib/artifacts/fetchArtifacts";
 import { agruparPorCampanha } from "@/lib/artifacts/agruparPorCampanha";
-import { AreaIconBadge } from "@/components/ui/areaIcons";
+import { AreaIconBadge, ÍCONE_POR_HREF } from "@/components/ui/areaIcons";
 import CriacoesGaleria from "./CriacoesGaleria";
 import NovoProjetoBotao from "./NovoProjetoBotao";
 
@@ -77,17 +77,29 @@ export default async function CriacoesPage() {
         </div>
 
         <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {ENTRADAS.map((e) => (
-            <Link
-              key={e.href}
-              href={e.href}
-              className="rounded-2xl card-lift panel p-4"
-            >
-              <AreaIconBadge href={e.href} />
-              <p className="mt-3 font-medium text-areia">{e.titulo}</p>
-              <p className="mt-1 text-xs text-areia/50">{e.descricao}</p>
-            </Link>
-          ))}
+          {ENTRADAS.map((e, i) => {
+            // Hierarquia visual (referência: Gravyx) — um único card em
+            // destaque (o atalho mais usado, "Criar uma peça"), nunca mais
+            // de um por tela, senão a hierarquia se perde.
+            const destaque = i === 0;
+            return (
+              <Link
+                key={e.href}
+                href={e.href}
+                className={`relative rounded-2xl card-lift p-4 ${destaque ? "hero-card" : "panel"}`}
+              >
+                <span
+                  className={`relative flex size-10 shrink-0 items-center justify-center rounded-xl ${
+                    destaque ? "border border-areia/30 bg-areia/15 text-areia" : "border border-menta/25 bg-menta/10 text-menta"
+                  }`}
+                >
+                  {ÍCONE_POR_HREF[e.href]}
+                </span>
+                <p className={`relative mt-3 font-medium ${destaque ? "text-areia" : "text-areia"}`}>{e.titulo}</p>
+                <p className={`relative mt-1 text-xs ${destaque ? "text-areia/80" : "text-areia/50"}`}>{e.descricao}</p>
+              </Link>
+            );
+          })}
         </div>
 
         <div className="mt-10">

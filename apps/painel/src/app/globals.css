@@ -385,6 +385,29 @@ body {
   color: transparent;
 }
 
+/* Card "hero" pro atalho principal de uma tela de entrada (ex: "Criar uma
+   peça" em /criacoes) — mesmo tratamento do card em destaque do Gravyx:
+   gradiente azul->cyan de fundo + glow difuso, nunca aplicado em mais de um
+   card por tela (a ideia é hierarquia visual, um card gritando mais que o
+   resto perde o efeito se todos gritarem). */
+@utility hero-card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, color-mix(in oklab, var(--color-electric) 55%, var(--color-petroleo-2)) 0%, color-mix(in oklab, var(--color-menta) 35%, var(--color-petroleo-2)) 100%);
+  border: 1px solid color-mix(in oklab, var(--color-electric) 40%, transparent);
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -40% -20% auto auto;
+    width: 70%;
+    height: 140%;
+    background: radial-gradient(circle, color-mix(in oklab, var(--color-menta) 55%, transparent), transparent 70%);
+    filter: blur(30px);
+    pointer-events: none;
+  }
+}
+
 /* Design V2 Fase F — Spatial UI: profundidade real (perspective/rotateY/
    translateZ), não só um translateY como card-lift acima. Aplicado só no
    Creative Canvas (React Flow já tem nós que se sobrepõem com z-index —
