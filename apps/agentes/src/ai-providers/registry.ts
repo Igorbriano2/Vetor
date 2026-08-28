@@ -1,15 +1,16 @@
 import type { AIModel, AIProviderAdapter, GenerationRequest } from "./types.js";
 import { MockAdapter } from "./mockAdapter.js";
 import { FishAudioAdapter } from "./fishAudioAdapter.js";
+import { ImageAdapter } from "./imageAdapter.js";
 import { AutoRouterPadrao } from "./autoRouter.js";
 
-// Registro central de providers — Fish Audio (voz) é o primeiro provider
-// real desta suíte (ver docs/arquitetura-suite-ia.md seção 4); imagem/
-// vídeo/3D seguem no MockAdapter até ter chave da fal.ai/Replicate/etc.
-// Adicionar o próximo provider real é só: 1) implementar o
+// Registro central de providers — Fish Audio (voz) e o gateway OpenAI/
+// Gemini já usado pelo agente de Design (imagem) são os 2 providers reais
+// desta suíte; vídeo/3D seguem no MockAdapter até ter chave da fal.ai/
+// Replicate/etc. Adicionar o próximo provider real é só: 1) implementar o
 // AIProviderAdapter novo, 2) registrar aqui, 3) marcar os AIModel dele
 // como "featured"/"available" — nenhuma tela ou rota muda.
-const ADAPTERS: AIProviderAdapter[] = [new MockAdapter(), new FishAudioAdapter()];
+const ADAPTERS: AIProviderAdapter[] = [new MockAdapter(), new FishAudioAdapter(), new ImageAdapter()];
 
 const roteador = new AutoRouterPadrao();
 

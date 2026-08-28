@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import BancoDeImagensPainel from "./BancoDeImagensPainel";
+import NegocioTabs from "../NegocioTabs";
 
 export default async function BancoDeImagensPage() {
   const supabase = await createSupabaseServerClient();
@@ -61,7 +62,7 @@ export default async function BancoDeImagensPage() {
   return (
     <div className="px-6 py-10">
       <div className="mx-auto max-w-6xl">
-        <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
+        <NegocioTabs ativa="drive" />
         <h1 className="mt-1 text-2xl font-bold text-areia">Drive da empresa</h1>
         <p className="mt-2 text-sm text-areia/60">
           Contexto visual real do negócio — logos, produtos, equipe, ambientes, campanhas e documentos. O agente de

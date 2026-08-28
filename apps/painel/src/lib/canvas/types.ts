@@ -27,7 +27,11 @@ export type EstadoNode = "idle" | "processando" | "pronto" | "erro" | "aguardand
 // sua própria ação (abrir/aprovar). Sem tabela nova: design_projects já
 // suporta N linhas por mission_id.
 export interface VariacaoResultado {
-  designProjectId: string;
+  // Nulo quando a variação veio da geração direta da suíte de IA (sem
+  // missão/aprovação — ver CreativeCanvasEditor.tsx gerarImagemDireta): só
+  // existe design_project real no caminho antigo via missão. thumbnailUrl
+  // já é a imagem de verdade nos dois casos.
+  designProjectId: string | null;
   thumbnailUrl: string | null;
   aspectRatio: string | null;
   resolucao: string | null;

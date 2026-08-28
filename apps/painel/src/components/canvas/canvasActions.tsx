@@ -26,7 +26,6 @@ export interface CanvasActions {
   onRemover: (nodeId: string) => void;
   onReprocessar: (nodeId: string) => void;
   onGerarPecaReal: (nodeId: string) => void;
-  onAtualizarResultadoReal: (nodeId: string) => void;
   resultadoConectado: (nodeId: string) => NodeV | null;
 }
 

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { RÓTULO_TIPO, COR_TIPO, type VetorNodeData } from "@/lib/canvas/types";
+import { COR_TIPO, type VetorNodeData } from "@/lib/canvas/types";
 import { ICONE_TIPO } from "./nodeIcons";
 import { ESTILOS_VISUAIS } from "@/lib/design/receitasAgencia";
 import { useCanvasActions, type NodeV } from "./canvasActions";
@@ -29,14 +29,17 @@ const COR_ESTADO: Record<VetorNodeData["estado"], string> = {
 const CAMPO = "w-full rounded-lg border border-areia/15 bg-petroleo px-2.5 py-1.5 text-xs text-areia placeholder:text-areia/30 focus:border-menta focus:outline-none";
 const ROTULO = "mono-label text-[10px] text-areia/40";
 
-// Design V2 (auditoria node-a-node do Gravyx, 2ª rodada) — achado central
-// da auditoria: NENHUM node do Gravyx abre painel lateral. O card É a
-// superfície de edição inteira — dropzone dentro do card, texto dentro do
-// card, seletor de modelo/IA dentro do cabeçalho do card, ações genéricas
-// (duplicar/resetar/excluir) atrás de um "⋮" no canto do próprio card.
-// Reescrito do zero pra reproduzir exatamente esse comportamento — nunca
-// mais um "clique pra abrir o painel", tudo já editável ali. Cores/ícones
-// continuam 100% do Vetor (nunca copiados do produto auditado).
+// Auditoria Magnific/Freepik + Gravyx (2ª rodada) — dois achados centrais:
+// (1) nenhum dos dois abre painel lateral, o card É a superfície de edição
+// inteira (dropzone/texto/seletor dentro do próprio card, ações atrás de um
+// "⋮"), princípio que já vinha de antes e continua; (2) o CHROME do card
+// deles é minúsculo — ícone+título numa linha fina, corpo ocupa quase tudo,
+// borda de 1px sem blur nenhum. O nosso tinha backdrop-blur-md +
+// will-change:transform permanente (via .spatial-node) em CADA node — isso
+// que deixava arrastar pesado (o navegador recalcula o blur do fundo a
+// cada frame de drag, multiplicado por node na tela). Cor/ícone continuam
+// 100% do Vetor, só o PESO visual/perf foi alinhado ao que os dois produtos
+// auditados realmente fazem.
 export default function VetorFlowNode({ id, data, selected }: NodeProps & { data: VetorNodeData }) {
   const cor = COR_TIPO[data.tipo];
   const corEstado = COR_ESTADO[data.estado];
@@ -60,30 +63,27 @@ export default function VetorFlowNode({ id, data, selected }: NodeProps & { data
 
   return (
     <div
-      className="spatial-node min-w-[240px] max-w-[300px] rounded-2xl border bg-petroleo-2/95 p-3.5 backdrop-blur-md transition-shadow"
+      className="glass-node-cheap min-w-[240px] max-w-[300px] rounded-2xl border p-3 transition-[border-color,box-shadow]"
       style={{
-        borderColor: selected ? cor : "color-mix(in oklab, var(--color-areia) 12%, transparent)",
-        boxShadow: selected ? `0 0 0 1px ${cor}, 0 0 28px -8px ${cor}` : "0 10px 28px -20px oklch(0 0 0 / 0.8)",
+        borderColor: selected ? cor : "color-mix(in oklab, var(--color-areia) 10%, transparent)",
+        boxShadow: selected ? `0 0 0 1px ${cor}, 0 0 24px -10px ${cor}` : "0 8px 20px -16px oklch(0 0 0 / 0.75)",
       }}
     >
-      <Handle type="target" position={Position.Left} style={{ background: cor, width: 8, height: 8, border: "none" }} />
-      <Handle type="source" position={Position.Right} style={{ background: cor, width: 8, height: 8, border: "none" }} />
+      <Handle type="target" position={Position.Left} style={{ background: cor, width: 7, height: 7, border: "2px solid var(--color-petroleo-2)" }} />
+      <Handle type="source" position={Position.Right} style={{ background: cor, width: 7, height: 7, border: "2px solid var(--color-petroleo-2)" }} />
 
-      <div className="flex items-center gap-2">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg" style={{ background: `color-mix(in oklab, ${cor} 16%, transparent)`, color: cor }}>
-          <span className="size-[15px]">{ICONE_TIPO[data.tipo]}</span>
+      <div className="flex items-center gap-1.5">
+        <span className="flex size-5 shrink-0 items-center justify-center rounded-md" style={{ background: `color-mix(in oklab, ${cor} 18%, transparent)`, color: cor }}>
+          <span className="size-3">{ICONE_TIPO[data.tipo]}</span>
         </span>
         <div className="nodrag min-w-0 flex-1">
           <input
             value={data.titulo}
             onChange={(e) => patch({ titulo: e.target.value })}
-            className="w-full truncate border-none bg-transparent p-0 text-sm font-semibold text-areia focus:outline-none"
+            className="w-full truncate border-none bg-transparent p-0 text-[13px] font-semibold text-areia focus:outline-none"
           />
-          <span className="mono-label text-[9px]" style={{ color: cor }}>
-            {RÓTULO_TIPO[data.tipo]}
-          </span>
         </div>
-        <span className={`size-2 shrink-0 rounded-full ${data.estado === "processando" ? "animate-pulse" : ""}`} style={{ background: corEstado }} title={RÓTULO_ESTADO[data.estado]} />
+        <span className={`size-1.5 shrink-0 rounded-full ${data.estado === "processando" ? "animate-pulse" : ""}`} style={{ background: corEstado }} title={RÓTULO_ESTADO[data.estado]} />
 
         <div ref={menuRef} className="nodrag relative shrink-0">
           <button onClick={() => setMenuAberto((a) => !a)} className="flex size-5 items-center justify-center rounded text-areia/40 hover:bg-areia/10 hover:text-areia" aria-label="Mais ações">
@@ -135,7 +135,7 @@ export default function VetorFlowNode({ id, data, selected }: NodeProps & { data
         </div>
       </div>
 
-      <div className="nodrag nowheel mt-2.5 space-y-2">
+      <div className="nodrag nowheel mt-2 space-y-2">
         <CorpoDoNode node={node} patch={patch} />
       </div>
 
@@ -412,37 +412,50 @@ function CorpoProvider({ node, patch }: { node: NodeV; patch: (p: Partial<VetorN
 
 const FORMATOS_RESULTADO = ["Feed", "Story", "Carrossel", "Capa de Reel", "Anúncio", "Outro"];
 
-function VariacoesGrid({ variacoes, missionId }: { variacoes: NonNullable<NodeV["data"]["resultado"]>["variacoes"]; missionId: string | null }) {
+// Deck empilhado (auditoria Gravyx — o node "Resultados" deles mostra a
+// imagem principal grande com as outras variações espiando atrás/ao lado,
+// não uma grade uniforme) — a 1ª variação some grande, o resto vira miniatura
+// clicável que troca qual é a grande. Sem link pra editor/missão: geração
+// direta não passa por design_project (ver CreativeCanvasEditor.tsx
+// gerarImagemDireta) — "abrir" só abre a imagem real numa aba nova.
+function VariacoesGrid({ variacoes }: { variacoes: NonNullable<NodeV["data"]["resultado"]>["variacoes"] }) {
+  const [ativoIdx, setAtivoIdx] = useState(0);
+  const ativa = variacoes[Math.min(ativoIdx, variacoes.length - 1)];
+  if (!ativa) return null;
+
   return (
-    <div className="grid grid-cols-2 gap-2">
-      {variacoes.map((v, i) => (
-        <div key={v.designProjectId} className="overflow-hidden rounded-lg border border-areia/10 bg-petroleo/60">
-          <div className="flex aspect-square items-center justify-center overflow-hidden bg-petroleo">
-            {v.thumbnailUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={v.thumbnailUrl} alt={`Variação ${i + 1}`} className="size-full object-cover" />
-            ) : (
-              <span className="text-[10px] text-areia/30">sem preview</span>
-            )}
+    <div className="space-y-1.5">
+      <div className="overflow-hidden rounded-xl border border-areia/10 bg-petroleo/60">
+        {ativa.thumbnailUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={ativa.thumbnailUrl} alt="Resultado gerado" className="max-h-64 w-full object-contain" />
+        ) : (
+          <div className="flex aspect-square items-center justify-center">
+            <span className="text-[10px] text-areia/30">sem preview</span>
           </div>
-          <div className="space-y-0.5 p-1.5">
-            <p className="text-[10px] text-areia/40">
-              {v.resolucao ?? "resolução indefinida"} {v.aspectRatio ? `· ${v.aspectRatio}` : ""}
-            </p>
-            <p className={`text-[10px] ${v.status === "approved" ? "text-menta" : "text-areia/50"}`}>{v.status === "approved" ? "aprovado" : v.status}</p>
-            <div className="flex items-center justify-between pt-0.5">
-              <Link href={`/design/editor/${v.designProjectId}`} className="text-[10px] text-menta hover:underline">
-                abrir
-              </Link>
-              {v.status !== "approved" && missionId && (
-                <Link href={`/missoes/${missionId}`} className="text-[10px] text-ambar hover:underline">
-                  aprovar
-                </Link>
+        )}
+      </div>
+      {variacoes.length > 1 && (
+        <div className="flex gap-1.5 overflow-x-auto">
+          {variacoes.map((v, i) => (
+            <button
+              key={v.thumbnailUrl ?? i}
+              onClick={() => setAtivoIdx(i)}
+              className={`size-10 shrink-0 overflow-hidden rounded-lg border transition ${i === ativoIdx ? "border-ambar" : "border-areia/10 opacity-60 hover:opacity-100"}`}
+            >
+              {v.thumbnailUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={v.thumbnailUrl} alt="" className="size-full object-cover" />
               )}
-            </div>
-          </div>
+            </button>
+          ))}
         </div>
-      ))}
+      )}
+      {ativa.thumbnailUrl && (
+        <a href={ativa.thumbnailUrl} target="_blank" rel="noreferrer" className="inline-block text-[10px] text-menta hover:underline">
+          abrir em nova aba →
+        </a>
+      )}
     </div>
   );
 }
@@ -481,37 +494,20 @@ function CorpoResultado({ node, patch }: { node: NodeV; patch: (p: Partial<Vetor
         disabled={node.data.estado === "processando"}
         className="w-full rounded-lg border border-ambar/40 bg-ambar/10 px-2.5 py-1.5 text-[11px] font-semibold text-ambar hover:bg-ambar/20 disabled:opacity-40"
       >
-        {node.data.estado === "processando" ? "Enviando ao Vetor..." : "Gerar peça real"}
+        {node.data.estado === "processando" ? "Gerando..." : resultado && !resultado.mock && resultado.variacoes.length > 0 ? "Gerar de novo" : "Gerar"}
       </button>
 
-      {resultado?.missionId && (
-        <div className="flex items-center justify-between gap-2">
-          <Link href={`/missoes/${resultado.missionId}`} className="text-[11px] text-menta hover:underline">
-            Ver e aprovar na missão →
-          </Link>
-          <button onClick={() => actions.onAtualizarResultadoReal(node.id)} className="text-[11px] text-areia/50 hover:text-areia">
-            Atualizar
-          </button>
-        </div>
-      )}
-
       {resultado && !resultado.mock && resultado.variacoes.length > 0 ? (
-        <VariacoesGrid variacoes={resultado.variacoes} missionId={resultado.missionId} />
-      ) : resultado && !resultado.mock ? (
-        <p className="rounded-lg bg-petroleo-3/40 p-2 text-[11px] text-areia/40">
-          Aguardando geração — {node.data.estado === "erro" ? "a geração falhou, veja abaixo" : "esperando a etapa de Design da missão ser aprovada e concluída"}.
-        </p>
+        <VariacoesGrid variacoes={resultado.variacoes} />
+      ) : node.data.estado === "processando" ? (
+        <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-petroleo-3/40">
+          <span className="size-5 animate-spin rounded-full border-2 border-ambar/30 border-t-ambar" />
+        </div>
       ) : resultado?.mock ? (
         <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-petroleo/60">
           <span className="text-[10px] text-areia/30">saída mock</span>
         </div>
       ) : null}
-
-      {node.data.estado === "erro" && resultado?.missionId && (
-        <Link href={`/missoes/${resultado.missionId}`} className="text-[11px] text-coral hover:underline">
-          Tentar de novo na missão →
-        </Link>
-      )}
     </div>
   );
 }
@@ -637,8 +633,8 @@ function CorpoAprovacao({ node }: { node: NodeV }) {
 
   return (
     <div className="space-y-1.5">
-      <VariacoesGrid variacoes={resultado.variacoes} missionId={resultado.missionId} />
-      <p className="text-[10px] text-areia/40">O menu &quot;⋮ → Aprovar&quot; marca só este node — a aprovação real acontece na missão.</p>
+      <VariacoesGrid variacoes={resultado.variacoes} />
+      <p className="text-[10px] text-areia/40">O menu &quot;⋮ → Aprovar&quot; marca só este node — é um registro visual no canvas, não uma aprovação de missão.</p>
     </div>
   );
 }

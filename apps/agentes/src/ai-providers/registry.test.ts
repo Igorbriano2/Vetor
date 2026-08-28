@@ -3,9 +3,14 @@ import { iniciarGeracao, consultarStatusDoJob, resolverModelo, listarTodosOsMode
 
 describe("ai-providers/registry — fluxo fim a fim (Fase 1 do prompt-mestre)", () => {
   it("resolverModelo com modelId='auto' devolve um modelo real do kind pedido", async () => {
-    const modelo = await resolverModelo({ kind: "image", modelId: "auto" });
-    expect(modelo.kind).toBe("image");
+    const modelo = await resolverModelo({ kind: "video", modelId: "auto" });
+    expect(modelo.kind).toBe("video");
     expect(modelo.providerId).toBe("mock");
+  });
+
+  it("resolverModelo 'auto' pra image escolhe o provider real (OpenAI/Gemini), não o mock", async () => {
+    const modelo = await resolverModelo({ kind: "image", modelId: "auto" });
+    expect(modelo.providerId).toBe("vetor-imagem");
   });
 
   it("resolverModelo com id explícito devolve exatamente esse modelo", async () => {
@@ -27,9 +32,9 @@ describe("ai-providers/registry — fluxo fim a fim (Fase 1 do prompt-mestre)", 
   it("fluxo completo: pedido -> job -> status -> asset (o mesmo caminho que uma rota real usaria)", async () => {
     vi.useFakeTimers();
     try {
-      const { jobId, modelo } = await iniciarGeracao({ kind: "image", modelId: "auto", prompt: "foto de produto", quantity: 1 });
+      const { jobId, modelo } = await iniciarGeracao({ kind: "video", modelId: "auto", prompt: "foto de produto", quantity: 1 });
       expect(jobId).toBeTruthy();
-      expect(modelo.kind).toBe("image");
+      expect(modelo.kind).toBe("video");
 
       expect((await consultarStatusDoJob(modelo.providerId, jobId)).status).toBe("queued");
 

@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 import OnboardingWizard from "@/components/onboarding/OnboardingWizard";
 import ConexoesPainel from "../../conexoes/ConexoesPainel";
 import { perfilVazio, brandKitVazio, type BusinessProfileForm, type BrandKitForm } from "@/lib/onboarding/types";
+import NegocioTabs from "./NegocioTabs";
 
 // brand_kits.cores é jsonb livre — já apareceu em pelo menos duas formas
 // reais em produção: array já no formato certo, ou um objeto agrupado
@@ -123,24 +123,7 @@ export default async function ConfiguracoesNegocioPage({
   return (
     <div className="px-6 py-10">
       <div className="mx-auto max-w-4xl">
-        <div className="mb-6 flex gap-2 border-b border-areia/10">
-          <Link
-            href="/configuracoes/negocio"
-            className={`px-3 py-2 font-mono text-xs uppercase tracking-widest transition ${
-              abaAtiva === "negocio" ? "border-b-2 border-menta text-menta" : "text-areia/40 hover:text-areia/70"
-            }`}
-          >
-            Negócio
-          </Link>
-          <Link
-            href="/configuracoes/negocio?aba=conexoes"
-            className={`px-3 py-2 font-mono text-xs uppercase tracking-widest transition ${
-              abaAtiva === "conexoes" ? "border-b-2 border-menta text-menta" : "text-areia/40 hover:text-areia/70"
-            }`}
-          >
-            Conexões
-          </Link>
-        </div>
+        <NegocioTabs ativa={abaAtiva} />
 
         {abaAtiva === "conexoes" ? (
           <div>

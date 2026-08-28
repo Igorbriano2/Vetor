@@ -16,7 +16,7 @@ export const MODELOS_MOCK: AIModel[] = [
     capabilities: { referenceImages: true, multiReference: true, negativePrompt: true, maxResolution: "2K" },
     costCredits: 2,
     avgLatencyMs: 4000,
-    status: "featured",
+    status: "available", // ImageAdapter (provider real) é o featured agora — ver imageAdapter.ts
   },
   {
     id: "mock-image-qualidade",
