@@ -1,5 +1,11 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { gerarProxyDeVideo, analisarVideoDeReferencia, renderizarVideoFinal, RenderServiceIndisponivelError } from "./renderService.js";
+import {
+  gerarProxyDeVideo,
+  analisarVideoDeReferencia,
+  renderizarVideoFinal,
+  renderizarVideoFinalMultiClip,
+  RenderServiceIndisponivelError,
+} from "./renderService.js";
 
 describe("gerarProxyDeVideo (cliente do serviço de render)", () => {
   const originais: Record<string, string | undefined> = {};
@@ -158,5 +164,92 @@ describe("renderizarVideoFinal (cliente do serviço de render)", () => {
     await expect(
       renderizarVideoFinal({ bucket: "uploads", storagePath: "x", clienteId: "y", trimInMs: 0, trimOutMs: 1000 }),
     ).rejects.toBeInstanceOf(RenderServiceIndisponivelError);
+  });
+});
+
+describe("renderizarVideoFinalMultiClip (cliente do serviço de render — job assíncrono)", () => {
+  const originais: Record<string, string | undefined> = {};
+  const chaves = ["RENDER_SERVICE_URL", "INTERNAL_API_TOKEN"];
+
+  beforeEach(() => {
+    for (const chave of chaves) originais[chave] = process.env[chave];
+    process.env.RENDER_SERVICE_URL = "https://vetor-render.example";
+    process.env.INTERNAL_API_TOKEN = "token-teste";
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    for (const chave of chaves) {
+      if (originais[chave] === undefined) delete process.env[chave];
+      else process.env[chave] = originais[chave];
+    }
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  const paramsBase = {
+    clienteId: "cliente",
+    clipes: [{ bucket: "uploads" as const, storagePath: "a.mp4", tipo: "video" as const, trimInMs: 0, trimOutMs: 2000 }],
+    width: 1080,
+    height: 1920,
+    fps: 30,
+  };
+
+  // Achado ao vivo (2026-08-28): a rota costumava segurar 1 requisição HTTP
+  // até o ffmpeg terminar — em produção isso estourava o timeout fixo do
+  // proxy reverso da DO (~60s) mesmo com args corretos. Virou job
+  // assíncrono: POST cria o job e responde na hora, GET faz polling. Este
+  // teste garante que o cliente nunca mais segura 1 única requisição —
+  // sempre cria + faz polling, mesmo quando o job termina rápido.
+  it("cria o job via POST e faz polling via GET até status \"done\", devolvendo o resultado real", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ jobId: "job-1" }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: "processing" }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: "done",
+          result: { bucket: "artifacts", storagePath: "cliente/video/final/x.mp4", bytes: 98765, durationMs: 6000 },
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const promessa = renderizarVideoFinalMultiClip(paramsBase);
+    await vi.runAllTimersAsync();
+    const resultado = await promessa;
+
+    expect(resultado.storagePath).toBe("cliente/video/final/x.mp4");
+    expect(resultado.durationMs).toBe(6000);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const [postUrl] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(postUrl).toBe("https://vetor-render.example/render/final-multi-clip");
+    const [getUrl, getInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(getUrl).toBe("https://vetor-render.example/render/final-multi-clip/job-1");
+    expect((getInit.headers as Record<string, string>)["x-internal-token"]).toBe("token-teste");
+  });
+
+  it("propaga status \"failed\" do job como RenderServiceIndisponivelError com o erro real", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ jobId: "job-2" }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: "failed", error: "ffmpeg travou de verdade" }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const promessa = renderizarVideoFinalMultiClip(paramsBase);
+    // Anexa o handler de rejeição ANTES de avançar os timers — senão a
+    // promise rejeita durante runAllTimersAsync() sem ninguém ainda
+    // "ouvindo", e o Node reporta unhandled rejection mesmo com o teste
+    // passando.
+    const expectativa = expect(promessa).rejects.toThrow("ffmpeg travou de verdade");
+    await vi.runAllTimersAsync();
+    await expectativa;
+  });
+
+  it("propaga erro do serviço como RenderServiceIndisponivelError se a criação do job falhar", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500, text: async () => "boom" });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(renderizarVideoFinalMultiClip(paramsBase)).rejects.toBeInstanceOf(RenderServiceIndisponivelError);
   });
 });

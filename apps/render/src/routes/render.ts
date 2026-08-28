@@ -313,6 +313,112 @@ function clipeValido(valor: unknown): valor is Required<Pick<ClipeDoBody, "bucke
 // ordem dada via montarArgsFfmpegConcatMultiClip, e só então aplica
 // legenda sobre o resultado final (nunca por clipe — a legenda é do vídeo
 // inteiro já montado).
+//
+// Achado ao vivo (validação real com 2 clipes de vídeo reais, 2026-08-28):
+// isso era síncrono — a requisição HTTP ficava aberta até o ffmpeg
+// terminar. Em produção (DO App Platform, timeout fixo de proxy reverso de
+// ~60s) qualquer render que passe disso morre com 503/504
+// (upstream_reset_before_response_started), mesmo com args/ffmpeg 100%
+// corretos (39/39 testes unitários passando não pegam isso — testam só a
+// montagem dos args, não o tempo real de uma requisição). Virou job
+// assíncrono (render_jobs, migration 0044): a rota cria a linha e responde
+// na hora com {jobId}; o processamento roda em background no mesmo
+// processo Express (apps/render é instance_count:1, então o processo
+// continua vivo pra terminar o job mesmo após a resposta); apps/agentes
+// faz polling em GET /final-multi-clip/:jobId em vez de segurar 1
+// requisição só.
+async function processarFinalMultiClip(
+  jobId: string,
+  params: {
+    clienteId: string;
+    clipes: Array<{
+      bucket: BucketPermitido;
+      storagePath: string;
+      tipo: "video" | "image";
+      trimInMs: number;
+      trimOutMs: number;
+      speed?: number;
+      volume?: number;
+    }>;
+    width: number;
+    height: number;
+    fps: number;
+    captions?: CaptionCueSimples[];
+  },
+): Promise<void> {
+  const pastaTemp = await mkdtemp(join(tmpdir(), "vetor-render-multiclip-"));
+  const caminhoSaida = join(pastaTemp, "final.mp4");
+  const caminhoSrt = join(pastaTemp, "legendas.srt");
+
+  try {
+    const clipesComCaminho = await Promise.all(
+      params.clipes.map(async (clipe, i) => {
+        const { data: baixado, error: erroDownload } = await supabase.storage.from(clipe.bucket).download(clipe.storagePath);
+        if (erroDownload || !baixado) {
+          throw new Error(`Falha ao baixar clipe ${i} (${clipe.bucket}/${clipe.storagePath}): ${erroDownload?.message ?? "não encontrado"}`);
+        }
+        const caminhoLocal = join(pastaTemp, `clipe-${i}${clipe.tipo === "image" ? ".img" : ".mp4"}`);
+        await writeFile(caminhoLocal, Buffer.from(await baixado.arrayBuffer()));
+        return {
+          inputPath: caminhoLocal,
+          tipo: clipe.tipo,
+          trimInMs: clipe.trimInMs,
+          trimOutMs: clipe.trimOutMs,
+          speed: clipe.speed ?? 1,
+          volume: clipe.volume ?? 1,
+        };
+      }),
+    );
+
+    let legendasSrtPath: string | undefined;
+    if (params.captions && params.captions.length > 0) {
+      const srt = montarSrtDeLegendas(params.captions);
+      await writeFile(caminhoSrt, srt, "utf-8");
+      legendasSrtPath = caminhoSrt;
+    }
+
+    await executarFfmpeg(
+      montarArgsFfmpegConcatMultiClip({
+        clipes: clipesComCaminho,
+        outputPath: caminhoSaida,
+        legendasSrtPath,
+        width: params.width,
+        height: params.height,
+        fps: params.fps,
+      }),
+    );
+
+    const duracaoMs = await executarFfprobeDuracaoMs(montarArgsFfprobeDuracao(caminhoSaida));
+
+    const bytesSaida = await readFile(caminhoSaida);
+    const caminhoDestino = `${params.clienteId}/video/final/${randomUUID()}.mp4`;
+    const { error: erroUpload } = await supabase.storage
+      .from("artifacts")
+      .upload(caminhoDestino, bytesSaida, { contentType: "video/mp4", upsert: false });
+    if (erroUpload) {
+      await supabase
+        .from("render_jobs")
+        .update({ status: "failed", error: `Falha ao subir o render final: ${erroUpload.message}`, updated_at: new Date().toISOString() })
+        .eq("id", jobId);
+      return;
+    }
+
+    await supabase
+      .from("render_jobs")
+      .update({
+        status: "done",
+        result: { bucket: "artifacts", storagePath: caminhoDestino, bytes: bytesSaida.length, durationMs: duracaoMs },
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", jobId);
+  } catch (err) {
+    const mensagem = err instanceof FfmpegError ? err.message : err instanceof Error ? err.message : "erro desconhecido";
+    await supabase.from("render_jobs").update({ status: "failed", error: mensagem, updated_at: new Date().toISOString() }).eq("id", jobId);
+  } finally {
+    await rm(pastaTemp, { recursive: true, force: true });
+  }
+}
+
 renderRouter.post("/final-multi-clip", async (req, res) => {
   const { clienteId, clipes, width, height, fps, captions } = req.body as {
     clienteId?: unknown;
@@ -353,65 +459,33 @@ renderRouter.post("/final-multi-clip", async (req, res) => {
     volume?: number;
   }>;
 
-  const pastaTemp = await mkdtemp(join(tmpdir(), "vetor-render-multiclip-"));
-  const caminhoSaida = join(pastaTemp, "final.mp4");
-  const caminhoSrt = join(pastaTemp, "legendas.srt");
-
-  try {
-    const clipesComCaminho = await Promise.all(
-      clipesValidados.map(async (clipe, i) => {
-        const { data: baixado, error: erroDownload } = await supabase.storage.from(clipe.bucket).download(clipe.storagePath);
-        if (erroDownload || !baixado) {
-          throw new Error(`Falha ao baixar clipe ${i} (${clipe.bucket}/${clipe.storagePath}): ${erroDownload?.message ?? "não encontrado"}`);
-        }
-        const caminhoLocal = join(pastaTemp, `clipe-${i}${clipe.tipo === "image" ? ".img" : ".mp4"}`);
-        await writeFile(caminhoLocal, Buffer.from(await baixado.arrayBuffer()));
-        return {
-          inputPath: caminhoLocal,
-          tipo: clipe.tipo,
-          trimInMs: clipe.trimInMs,
-          trimOutMs: clipe.trimOutMs,
-          speed: clipe.speed ?? 1,
-          volume: clipe.volume ?? 1,
-        };
-      }),
-    );
-
-    let legendasSrtPath: string | undefined;
-    if (captions && (captions as CaptionCueSimples[]).length > 0) {
-      const srt = montarSrtDeLegendas(captions as CaptionCueSimples[]);
-      await writeFile(caminhoSrt, srt, "utf-8");
-      legendasSrtPath = caminhoSrt;
-    }
-
-    await executarFfmpeg(
-      montarArgsFfmpegConcatMultiClip({
-        clipes: clipesComCaminho,
-        outputPath: caminhoSaida,
-        legendasSrtPath,
-        width,
-        height,
-        fps,
-      }),
-    );
-
-    const duracaoMs = await executarFfprobeDuracaoMs(montarArgsFfprobeDuracao(caminhoSaida));
-
-    const bytesSaida = await readFile(caminhoSaida);
-    const caminhoDestino = `${clienteId}/video/final/${randomUUID()}.mp4`;
-    const { error: erroUpload } = await supabase.storage
-      .from("artifacts")
-      .upload(caminhoDestino, bytesSaida, { contentType: "video/mp4", upsert: false });
-    if (erroUpload) {
-      res.status(502).json({ error: `Falha ao subir o render final: ${erroUpload.message}` });
-      return;
-    }
-
-    res.json({ bucket: "artifacts", storagePath: caminhoDestino, bytes: bytesSaida.length, durationMs: duracaoMs });
-  } catch (err) {
-    const mensagem = err instanceof FfmpegError ? err.message : err instanceof Error ? err.message : "erro desconhecido";
-    res.status(500).json({ error: mensagem });
-  } finally {
-    await rm(pastaTemp, { recursive: true, force: true });
+  const { data: job, error: erroInsert } = await supabase.from("render_jobs").insert({ status: "queued" }).select("id").single();
+  if (erroInsert || !job) {
+    res.status(500).json({ error: `Falha ao criar job de render: ${erroInsert?.message ?? "erro desconhecido"}` });
+    return;
   }
+
+  res.status(202).json({ jobId: job.id });
+
+  // Nunca await aqui — a resposta já foi enviada, o processamento continua
+  // no mesmo processo (fire-and-forget). Erro vira status "failed" na
+  // linha do job, nunca uma exception não tratada derrubando o processo.
+  void processarFinalMultiClip(job.id as string, {
+    clienteId,
+    clipes: clipesValidados,
+    width,
+    height,
+    fps,
+    captions: captions as CaptionCueSimples[] | undefined,
+  });
+});
+
+renderRouter.get("/final-multi-clip/:jobId", async (req, res) => {
+  const { jobId } = req.params;
+  const { data: job, error } = await supabase.from("render_jobs").select("status, result, error").eq("id", jobId).single();
+  if (error || !job) {
+    res.status(404).json({ error: "job não encontrado" });
+    return;
+  }
+  res.json(job);
 });
