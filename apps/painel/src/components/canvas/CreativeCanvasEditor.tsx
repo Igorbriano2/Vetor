@@ -68,6 +68,18 @@ type NodeV = Node<VetorNodeData>;
 export default function CreativeCanvasEditor({ projectId, clienteId, tituloInicial, graphInicial }: Props) {
   const [nodes, setNodesState] = useState<NodeV[]>(graphInicial.nodes as unknown as NodeV[]);
   const [edges, setEdgesState] = useState<Edge[]>(graphInicial.edges as unknown as Edge[]);
+  // Achado ao vivo testando geração real: atualizarDadosNode fecha sobre
+  // `nodes` da render em que foi criada. O poll do job roda numa closure
+  // criada no MESMO tick da atualização "processando" — como o setState
+  // ainda não re-renderizou, essa closure via `nodes` direto ficava com a
+  // versão ANTIGA do node, e o patch final ("pronto" + resultado) reaplicava
+  // um `erro` já resolvido por cima do resultado novo. Ref sempre atual
+  // resolve sem precisar reescrever o padrão de histórico (empilharHistorico
+  // continua recebendo o array computado, só a LEITURA deixa de ser stale).
+  const nodesRef = useRef<NodeV[]>(nodes);
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
   const [salvando, setSalvando] = useState(false);
   const [ultimoSalvamento, setUltimoSalvamento] = useState<string | null>(null);
   const [titulo, setTitulo] = useState(tituloInicial);
@@ -185,7 +197,7 @@ export default function CreativeCanvasEditor({ projectId, clienteId, tituloInici
   }
 
   function atualizarDadosNode(id: string, patch: Partial<VetorNodeData>) {
-    const novosNodes = nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n));
+    const novosNodes = nodesRef.current.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n));
     setNodesState(novosNodes);
     empilharHistorico(novosNodes, edges);
   }
