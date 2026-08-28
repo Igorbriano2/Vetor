@@ -246,10 +246,37 @@ describe("renderizarVideoFinalMultiClip (cliente do serviço de render — job a
     await expectativa;
   });
 
-  it("propaga erro do serviço como RenderServiceIndisponivelError se a criação do job falhar", async () => {
+  it("propaga erro do serviço como RenderServiceIndisponivelError se a criação do job falhar mesmo após a tentativa extra", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500, text: async () => "boom" });
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(renderizarVideoFinalMultiClip(paramsBase)).rejects.toBeInstanceOf(RenderServiceIndisponivelError);
+    const promessa = renderizarVideoFinalMultiClip(paramsBase);
+    const expectativa = expect(promessa).rejects.toBeInstanceOf(RenderServiceIndisponivelError);
+    await vi.runAllTimersAsync();
+    await expectativa;
+    // 2 tentativas (original + a extra do comUmaTentativaExtra) — nunca
+    // desiste na primeira falha, mas também nunca insiste pra sempre.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("uma falha transitória isolada na criação do job (ex: deploy em andamento) não derruba o render — a tentativa extra recupera", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 503, text: async () => "upstream_reset_before_response_started" })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ jobId: "job-3" }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: "done",
+          result: { bucket: "artifacts", storagePath: "cliente/video/final/y.mp4", bytes: 111, durationMs: 4000 },
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const promessa = renderizarVideoFinalMultiClip(paramsBase);
+    await vi.runAllTimersAsync();
+    const resultado = await promessa;
+
+    expect(resultado.storagePath).toBe("cliente/video/final/y.mp4");
   });
 });

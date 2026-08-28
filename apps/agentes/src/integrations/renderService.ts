@@ -152,6 +152,25 @@ interface RenderJobStatus {
 const INTERVALO_POLLING_MS = 3000;
 const TETO_ESPERA_MS = 5 * 60 * 1000;
 
+// Achado ao vivo (mesma sessão, segunda tentativa real): mesmo já
+// assíncrono, uma requisição pode acertar o vetor-render bem no instante em
+// que a DO troca a instância antiga pela nova de um deploy — a instância
+// velha responde 503 "upstream_reset_before_response_started" mesmo tendo
+// feito o trabalho a tempo (ex: já tinha inserido a linha em render_jobs,
+// mas foi derrubada antes de terminar de escrever a resposta HTTP). Sem
+// nenhuma tolerância a isso, um blip de alguns segundos durante deploy
+// derrubava o render inteiro por engano. Uma tentativa extra com um
+// intervalo curto cobre exatamente essa janela, sem mascarar uma falha real
+// e persistente (o teto de espera do polling continua sendo quem pega isso).
+async function comUmaTentativaExtra<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    await esperarMs(2000);
+    return fn();
+  }
+}
+
 // Implementação real da Fase 4 do prompt mestre — concatena TODOS os
 // clipes de TODAS as faixas de vídeo/imagem da timeline (na ordem dada),
 // cada um com seu próprio trim/speed/volume. Substitui renderizarVideoFinal
@@ -173,16 +192,18 @@ export async function renderizarVideoFinalMultiClip(params: {
 
   let jobId: string;
   try {
-    const res = await fetch(`${baseUrl}/render/final-multi-clip`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-internal-token": token },
-      body: JSON.stringify(params),
-    });
-    if (!res.ok) {
-      const texto = await res.text();
-      throw new RenderServiceIndisponivelError(`Falha ao criar job de render final multi-clipe (${res.status}): ${texto}`);
-    }
-    ({ jobId } = (await res.json()) as { jobId: string });
+    ({ jobId } = await comUmaTentativaExtra(async () => {
+      const res = await fetch(`${baseUrl}/render/final-multi-clip`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-internal-token": token },
+        body: JSON.stringify(params),
+      });
+      if (!res.ok) {
+        const texto = await res.text();
+        throw new RenderServiceIndisponivelError(`Falha ao criar job de render final multi-clipe (${res.status}): ${texto}`);
+      }
+      return (await res.json()) as { jobId: string };
+    }));
   } catch (err) {
     throw err instanceof RenderServiceIndisponivelError
       ? err
@@ -193,20 +214,21 @@ export async function renderizarVideoFinalMultiClip(params: {
   while (Date.now() - inicio < TETO_ESPERA_MS) {
     await esperarMs(INTERVALO_POLLING_MS);
 
-    let statusRes: Response;
+    let job: RenderJobStatus;
     try {
-      statusRes = await fetch(`${baseUrl}/render/final-multi-clip/${jobId}`, {
-        headers: { "x-internal-token": token },
+      job = await comUmaTentativaExtra(async () => {
+        const statusRes = await fetch(`${baseUrl}/render/final-multi-clip/${jobId}`, { headers: { "x-internal-token": token } });
+        if (!statusRes.ok) {
+          const texto = await statusRes.text();
+          throw new RenderServiceIndisponivelError(`Falha ao consultar job de render (${statusRes.status}): ${texto}`);
+        }
+        return (await statusRes.json()) as RenderJobStatus;
       });
     } catch (err) {
-      throw new RenderServiceIndisponivelError(err instanceof Error ? err.message : "erro desconhecido ao consultar o job de render");
+      throw err instanceof RenderServiceIndisponivelError
+        ? err
+        : new RenderServiceIndisponivelError(err instanceof Error ? err.message : "erro desconhecido ao consultar o job de render");
     }
-    if (!statusRes.ok) {
-      const texto = await statusRes.text();
-      throw new RenderServiceIndisponivelError(`Falha ao consultar job de render (${statusRes.status}): ${texto}`);
-    }
-
-    const job = (await statusRes.json()) as RenderJobStatus;
     if (job.status === "done") {
       if (!job.result) throw new RenderServiceIndisponivelError("Job de render marcado como concluído sem resultado.");
       return job.result;
