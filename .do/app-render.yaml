@@ -18,7 +18,16 @@ services:
       deploy_on_push: true
     source_dir: apps/render
     dockerfile_path: apps/render/Dockerfile
-    instance_size_slug: basic-xs
+    # Achado ao vivo (2026-08-28, teste real com 2 clipes de vídeo): em
+    # basic-xs (512MB), o processo de render morria em silêncio no meio do
+    # ffmpeg — sem exceção JS nenhuma capturável (nem com try/catch em
+    # volta de tudo), padrão clássico de OOM kill do kernel. concat multi-
+    # clipe (download + decode + filter_complex de 2+ fontes + libx264
+    # encode + legenda queimada) passa fácil do teto de memória de um vídeo
+    # simples de 1 clipe. basic-s dobra a RAM (1GB) — ataca a causa real,
+    # não só o timeout de requisição (esse já foi resolvido virando job
+    # assíncrono, ver render_jobs/render.ts).
+    instance_size_slug: basic-s
     instance_count: 1
     health_check:
       http_path: /health
