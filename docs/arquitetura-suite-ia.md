@@ -75,6 +75,16 @@ Replicate pra imagem+vídeo, FishAudio pra voz) são implementados como código 
 `MockAdapter` é o único registrado/ativo até as chaves existirem — ver `docs/relatorio-manha.md`
 pra lista exata de variáveis de ambiente que faltam.
 
+### 3.1. `ai_models` (Postgres) vs. o catálogo em código do adapter
+
+`MockAdapter.listModels()` devolve um array fixo em código (`MODELOS_MOCK`), testado e usado de
+verdade pela rota de geração — é a fonte de verdade EM EXECUÇÃO nesta rodada. A tabela `ai_models`
+foi populada com os mesmos 6 modelos (mesmos ids) só pra: (a) satisfazer a FK de
+`generation_jobs.model_id`, (b) já deixar pronta a base pra uma futura tela de admin
+"ligar/desligar modelo sem deploy" (lendo a tabela em vez do array). Enquanto isso não existir, as
+duas fontes precisam ser mantidas em sincronia manualmente se um modelo mudar — documentado aqui
+pra não virar uma inconsistência silenciosa.
+
 ## 5. Vocabulário — nichos
 
 Reaproveita a mesma modelagem de nicho já usada em `templates.niche`: `restaurante | advocacia |
