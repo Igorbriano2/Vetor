@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import StatusBadge from "@/components/StatusBadge";
 import Card from "@/components/ui/Card";
 import { readApiResponse } from "@/lib/api/readApiResponse";
 import { salvarPrefillComando } from "@/lib/conversation";
 import FunilConversao from "./FunilConversao";
 import LeaderboardCriativos, { type Criativo } from "./LeaderboardCriativos";
+import GraficoEvolucao from "./GraficoEvolucao";
+import GraficoCampanhas from "./GraficoCampanhas";
+import TabelaCampanhas from "./TabelaCampanhas";
 
 interface Campanha {
   id: string;
@@ -266,7 +268,6 @@ export default function TrafegoPainel({
   const [aba, setAba] = useState<Aba>("visao_geral");
   const [sincronizando, setSincronizando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [campanhaExpandida, setCampanhaExpandida] = useState<string | null>(null);
   const [metricasVisiveis, setMetricasVisiveis] = useState<KpiId[]>(METRICAS_PADRAO);
   const [seletorAberto, setSeletorAberto] = useState(false);
   const [datePreset, setDatePreset] = useState<DatePreset>("last_30d");
@@ -375,10 +376,32 @@ export default function TrafegoPainel({
   // objetivo de verba parada.
   const alertas = campanhas.filter((c) => c.status === "pausada" && (c.orcamento_centavos ?? 0) > 0);
 
-  const serieGasto = historico
+  const pontosEvolucao = historico
     .slice()
     .reverse()
-    .map((a) => Number(a.metricas_usadas?.spend ?? 0));
+    .map((a) => ({
+      data: new Date(a.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+      investimento: Number(a.metricas_usadas?.spend ?? 0),
+    }));
+
+  const barrasCampanhas = campanhas.map((c) => ({
+    nome: c.nome,
+    investimento: Number(c.metricas?.spend ?? 0),
+    ativa: c.status === "ativa",
+  }));
+
+  const linhasTabela = campanhas.map((c) => ({
+    id: c.id,
+    nome: c.nome,
+    status: c.status,
+    investimento: typeof c.metricas?.spend === "string" ? reais(Number(c.metricas.spend)) : "—",
+    impressoes: typeof c.metricas?.impressions === "string" ? Number(c.metricas.impressions).toLocaleString("pt-BR") : "—",
+    cliques: typeof c.metricas?.clicks === "string" ? Number(c.metricas.clicks).toLocaleString("pt-BR") : "—",
+    ctr: typeof c.metricas?.ctr === "string" ? percentual(Number(c.metricas.ctr)) : "—",
+    cpc: typeof c.metricas?.cpc === "string" ? reais(Number(c.metricas.cpc)) : "—",
+    compras: typeof c.metricas?.compras === "number" ? c.metricas.compras.toLocaleString("pt-BR") : "—",
+    roas: typeof c.metricas?.roas === "number" ? `${(c.metricas.roas as number).toFixed(2)}x` : "—",
+  }));
 
   return (
     <div className="mt-6">
@@ -507,19 +530,20 @@ export default function TrafegoPainel({
               mesmo pedido explícito. */}
           <FunilConversao impressoes={totalImpressions} alcance={totalReach} cliques={totalClicks} compras={totalCompras} />
 
-          {serieGasto.length > 1 && (
-            <Card radius="xl" className="p-3">
-              <p className="font-mono text-[10px] uppercase tracking-wide text-areia/40">Evolução do investimento</p>
-              <svg viewBox="0 0 100 28" className="mt-2 h-10 w-full" preserveAspectRatio="none">
-                <polyline
-                  points={serieGasto.map((v, i) => `${(i / (serieGasto.length - 1)) * 100},${28 - (v / Math.max(1, ...serieGasto)) * 24 - 2}`).join(" ")}
-                  fill="none"
-                  stroke="var(--color-menta)"
-                  strokeWidth="1.5"
-                />
-              </svg>
-            </Card>
-          )}
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {pontosEvolucao.length > 1 && (
+              <Card radius="xl" className="p-4">
+                <p className="font-mono text-[10px] uppercase tracking-wide text-areia/40">Evolução do investimento</p>
+                <GraficoEvolucao pontos={pontosEvolucao} />
+              </Card>
+            )}
+            {barrasCampanhas.length > 1 && (
+              <Card radius="xl" className="p-4">
+                <p className="font-mono text-[10px] uppercase tracking-wide text-areia/40">Investimento por campanha</p>
+                <GraficoCampanhas campanhas={barrasCampanhas} />
+              </Card>
+            )}
+          </div>
 
           {alertas.length > 0 && (
             <div className="rounded-xl border border-coral/30 bg-coral/5 p-3">
@@ -536,45 +560,10 @@ export default function TrafegoPainel({
 
       {aba === "campanhas" && (
         <div className="mt-6 space-y-3">
-          {campanhas.length ? (
-            campanhas.map((c) => (
-              <div key={c.id} className="rounded-2xl panel">
-                <button onClick={() => setCampanhaExpandida((atual) => (atual === c.id ? null : c.id))} className="flex w-full items-center justify-between gap-4 p-4 text-left">
-                  <p className="font-medium text-areia">{c.nome}</p>
-                  <StatusBadge status={c.status} />
-                </button>
-                {campanhaExpandida === c.id && (
-                  <div className="border-t border-areia/10 px-4 py-3">
-                    <div className="grid grid-cols-2 gap-3 text-xs text-areia/60 sm:grid-cols-3">
-                      <span>Orçamento: {centavosParaReais(c.orcamento_centavos)}</span>
-                      {typeof c.metricas?.spend === "string" && <span>Gasto (30d): R$ {c.metricas.spend}</span>}
-                      {typeof c.metricas?.impressions === "string" && <span>Impressões: {c.metricas.impressions}</span>}
-                      {typeof c.metricas?.reach === "string" && <span>Alcance: {c.metricas.reach}</span>}
-                      {typeof c.metricas?.frequency === "string" && <span>Frequência: {c.metricas.frequency}</span>}
-                      {typeof c.metricas?.clicks === "string" && <span>Cliques: {c.metricas.clicks}</span>}
-                      {typeof c.metricas?.ctr === "string" && <span>CTR: {c.metricas.ctr}%</span>}
-                      {typeof c.metricas?.cpc === "string" && <span>CPC: R$ {c.metricas.cpc}</span>}
-                      {typeof c.metricas?.cpm === "string" && <span>CPM: R$ {c.metricas.cpm}</span>}
-                      {typeof c.metricas?.compras === "number" && <span>Compras: {c.metricas.compras}</span>}
-                      {typeof c.metricas?.custo_por_compra === "number" && <span>CPA: {reais(c.metricas.custo_por_compra as number)}</span>}
-                      {typeof c.metricas?.receita === "number" && <span>Receita: {reais(c.metricas.receita as number)}</span>}
-                      {typeof c.metricas?.roas === "number" && <span>ROAS: {(c.metricas.roas as number).toFixed(2)}x</span>}
-                      {typeof c.metricas?.roi === "number" && (
-                        <span className={(c.metricas.roi as number) >= 0 ? "text-menta" : "text-coral"}>
-                          ROI: {((c.metricas.roi as number) * 100).toFixed(1)}%
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-3 text-[11px] text-areia/30">
-                      Drill-down por criativo agora disponível na Visão geral (ranking Top 5) — por conjunto de anúncios ainda não.
-                    </p>
-                  </div>
-                )}
-              </div>
-            ))
-          ) : (
-            <p className="rounded-2xl panel p-4 text-sm text-areia/40">Nenhuma campanha registrada ainda.</p>
-          )}
+          <TabelaCampanhas linhas={linhasTabela} />
+          <p className="text-[11px] text-areia/30">
+            Orçamento reservado e drill-down por criativo continuam na Visão geral (alertas e ranking Top 5).
+          </p>
         </div>
       )}
 
