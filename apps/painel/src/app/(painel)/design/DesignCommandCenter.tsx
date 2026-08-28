@@ -4,9 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import StatusBadge from "@/components/StatusBadge";
-import ArtifactLibrary from "@/components/ArtifactLibrary";
 import { AreaIconBadge } from "@/components/ui/areaIcons";
-import type { ArtefatoBiblioteca } from "@/lib/artifacts/fetchArtifacts";
+import { RECEITAS_AGENCIA } from "@/lib/design/receitasAgencia";
 import CriarPecaWizard, { type TemplatePreFill } from "./CriarPecaWizard";
 
 interface EtapaEmAndamento {
@@ -50,7 +49,6 @@ export default function DesignCommandCenter({
   etapasEmAndamento,
   campanhas,
   projetos,
-  artefatos,
   referencias,
   assetsDrive,
 }: {
@@ -58,11 +56,11 @@ export default function DesignCommandCenter({
   etapasEmAndamento: EtapaEmAndamento[];
   campanhas: Campanha[];
   projetos: Projeto[];
-  artefatos: ArtefatoBiblioteca[];
   referencias: ReferenciaPreview[];
   assetsDrive: Array<{ id: string; nome: string }>;
 }) {
   const [wizardAberto, setWizardAberto] = useState(false);
+  const [receitasAbertas, setReceitasAbertas] = useState(false);
   const [referenciaPreSelecionada, setReferenciaPreSelecionada] = useState<{ id: string; nome: string } | undefined>(undefined);
   const [categoriaInicial, setCategoriaInicial] = useState<string | undefined>(undefined);
   const [templatePreFill, setTemplatePreFill] = useState<TemplatePreFill | undefined>(undefined);
@@ -119,6 +117,15 @@ export default function DesignCommandCenter({
     setWizardAberto(true);
   }
 
+  // Receitas de agência (lib/design/receitasAgencia.ts) — já estava na tela
+  // (antes atrás de um modal só de Criações, "+Novo projeto"), agora abre o
+  // wizard direto, sem ida e volta por query string (já estamos em /design).
+  function usarReceita(r: (typeof RECEITAS_AGENCIA)[number]) {
+    setTemplatePreFill({ nome: r.nome, objetivo: r.objetivo, formato: r.formato, tom: r.tom, estiloVisual: r.estiloVisual });
+    setReceitasAbertas(false);
+    setWizardAberto(true);
+  }
+
   const prompts = projetos.filter((p) => !!p.designBrief);
 
   return (
@@ -132,11 +139,11 @@ export default function DesignCommandCenter({
           </div>
         </div>
         <p className="mt-2 max-w-2xl text-sm text-areia/60">
-          O departamento de criação do Vetor. Peça uma peça nova, se inspire numa referência, reaproveite um template
-          ou acompanhe uma campanha em andamento — tudo aqui.
+          O departamento de criação do Vetor. Peça uma peça em 4 passos guiados, ou monte o fluxo você mesmo no
+          canvas — as duas formas terminam no mesmo lugar: uma peça de verdade, revisada antes de sair.
         </p>
 
-        <div className="mt-6 flex flex-wrap gap-3">
+        <div className="mt-6 flex flex-wrap items-center gap-3">
           <button
             onClick={() => setWizardAberto(true)}
             className="btn-tactile rounded-full bg-ambar px-5 py-2.5 text-sm font-semibold text-petroleo transition hover:bg-ambar-forte"
@@ -144,24 +151,35 @@ export default function DesignCommandCenter({
             + Criar uma nova peça
           </button>
           <Link
-            href="/referencias"
-            className="rounded-full border border-areia/15 px-5 py-2.5 text-sm text-areia/80 transition hover:border-menta/40 hover:text-menta"
+            href="/design/canvas"
+            className="btn-tactile rounded-full border border-menta/30 bg-menta/10 px-5 py-2.5 text-sm font-semibold text-menta transition hover:border-menta/50 hover:bg-menta/15"
           >
-            Escolher uma referência
+            Abrir o Canvas
           </Link>
-          <Link
-            href="/templates"
-            className="rounded-full border border-areia/15 px-5 py-2.5 text-sm text-areia/80 transition hover:border-menta/40 hover:text-menta"
+          <button
+            type="button"
+            onClick={() => setReceitasAbertas((v) => !v)}
+            className="text-xs text-areia/50 underline decoration-dotted underline-offset-4 hover:text-menta"
           >
-            Usar um template
-          </Link>
-          <Link
-            href="/estrategia"
-            className="rounded-full border border-areia/15 px-5 py-2.5 text-sm text-areia/80 transition hover:border-menta/40 hover:text-menta"
-          >
-            Abrir uma campanha
-          </Link>
+            {receitasAbertas ? "fechar receitas prontas" : "ou comece de uma receita pronta"}
+          </button>
         </div>
+
+        {receitasAbertas && (
+          <div className="mt-3 grid grid-cols-2 gap-2 rounded-2xl panel p-3 sm:grid-cols-4">
+            {RECEITAS_AGENCIA.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => usarReceita(r)}
+                className="rounded-xl border border-areia/10 bg-petroleo-3/50 p-3 text-left transition card-lift hover:bg-petroleo-3/80"
+              >
+                <p className="text-xs font-semibold text-areia">{r.nome}</p>
+                <p className="mt-0.5 text-[11px] text-areia/45">{r.descricao}</p>
+              </button>
+            ))}
+          </div>
+        )}
 
         {etapasEmAndamento.length > 0 && (
           <section className="mt-10">
@@ -281,36 +299,14 @@ export default function DesignCommandCenter({
           )}
         </section>
 
-        <section className="mt-10">
-          <div className="flex items-center justify-between">
-            <p className="mono-label text-areia/50">Biblioteca visual</p>
-            <Link href="/referencias" className="text-xs text-menta hover:underline">
-              ver tudo
+        <section className="mt-10 rounded-2xl panel p-4">
+          <p className="text-sm text-areia">
+            Peça entregue, biblioteca de referências e templates ficam reunidos em{" "}
+            <Link href="/criacoes" className="text-menta hover:underline">
+              Criações
             </Link>
-          </div>
-          {referencias.length > 0 ? (
-            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
-              {referencias.map((r) => (
-                <div key={r.id} className="rounded-xl panel p-3">
-                  <p className="truncate text-xs font-medium text-areia">{r.title}</p>
-                  {r.description && <p className="mt-1 line-clamp-2 text-[11px] text-areia/40">{r.description}</p>}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-3 rounded-2xl panel p-4 text-sm text-areia/40">
-              Você ainda não tem referências salvas —{" "}
-              <Link href="/referencias" className="text-menta hover:underline">
-                comece adicionando uma
-              </Link>
-              .
-            </p>
-          )}
-        </section>
-
-        <section className="mt-10">
-          <p className="mono-label mb-3 text-areia/50">Entregas</p>
-          <ArtifactLibrary artefatos={artefatos} vazio="Nenhuma peça de design entregue ainda." />
+            .
+          </p>
         </section>
       </div>
 

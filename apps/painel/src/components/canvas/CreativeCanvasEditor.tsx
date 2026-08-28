@@ -402,7 +402,7 @@ export default function CreativeCanvasEditor({ projectId, clienteId, tituloInici
     <div className="flex h-[calc(100vh-2.5rem)] flex-col">
       <div className="flex items-center justify-between gap-3 border-b border-areia/10 px-4 py-2.5">
         <div className="flex items-center gap-3">
-          <Link href="/criacoes/canvas" className="text-areia/40 hover:text-menta">
+          <Link href="/design/canvas" className="text-areia/40 hover:text-menta">
             ← canvas
           </Link>
           <input

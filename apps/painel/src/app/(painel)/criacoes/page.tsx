@@ -5,17 +5,13 @@ import { buscarArtefatos, buscarVideosFinalizados } from "@/lib/artifacts/fetchA
 import { agruparPorCampanha } from "@/lib/artifacts/agruparPorCampanha";
 import { AreaIconBadge, ÍCONE_POR_HREF } from "@/components/ui/areaIcons";
 import CriacoesGaleria from "./CriacoesGaleria";
-import NovoProjetoBotao from "./NovoProjetoBotao";
 
 const ENTRADAS = [
-  { href: "/design", titulo: "Criar uma peça", descricao: "Wizard de 4 passos — objetivo, formato, referência e ajustes." },
+  { href: "/design", titulo: "Criar uma peça", descricao: "Wizard guiado ou canvas de nós — objetivo, formato, referência e ajustes." },
   { href: "/videomaker/editor", titulo: "Criar um vídeo", descricao: "Envie um arquivo de origem e monte a timeline." },
   { href: "/referencias", titulo: "Usar uma referência", descricao: "Biblioteca curada + suas próprias referências." },
   { href: "/templates", titulo: "Usar uma receita", descricao: "Templates prontos de agência, já com os campos guiados." },
   { href: "/entregas", titulo: "Ver entregas", descricao: "Tudo já entregue, organizado por campanha." },
-  // Fase 3 do VETOR Manager V2 — modo avançado opcional, nunca obrigatório
-  // pro fluxo principal (o wizard/chat continuam sendo o caminho padrão).
-  { href: "/criacoes/canvas", titulo: "Creative Canvas", descricao: "Modo avançado — monte o fluxo de criação visualmente em nodes." },
 ] as const;
 
 // Fase 3 do Vetor Manager (área "Criações") — hub único de entrada pra
@@ -24,11 +20,16 @@ const ENTRADAS = [
 // destino de link ou como fonte de dado), só unifica onde o cliente chega
 // primeiro quando quer criar ou revisar algo visual.
 //
-// Reorganização de menus (achado ao vivo: a galeria de "em produção"/"com
-// falha" daqui duplicava exatamente o que já mora nos workspaces de /design
-// e /videomaker) — Criações não busca mais peça em progresso, só o que já
-// foi concluído (biblioteca finalizada + entregas por campanha). Quem quer
-// ver o trabalho em andamento de um agente específico vai no workspace dele.
+// Reorganização de menus (achado ao vivo, 2 rodadas): 1ª — a galeria de "em
+// produção"/"com falha" daqui duplicava o que já mora nos workspaces de
+// /design e /videomaker, removida. 2ª (esta) — Criações tinha DOIS pontos
+// de entrada pra criar algo (esta grade + o botão "+Novo projeto" com um
+// modal próprio) e o Design tinha um TERCEIRO (linha de atalhos pra
+// referência/template/campanha), tudo se sobrepondo. Agora só existe um:
+// esta grade decide o DEPARTAMENTO (Design/Vídeo/Referência/Receita/
+// Entregas); uma vez dentro do departamento, ele decide COMO criar (ex:
+// Design oferece wizard ou canvas). Criações nunca mais é "o lugar onde o
+// trabalho acontece", só o hub + a biblioteca do que já foi feito.
 export default async function CriacoesPage() {
   const supabase = await createSupabaseServerClient();
   const ativo = await resolverClienteAtivo(supabase);
@@ -62,19 +63,14 @@ export default async function CriacoesPage() {
   return (
     <div className="px-6 py-10">
       <div className="mx-auto max-w-6xl">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <AreaIconBadge href="/criacoes" />
           <div>
-            <div className="flex items-center gap-3">
-              <AreaIconBadge href="/criacoes" />
-              <div>
-                <p className="font-mono text-xs uppercase tracking-wide text-areia/40">VETOR / CRIAÇÕES</p>
-                <h1 className="text-2xl font-bold text-areia">Criações</h1>
-              </div>
-            </div>
-            <p className="mt-2 text-sm text-areia/60">Tudo o que o VETOR produz para sua marca.</p>
+            <p className="font-mono text-xs uppercase tracking-wide text-areia/40">VETOR / CRIAÇÕES</p>
+            <h1 className="text-2xl font-bold text-areia">Criações</h1>
           </div>
-          <NovoProjetoBotao clienteId={clienteId} />
         </div>
+        <p className="mt-2 text-sm text-areia/60">Tudo o que o VETOR produz para sua marca. Escolha onde criar, ou navegue pelo que já foi feito abaixo.</p>
 
         <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {ENTRADAS.map((e, i) => {

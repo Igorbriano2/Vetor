@@ -14,7 +14,7 @@ export default function NovoProjetoCanvasBotao({ clienteId }: { clienteId: strin
     const supabase = createSupabaseBrowserClient();
     const id = await criarProjetoCanvas(supabase, clienteId);
     setCriando(false);
-    if (id) router.push(`/criacoes/canvas/${id}`);
+    if (id) router.push(`/design/canvas/${id}`);
   }
 
   return (

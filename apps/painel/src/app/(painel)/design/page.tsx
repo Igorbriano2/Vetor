@@ -1,5 +1,4 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { buscarArtefatos } from "@/lib/artifacts/fetchArtifacts";
 import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 import DesignCommandCenter from "./DesignCommandCenter";
 
@@ -9,6 +8,12 @@ import DesignCommandCenter from "./DesignCommandCenter";
 // andamento, campanhas e biblioteca visual na primeira dobra. Nenhum caminho
 // de criação novo — o wizard só monta um PlanoConfirmado e reusa
 // criarMissaoDeIntencao via /api/missoes, igual ao VetorIntentCard.
+//
+// Reorganização de menus (2ª rodada, ver comentário em /criacoes/page.tsx)
+// — /design não busca mais "artefatos" pra uma galeria de entregues própria:
+// isso já vive em /criacoes (biblioteca agregada), mostrar aqui também era
+// duplicação. Esta página fica só com o que é exclusivo do departamento:
+// trabalho em andamento, campanhas e projetos editáveis.
 export default async function DesignPage() {
   const supabase = await createSupabaseServerClient();
   const ativo = await resolverClienteAtivo(supabase);
@@ -19,14 +24,12 @@ export default async function DesignPage() {
   }
 
   const [
-    artefatos,
     { data: projetos },
     { data: etapasEmAndamento },
     { data: brandKit },
     { data: referenciasPreview },
     { data: assetsDrive },
   ] = await Promise.all([
-    buscarArtefatos(supabase, { departamentos: ["design"], clienteId }),
     supabase
       .from("design_projects")
       .select("id, title, version, status, thumbnail_url, updated_at, mission_id, design_brief, missions(titulo)")
@@ -119,7 +122,6 @@ export default async function DesignPage() {
         missionTitulo: (p.missions as unknown as { titulo?: string } | null)?.titulo ?? null,
         designBrief: p.design_brief as string | null,
       }))}
-      artefatos={artefatos}
       referencias={(referenciasPreview ?? []).map((r) => ({
         id: r.id as string,
         title: r.title as string,

@@ -113,7 +113,7 @@ export const ÍCONE_POR_HREF: Record<string, React.ReactNode> = {
       <path d="M4 8l8 4.5L20 8M12 12.5V21" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
     </svg>
   ),
-  "/criacoes/canvas": (
+  "/design/canvas": (
     <svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden="true">
       <circle cx="5.5" cy="6" r="2" stroke="currentColor" strokeWidth="1.6" />
       <circle cx="18.5" cy="6" r="2" stroke="currentColor" strokeWidth="1.6" />
