@@ -32,6 +32,24 @@ function escaparCaminhoParaFiltroSubtitles(caminho: string): string {
   return caminho.replace(/\\/g, "\\\\").replace(/:/g, "\\:");
 }
 
+// Achado ao vivo (redesign, pedido explícito de tela "igual CapCut/
+// Premiere"): o filtro `subtitles=` sem nenhum force_style usa o padrão
+// cru do libass — texto branco pequeno sem fundo, ilegível em cima de
+// vídeo claro e nada parecido com a legenda em caixa que toda rede social
+// usa hoje. force_style aplica direto no libass (o mesmo motor que já
+// renderiza o .srt, nenhuma dependência nova): texto maior e em negrito,
+// caixa semitransparente atrás (BorderStyle=3 = modo "caixa opaca", nunca
+// só contorno), ancorado embaixo com respiro da borda. Sem FontName de
+// propósito — não dependemos de uma fonte específica estar instalada no
+// container do render, o fallback do fontconfig já resolve pra uma fonte
+// sans real.
+const ESTILO_LEGENDA_FORCADO =
+  "FontSize=22,Bold=1,PrimaryColour=&H00FFFFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=70,Alignment=2";
+
+function filtroSubtitlesComEstilo(srtPath: string): string {
+  return `subtitles=${escaparCaminhoParaFiltroSubtitles(srtPath)}:force_style='${ESTILO_LEGENDA_FORCADO}'`;
+}
+
 export function montarArgsFfmpegRenderFinal(opcoes: OpcoesRenderFinal): string[] {
   const trimInSeg = (opcoes.trimInMs / 1000).toFixed(3);
   const duracaoSeg = ((opcoes.trimOutMs - opcoes.trimInMs) / 1000).toFixed(3);
@@ -39,7 +57,7 @@ export function montarArgsFfmpegRenderFinal(opcoes: OpcoesRenderFinal): string[]
   const args = ["-y", "-i", opcoes.inputPath, "-ss", trimInSeg, "-t", duracaoSeg];
 
   if (opcoes.legendasSrtPath) {
-    args.push("-vf", `subtitles=${escaparCaminhoParaFiltroSubtitles(opcoes.legendasSrtPath)}`);
+    args.push("-vf", filtroSubtitlesComEstilo(opcoes.legendasSrtPath));
   }
 
   args.push(
@@ -167,7 +185,7 @@ export function montarArgsFfmpegConcatMultiClip(opcoes: OpcoesRenderFinalMultiCl
 
   let mapaVideo = "[vout]";
   if (opcoes.legendasSrtPath) {
-    filtros.push(`[vout]subtitles=${escaparCaminhoParaFiltroSubtitles(opcoes.legendasSrtPath)}[vlegendado]`);
+    filtros.push(`[vout]${filtroSubtitlesComEstilo(opcoes.legendasSrtPath)}[vlegendado]`);
     mapaVideo = "[vlegendado]";
   }
 

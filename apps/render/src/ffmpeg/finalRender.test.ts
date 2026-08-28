@@ -47,7 +47,9 @@ describe("montarArgsFfmpegRenderFinal", () => {
       legendasSrtPath: "/tmp/legendas.srt",
     });
     expect(args).toContain("-vf");
-    expect(args[args.indexOf("-vf") + 1]).toBe("subtitles=/tmp/legendas.srt");
+    const filtro = args[args.indexOf("-vf") + 1]!;
+    expect(filtro).toContain("subtitles=/tmp/legendas.srt");
+    expect(filtro).toContain("force_style=");
   });
 
   it("escapa ':' no caminho do .srt (sintaxe do filtro subtitles usa ':' como separador de opção)", () => {
@@ -58,7 +60,7 @@ describe("montarArgsFfmpegRenderFinal", () => {
       trimOutMs: 1000,
       legendasSrtPath: "C:\\pasta\\legendas.srt",
     });
-    expect(args[args.indexOf("-vf") + 1]).toBe("subtitles=C\\:\\\\pasta\\\\legendas.srt");
+    expect(args[args.indexOf("-vf") + 1]).toContain("subtitles=C\\:\\\\pasta\\\\legendas.srt");
   });
 
   it("sempre reencoda em libx264/aac com faststart (entregável final, nunca stream-copy)", () => {
@@ -188,7 +190,9 @@ describe("montarArgsFfmpegConcatMultiClip", () => {
       legendasSrtPath: "/tmp/legendas.srt",
     });
     const filtro = args[args.indexOf("-filter_complex") + 1];
-    expect(filtro).toContain("[vout]subtitles=/tmp/legendas.srt[vlegendado]");
+    expect(filtro).toContain("[vout]subtitles=/tmp/legendas.srt");
+    expect(filtro).toContain("force_style=");
+    expect(filtro).toContain("[vlegendado]");
     expect(args[args.indexOf("-map") + 1]).toBe("[vlegendado]");
   });
 
