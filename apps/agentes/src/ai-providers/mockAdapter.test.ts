@@ -2,14 +2,18 @@ import { describe, expect, it, vi } from "vitest";
 import { MockAdapter, MODELOS_MOCK } from "./mockAdapter.js";
 
 describe("MockAdapter", () => {
-  it("listModels devolve pelo menos 1 modelo featured por kind", async () => {
+  it("listModels devolve pelo menos 1 modelo featured por kind sem provider real", async () => {
+    // "voice" fica de fora aqui: desde o FishAudioAdapter (provider real),
+    // o featured de voice é dele, não do mock — ver
+    // apps/agentes/src/ai-providers/fishAudioAdapter.ts.
     const adapter = new MockAdapter();
     const modelos = await adapter.listModels();
-    for (const kind of ["image", "video", "voice", "3d"] as const) {
+    for (const kind of ["image", "video", "3d"] as const) {
       const doKind = modelos.filter((m) => m.kind === kind);
       expect(doKind.length).toBeGreaterThan(0);
       expect(doKind.some((m) => m.status === "featured")).toBe(true);
     }
+    expect(modelos.some((m) => m.kind === "voice")).toBe(true);
   });
 
   it("generate devolve um jobId, getJobStatus começa em queued", async () => {

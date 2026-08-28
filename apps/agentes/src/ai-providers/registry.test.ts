@@ -15,6 +15,11 @@ describe("ai-providers/registry — fluxo fim a fim (Fase 1 do prompt-mestre)", 
     expect(modelo.id).toBe(alvo.id);
   });
 
+  it("resolverModelo 'auto' pra voice escolhe o provider real (FishAudio), não o mock", async () => {
+    const modelo = await resolverModelo({ kind: "voice", modelId: "auto" });
+    expect(modelo.providerId).toBe("fishaudio");
+  });
+
   it("resolverModelo com id inexistente lança erro claro, nunca inventa um modelo", async () => {
     await expect(resolverModelo({ kind: "image", modelId: "modelo-que-nao-existe" })).rejects.toThrow(/não encontrado/);
   });

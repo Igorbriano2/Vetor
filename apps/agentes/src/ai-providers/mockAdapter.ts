@@ -64,7 +64,7 @@ export const MODELOS_MOCK: AIModel[] = [
     capabilities: { audio: true },
     costCredits: 3,
     avgLatencyMs: 3000,
-    status: "featured",
+    status: "available", // FishAudioAdapter (provider real) é o featured agora — ver fishAudioAdapter.ts
   },
   {
     id: "mock-3d-padrao",

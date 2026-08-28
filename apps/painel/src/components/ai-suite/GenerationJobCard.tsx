@@ -51,13 +51,32 @@ export default function GenerationJobCard({ jobInicial }: { jobInicial: Generati
     <div className="overflow-hidden rounded-2xl panel">
       <div className="flex h-40 w-full items-center justify-center bg-petroleo-2">
         {job.status === "done" && job.result_asset_urls.length > 0 ? (
-          <div className="grid h-full w-full grid-cols-2 gap-px bg-areia/5">
-            {job.result_asset_urls.slice(0, 4).map((url) => (
-              <div key={url} className="flex items-center justify-center bg-petroleo-2 font-mono text-[9px] text-areia/30">
-                {ehMock ? "pré-visualização (mock)" : url}
-              </div>
-            ))}
-          </div>
+          ehMock ? (
+            <div className="grid h-full w-full grid-cols-2 gap-px bg-areia/5">
+              {job.result_asset_urls.slice(0, 4).map((url) => (
+                <div key={url} className="flex items-center justify-center bg-petroleo-2 font-mono text-[9px] text-areia/30">
+                  pré-visualização (mock)
+                </div>
+              ))}
+            </div>
+          ) : job.kind === "voice" ? (
+            <div className="flex w-full flex-col gap-2 px-4">
+              {job.result_asset_urls.map((url) => (
+                <audio key={url} controls src={url} className="w-full" />
+              ))}
+            </div>
+          ) : job.kind === "image" ? (
+            <div className="grid h-full w-full grid-cols-2 gap-px bg-areia/5">
+              {job.result_asset_urls.slice(0, 4).map((url) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={url} src={url} alt="" className="h-full w-full object-cover" />
+              ))}
+            </div>
+          ) : job.kind === "video" ? (
+            <video controls src={job.result_asset_urls[0]} className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center font-mono text-[10px] text-areia/40">Concluído</div>
+          )
         ) : job.status === "failed" ? (
           <p className="px-4 text-center text-xs text-coral">{job.error ?? "Falha na geração"}</p>
         ) : (

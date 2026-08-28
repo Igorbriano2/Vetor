@@ -14,6 +14,7 @@
 // degradação aceitável.
 
 import { executarComFallback, TodosOsProvedoresFalharamError, type ProvedorRegistrado } from "../providers/router.js";
+import { chamarFishAudioTTS } from "./fishAudioClient.js";
 
 function isSandbox() {
   return (process.env.TTS_PROVIDER ?? "sandbox") === "sandbox";
@@ -76,29 +77,7 @@ async function sintetizarComFishAudio(texto: string): Promise<AudioSintetizado> 
 
   const modelo = process.env.FISH_AUDIO_MODEL ?? "s2.1-pro-free";
 
-  const res = await fetch("https://api.fish.audio/v1/tts", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      model: modelo,
-    },
-    body: JSON.stringify({
-      text: texto,
-      reference_id: referenceId,
-      format: "opus",
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Falha na síntese de voz via Fish Audio (${res.status}): ${body}`);
-  }
-
-  return {
-    bytes: await res.arrayBuffer(),
-    mimeType: "audio/ogg",
-  };
+  return chamarFishAudioTTS({ apiKey, texto, referenceId, modelo, format: "opus" });
 }
 
 const PROVEDOR_OPENAI: ProvedorRegistrado<string, AudioSintetizado> = {
