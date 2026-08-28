@@ -33,7 +33,10 @@ const GRUPOS_NAV: Array<{ titulo: string | null; itens: Array<{ href: string; la
     // caminho de criação, paralelo ao fluxo de agente acima. Cresce fase a
     // fase (Fase 3: Imagem; próximas fases acrescentam Vídeo/Voz/3D).
     titulo: "Suíte de IA",
-    itens: [{ href: "/imagem", label: "Imagem" }],
+    itens: [
+      { href: "/imagem", label: "Imagem" },
+      { href: "/video-ia", label: "Vídeo IA" },
+    ],
   },
 ];
 
