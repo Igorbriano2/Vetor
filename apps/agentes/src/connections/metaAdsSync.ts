@@ -20,6 +20,28 @@ export class ContaDeAnuncioNaoConectadaError extends Error {}
 // fim nem um estágio "travado" silencioso.
 const TIMEOUT_GRAPH_API_MS = 15_000;
 
+// Achado ao vivo pré-demo (depois do fix de timeout acima): mesmo sem
+// travar, sincronizarTrafego processava campanha por campanha, anúncio por
+// anúncio, tudo sequencial — com 12 campanhas reais (uma com 15 anúncios) a
+// sincronização passou de 2 minutos rodando sem terminar. Concorrência
+// limitada (nunca ilimitada — a Graph API tem rate limit por app/token,
+// um Promise.all sem limite arriscaria 429 em massa) troca "minutos" por
+// "segundos" sem martelar a API.
+const CONCORRENCIA_GRAPH_API = 5;
+
+async function mapComLimite<T, R>(itens: T[], limite: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const resultados: R[] = new Array(itens.length);
+  let indice = 0;
+  async function worker(): Promise<void> {
+    while (indice < itens.length) {
+      const i = indice++;
+      resultados[i] = await fn(itens[i]!);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limite, itens.length) }, () => worker()));
+  return resultados;
+}
+
 async function fetchGraphApi(url: string): Promise<Response> {
   try {
     return await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_GRAPH_API_MS) });
@@ -337,7 +359,7 @@ async function sincronizarCriativosDaCampanha(
     if (!resAds.ok) return;
     const anuncios = ((await resAds.json()) as { data: AdGraph[] }).data ?? [];
 
-    for (const anuncio of anuncios) {
+    await mapComLimite(anuncios, CONCORRENCIA_GRAPH_API, async (anuncio) => {
       const resInsights = await fetchGraphApi(
         graphApiUrl(`/${anuncio.id}/insights?fields=${CAMPOS_INSIGHTS}&date_preset=${datePreset}`) +
           `&access_token=${encodeURIComponent(accessToken)}`,
@@ -357,7 +379,7 @@ async function sincronizarCriativosDaCampanha(
         },
         { onConflict: "meta_ad_id" },
       );
-    }
+    });
   } catch (err) {
     console.error(`Falha ao sincronizar criativos da campanha ${metaCampaignId}:`, err);
   }
@@ -387,7 +409,7 @@ export async function sincronizarTrafego(clienteId: string, datePreset: string =
   const metricasAgregadas = { spend: 0, impressions: 0, reach: 0, clicks: 0, compras: 0, receita: 0 };
   const metricasPorCampanha: Array<{ nome: string; insight: InsightGraph | undefined }> = [];
 
-  for (const campanha of campanhas) {
+  await mapComLimite(campanhas, CONCORRENCIA_GRAPH_API, async (campanha) => {
     const resInsights = await fetchGraphApi(
       graphApiUrl(`/${campanha.id}/insights?fields=${CAMPOS_INSIGHTS}&date_preset=${datePreset}`) +
         `&access_token=${encodeURIComponent(conexao.accessToken)}`,
@@ -436,7 +458,7 @@ export async function sincronizarTrafego(clienteId: string, datePreset: string =
     if (campanhaSalva) {
       await sincronizarCriativosDaCampanha(clienteId, campanhaSalva.id as string, campanha.id, conexao.accessToken, datePreset);
     }
-  }
+  });
 
   const periodoLabel = RÓTULO_DATE_PRESET[datePreset] ?? datePreset;
   const analiseGestor = await gerarAnaliseDoGestor(campanhas, metricasPorCampanha, periodoLabel);
