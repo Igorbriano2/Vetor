@@ -374,6 +374,17 @@ body {
   }
 }
 
+/* Referência visual pedida pelo dono do produto (Gravyx): nome/marca com
+   leve gradiente cyan->quase-branco, nunca texto sólido plano. Usado só em
+   texto de destaque (marca, saudação) — nunca em corpo de texto, que precisa
+   de contraste uniforme pra legibilidade. */
+@utility text-gradient-menta {
+  background: linear-gradient(90deg, var(--color-menta) 0%, var(--color-areia) 120%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
 /* Design V2 Fase F — Spatial UI: profundidade real (perspective/rotateY/
    translateZ), não só um translateY como card-lift acima. Aplicado só no
    Creative Canvas (React Flow já tem nós que se sobrepõem com z-index —

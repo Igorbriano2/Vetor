@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 import { buscarArtefatos, buscarVideosFinalizados } from "@/lib/artifacts/fetchArtifacts";
 import { agruparPorCampanha } from "@/lib/artifacts/agruparPorCampanha";
+import { AreaIconBadge } from "@/components/ui/areaIcons";
 import CriacoesGaleria from "./CriacoesGaleria";
 import NovoProjetoBotao from "./NovoProjetoBotao";
 
@@ -63,8 +64,13 @@ export default async function CriacoesPage() {
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="font-mono text-xs uppercase tracking-wide text-areia/40">VETOR / CRIAÇÕES</p>
-            <h1 className="mt-1 text-2xl font-bold text-areia">Criações</h1>
+            <div className="flex items-center gap-3">
+              <AreaIconBadge href="/criacoes" />
+              <div>
+                <p className="font-mono text-xs uppercase tracking-wide text-areia/40">VETOR / CRIAÇÕES</p>
+                <h1 className="text-2xl font-bold text-areia">Criações</h1>
+              </div>
+            </div>
             <p className="mt-2 text-sm text-areia/60">Tudo o que o VETOR produz para sua marca.</p>
           </div>
           <NovoProjetoBotao clienteId={clienteId} />

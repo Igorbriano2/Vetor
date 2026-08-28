@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
+import { AreaIconBadge } from "@/components/ui/areaIcons";
 import TrafegoPainel from "./TrafegoPainel";
 
 // Navegação por especialista — Tráfego deixa de ser uma aba escondida dentro
@@ -45,8 +46,13 @@ export default async function TrafegoPage() {
   return (
     <div className="px-6 py-10">
       <div className="mx-auto max-w-6xl">
-        <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
-        <h1 className="mt-1 text-2xl font-bold text-areia">Tráfego</h1>
+        <div className="flex items-center gap-3">
+          <AreaIconBadge href="/trafego" />
+          <div>
+            <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
+            <h1 className="text-2xl font-bold text-areia">Tráfego</h1>
+          </div>
+        </div>
         <p className="mt-2 text-sm text-areia/60">Gestor de tráfego pago: campanhas, criativos e análise do gestor.</p>
 
         <div className="mt-6">

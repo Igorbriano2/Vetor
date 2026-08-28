@@ -1,5 +1,6 @@
 import Link from "next/link";
 import StatusBadge from "@/components/StatusBadge";
+import { AreaIconBadge } from "@/components/ui/areaIcons";
 
 interface Trafego {
   spend: number;
@@ -83,8 +84,13 @@ export default function AnaliticoView({
   return (
     <div className="px-6 py-10">
       <div className="mx-auto max-w-6xl">
-        <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
-        <h1 className="mt-1 text-2xl font-bold text-areia">Analítico</h1>
+        <div className="flex items-center gap-3">
+          <AreaIconBadge href="/analitico" />
+          <div>
+            <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
+            <h1 className="text-2xl font-bold text-areia">Analítico</h1>
+          </div>
+        </div>
         <p className="mt-2 max-w-2xl text-sm text-areia/60">
           Visão consolidada de tráfego, criações, missões e custo real de operação — dado agregado de tudo que as
           outras áreas já produzem, num lugar só.

@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buscarArtefatos } from "@/lib/artifacts/fetchArtifacts";
 import { resolverClienteAtivo } from "@/lib/workspace/resolverClienteAtivo";
 import ArtifactLibrary from "@/components/ArtifactLibrary";
+import { AreaIconBadge } from "@/components/ui/areaIcons";
 import VideomakerUpload from "./VideomakerUpload";
 import { calcularProgresso, LABEL_ETAPA_REAL } from "@/lib/video/pipelineProgress";
 
@@ -51,8 +52,13 @@ export default async function VideomakerPage() {
       <div className="mx-auto max-w-6xl">
         <div className="flex items-start justify-between">
           <div>
-            <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
-            <h1 className="mt-1 text-2xl font-bold text-areia">Videomaker</h1>
+            <div className="flex items-center gap-3">
+              <AreaIconBadge href="/videomaker" />
+              <div>
+                <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
+                <h1 className="text-2xl font-bold text-areia">Videomaker</h1>
+              </div>
+            </div>
             <p className="mt-2 text-sm text-areia/60">
               Envie um arquivo de origem e descreva o que quer, ou peça direto pelo chat principal — o
               resultado aparece na biblioteca abaixo.

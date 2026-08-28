@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import StatusBadge from "@/components/StatusBadge";
 import ArtifactLibrary from "@/components/ArtifactLibrary";
+import { AreaIconBadge } from "@/components/ui/areaIcons";
 import type { ArtefatoBiblioteca } from "@/lib/artifacts/fetchArtifacts";
 import CriarPecaWizard, { type TemplatePreFill } from "./CriarPecaWizard";
 
@@ -123,8 +124,13 @@ export default function DesignCommandCenter({
   return (
     <div className="px-6 py-10">
       <div className="mx-auto max-w-6xl">
-        <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
-        <h1 className="mt-1 text-2xl font-bold text-areia">Design</h1>
+        <div className="flex items-center gap-3">
+          <AreaIconBadge href="/design" />
+          <div>
+            <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
+            <h1 className="text-2xl font-bold text-areia">Design</h1>
+          </div>
+        </div>
         <p className="mt-2 max-w-2xl text-sm text-areia/60">
           O departamento de criação do Vetor. Peça uma peça nova, se inspire numa referência, reaproveite um template
           ou acompanhe uma campanha em andamento — tudo aqui.

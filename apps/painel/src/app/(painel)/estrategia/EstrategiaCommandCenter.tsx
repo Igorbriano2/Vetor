@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import StatusBadge from "@/components/StatusBadge";
+import { AreaIconBadge } from "@/components/ui/areaIcons";
 import RotaEstrategicaView from "../planejamento/RotaEstrategicaView";
 import type { RotaEstrategica } from "../planejamento/rotaEstrategicaTipos";
 import NovaAnaliseWizard from "./NovaAnaliseWizard";
@@ -56,8 +57,13 @@ export default function EstrategiaCommandCenter({
   return (
     <div className="px-6 py-10">
       <div className="mx-auto max-w-6xl">
-        <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
-        <h1 className="mt-1 text-2xl font-bold text-areia">Estratégia</h1>
+        <div className="flex items-center gap-3">
+          <AreaIconBadge href="/estrategia" />
+          <div>
+            <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
+            <h1 className="text-2xl font-bold text-areia">Estratégia</h1>
+          </div>
+        </div>
         <p className="mt-2 max-w-2xl text-sm text-areia/60">
           Diagnóstico, hipóteses, rotas de ação e planos mensais do negócio. Peça uma análise nova, acompanhe o que
           está em andamento ou reveja o que já foi entregue.
