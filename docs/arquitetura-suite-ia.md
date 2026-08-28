@@ -85,6 +85,28 @@ foi populada com os mesmos 6 modelos (mesmos ids) só pra: (a) satisfazer a FK d
 duas fontes precisam ser mantidas em sincronia manualmente se um modelo mudar — documentado aqui
 pra não virar uma inconsistência silenciosa.
 
+### 3.2. `templates` (suíte de IA) vs. `design_flows` (já existente, `/templates`)
+
+Achado real na Fase 8: o Vetor já tem `design_flows` (`/templates`, "receitas prontas de agência")
+servindo um propósito muito parecido — abre o assistente de criação (`CriarPecaWizard`) já
+preenchido, disparando uma missão de agente de verdade. A tabela `templates` desta suíte é
+deliberadamente MAIS ESTREITA: só presets de prompt/config por nicho+mediaKind pro modo "estúdio
+direto" (`prompt_or_config` genérico, sem `tarefa_template`/missão nenhuma). Decisão: NÃO integrar
+o `<TemplateGallery/>` novo dentro de `/design` (que já tem seu próprio sistema mais maduro) — as
+duas tabelas convivem separadas por enquanto, cada uma alimentando seu próprio paradigma (agente vs.
+estúdio direto, ver seção 2). Unificar os dois é trabalho de uma rodada futura de consolidação,
+citado aqui pra nunca virar uma duplicação silenciosa.
+
+### 3.3. Fase 8 (Design: Auto layers) — bloqueada pela falta de provider real
+
+"Transformar em design editável" a partir de uma imagem gerada exigiria carregar o asset real como
+camada no Fabric.js (`DesignProjectEditor.tsx`). Com só o MockAdapter ativo, o "asset" de uma
+geração é uma URL fake (`mock://...`, nunca um arquivo de verdade — ver mockAdapter.ts) — não tem
+como abrir isso no editor sem fingir uma imagem que não existe, o que violaria o princípio "nunca
+finge sucesso" do produto inteiro. Esta ação fica pra quando o primeiro provider real (fal.ai/
+Replicate) estiver configurado — o código do botão é simples de adicionar depois, o bloqueio real é
+só a falta de asset de verdade pra carregar.
+
 ## 5. Vocabulário — nichos
 
 Reaproveita a mesma modelagem de nicho já usada em `templates.niche`: `restaurante | advocacia |
