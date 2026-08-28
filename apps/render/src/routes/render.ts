@@ -346,11 +346,24 @@ async function processarFinalMultiClip(
     captions?: CaptionCueSimples[];
   },
 ): Promise<void> {
-  const pastaTemp = await mkdtemp(join(tmpdir(), "vetor-render-multiclip-"));
-  const caminhoSaida = join(pastaTemp, "final.mp4");
-  const caminhoSrt = join(pastaTemp, "legendas.srt");
-
+  // Achado ao vivo (2026-08-28, mesma sessão do job assíncrono): antes,
+  // mkdtemp() ficava FORA do try/catch — igual ao handler síncrono
+  // original, onde isso era inofensivo (uma falha ali só derrubava a
+  // resposta HTTP daquela requisição, via o error handler do Express). Mas
+  // isso aqui roda "fire-and-forget" (void processarFinalMultiClip(...),
+  // sem ninguém esperando a promise) — qualquer exceção antes do try vira
+  // unhandled rejection, que em Node moderno pode derrubar o PROCESSO
+  // INTEIRO, órfãozinho o job pra sempre em "queued" (a linha nunca é
+  // atualizada porque o processo morre antes de chegar no catch). Por
+  // isso a função inteira agora é o try — nenhum caminho de erro escapa
+  // sem escrever "failed" na linha do job.
+  let pastaTempParaLimpeza: string | undefined;
   try {
+    const pastaTemp = await mkdtemp(join(tmpdir(), "vetor-render-multiclip-"));
+    pastaTempParaLimpeza = pastaTemp;
+    const caminhoSaida = join(pastaTemp, "final.mp4");
+    const caminhoSrt = join(pastaTemp, "legendas.srt");
+
     const clipesComCaminho = await Promise.all(
       params.clipes.map(async (clipe, i) => {
         const { data: baixado, error: erroDownload } = await supabase.storage.from(clipe.bucket).download(clipe.storagePath);
@@ -413,9 +426,18 @@ async function processarFinalMultiClip(
       .eq("id", jobId);
   } catch (err) {
     const mensagem = err instanceof FfmpegError ? err.message : err instanceof Error ? err.message : "erro desconhecido";
-    await supabase.from("render_jobs").update({ status: "failed", error: mensagem, updated_at: new Date().toISOString() }).eq("id", jobId);
+    // Também blindado: se a própria escrita de "failed" falhar (ex: Supabase
+    // fora do ar), a linha fica órfã em "queued"/"processing" pra sempre —
+    // mas ISSO nunca vira unhandled rejection e nunca derruba o processo,
+    // só fica logado (o teto de 5min do polling em apps/agentes ainda pega
+    // o caso, só sem a mensagem de erro real).
+    try {
+      await supabase.from("render_jobs").update({ status: "failed", error: mensagem, updated_at: new Date().toISOString() }).eq("id", jobId);
+    } catch (erroAoGravar) {
+      console.error(`processarFinalMultiClip: falha ao gravar status "failed" do job ${jobId}:`, erroAoGravar);
+    }
   } finally {
-    await rm(pastaTemp, { recursive: true, force: true });
+    if (pastaTempParaLimpeza) await rm(pastaTempParaLimpeza, { recursive: true, force: true }).catch(() => {});
   }
 }
 
@@ -477,6 +499,12 @@ renderRouter.post("/final-multi-clip", async (req, res) => {
     height,
     fps,
     captions: captions as CaptionCueSimples[] | undefined,
+  }).catch((err) => {
+    // processarFinalMultiClip já captura e grava tudo internamente — isso
+    // aqui é só o último cinto de segurança (nunca deve disparar de
+    // verdade) pra garantir que NADA vira unhandled rejection e derruba o
+    // processo, mesmo que um bug futuro reintroduza um caminho sem catch.
+    console.error(`processarFinalMultiClip: erro não capturado internamente para o job ${job.id}:`, err);
   });
 });
 
