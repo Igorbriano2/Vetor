@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { montarArgsFfmpegRenderFinal, montarArgsFfmpegConcatMultiClip, decomporSpeedEmCadeiaAtempo } from "./finalRender.js";
+import { montarArgsFfmpegRenderFinal, montarArgsFfmpegConcatMultiClip, decomporSpeedEmCadeiaAtempo, montarFiltroFadeDeCorte } from "./finalRender.js";
+
+describe("montarFiltroFadeDeCorte", () => {
+  it("clipe normal: fade de 30ms em cada ponta", () => {
+    const filtro = montarFiltroFadeDeCorte(4);
+    expect(filtro).toBe("afade=t=in:st=0:d=0.030,afade=t=out:st=3.970:d=0.030");
+  });
+
+  it("clipe curtíssimo (menos de 60ms): encolhe o fade pra nunca ultrapassar metade da duração", () => {
+    const filtro = montarFiltroFadeDeCorte(0.04);
+    expect(filtro).toBe("afade=t=in:st=0:d=0.020,afade=t=out:st=0.020:d=0.020");
+  });
+});
 
 describe("montarArgsFfmpegRenderFinal", () => {
   it("aplica trim (corte simples) via -ss/-t a partir do input original", () => {
@@ -121,6 +133,29 @@ describe("montarArgsFfmpegConcatMultiClip", () => {
     const filtro = args[args.indexOf("-filter_complex") + 1];
     expect(filtro).toContain("[v0][a0][v1][a1]concat=n=2:v=1:a=1[vout][aout]");
     expect(filtro).toContain("volume=0.500");
+  });
+
+  it("todo clipe de vídeo tem fade de corte no áudio — nunca um estalo audível na emenda entre clipes", () => {
+    const args = montarArgsFfmpegConcatMultiClip({
+      ...opcoesBase,
+      clipes: [
+        { inputPath: "/tmp/a.mp4", tipo: "video", trimInMs: 0, trimOutMs: 4000, speed: 1, volume: 1 },
+        { inputPath: "/tmp/b.mp4", tipo: "video", trimInMs: 0, trimOutMs: 4000, speed: 1, volume: 1 },
+      ],
+    });
+    const filtro = args[args.indexOf("-filter_complex") + 1];
+    expect((filtro.match(/afade=t=in/g) ?? []).length).toBe(2);
+    expect((filtro.match(/afade=t=out/g) ?? []).length).toBe(2);
+  });
+
+  it("fade de corte considera a duração PÓS-speed do áudio (clipe acelerado 2x fica com metade da duração)", () => {
+    const args = montarArgsFfmpegConcatMultiClip({
+      ...opcoesBase,
+      clipes: [{ inputPath: "/tmp/a.mp4", tipo: "video", trimInMs: 0, trimOutMs: 4000, speed: 2, volume: 1 }],
+    });
+    const filtro = args[args.indexOf("-filter_complex") + 1];
+    // 4s de trim / 2x speed = 2s de áudio real — fade-out começa em 2-0.03=1.970
+    expect(filtro).toContain("afade=t=out:st=1.970:d=0.030");
   });
 
   it("clipe com speed != 1 aplica setpts e atempo — nunca acelera o vídeo sem acelerar o áudio junto", () => {

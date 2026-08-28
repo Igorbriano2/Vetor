@@ -65,6 +65,22 @@ export function montarArgsFfmpegRenderFinal(opcoes: OpcoesRenderFinal): string[]
 // em câmera lenta extrema (0.25x) ou acelerado além de 2x precisa de vários
 // `atempo` encadeados, nunca um valor fora do intervalo suportado (o ffmpeg
 // rejeita o filtro nesse caso, silenciosamente quebrando o áudio do clipe).
+// Achado em pesquisa (auditoria de ferramentas de edição orientadas a IA,
+// ver docs/relatorio-manha.md) — cada corte na timeline vira um salto
+// abrupto de amplitude entre o fim de um clipe e o começo do próximo, e
+// isso se ouve como um "pop"/estalo audível, mesmo em cortes tecnicamente
+// corretos. Fade de 30ms em cada ponta do áudio de todo clipe de vídeo
+// (curto o bastante pra nunca ser percebido como fade, longo o bastante
+// pra eliminar o clique) resolve isso — mesmo princípio que editores de
+// vídeo profissionais aplicam por padrão em todo corte.
+const FADE_CORTE_SEGUNDOS = 0.03;
+
+export function montarFiltroFadeDeCorte(duracaoAudioSeg: number): string {
+  const fade = Math.min(FADE_CORTE_SEGUNDOS, duracaoAudioSeg / 2);
+  const inicioFadeOut = Math.max(0, duracaoAudioSeg - fade);
+  return `afade=t=in:st=0:d=${fade.toFixed(3)},afade=t=out:st=${inicioFadeOut.toFixed(3)}:d=${fade.toFixed(3)}`;
+}
+
 export function decomporSpeedEmCadeiaAtempo(speed: number): string[] {
   if (!(speed > 0)) throw new Error(`speed inválido pra atempo: ${speed}`);
   const fatores: number[] = [];
@@ -134,8 +150,14 @@ export function montarArgsFfmpegConcatMultiClip(opcoes: OpcoesRenderFinalMultiCl
     } else {
       args.push("-i", clipe.inputPath);
       const cadeiaAtempo = clipe.speed !== 1 ? `${decomporSpeedEmCadeiaAtempo(clipe.speed).join(",")},` : "";
+      // atempo já mudou a duração real do áudio (2x mais rápido = metade
+      // da duração) — o fade de corte precisa ser calculado em cima da
+      // duração PÓS-speed, não da duração do trim original, senão o
+      // fade-out cai fora (ou no meio) do trecho de áudio de verdade.
+      const duracaoAudioPosSpeedSeg = duracaoSeg / clipe.speed;
+      const fadeDeCorte = montarFiltroFadeDeCorte(duracaoAudioPosSpeedSeg);
       filtros.push(`[${i}:v]trim=start=${trimInSeg.toFixed(3)}:end=${trimOutSeg.toFixed(3)},setpts=(PTS-STARTPTS)/${clipe.speed},${formato}[v${i}]`);
-      filtros.push(`[${i}:a]atrim=start=${trimInSeg.toFixed(3)}:end=${trimOutSeg.toFixed(3)},asetpts=PTS-STARTPTS,${cadeiaAtempo}volume=${clipe.volume.toFixed(3)}[a${i}]`);
+      filtros.push(`[${i}:a]atrim=start=${trimInSeg.toFixed(3)}:end=${trimOutSeg.toFixed(3)},asetpts=PTS-STARTPTS,${cadeiaAtempo}volume=${clipe.volume.toFixed(3)},${fadeDeCorte}[a${i}]`);
     }
 
     labelsConcat.push(`[v${i}][a${i}]`);
