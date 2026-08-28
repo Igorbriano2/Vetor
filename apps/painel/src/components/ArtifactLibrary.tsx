@@ -66,7 +66,9 @@ export default function ArtifactLibrary({
 
           <div className="flex flex-1 flex-col gap-2 p-4">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-mono text-[10px] uppercase tracking-wide text-areia/40">{LABEL_TIPO[a.type] ?? a.type}</span>
+              <span className="rounded-full border border-menta/25 bg-menta/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-menta">
+                {LABEL_TIPO[a.type] ?? a.type}
+              </span>
               <StatusBadge status={a.status === "ready" ? "concluida" : a.status} />
             </div>
             <p className="text-sm font-medium text-areia">{a.title}</p>

@@ -83,7 +83,8 @@ export default async function CriacoesPage() {
               href={e.href}
               className="rounded-2xl card-lift panel p-4"
             >
-              <p className="font-medium text-areia">{e.titulo}</p>
+              <AreaIconBadge href={e.href} />
+              <p className="mt-3 font-medium text-areia">{e.titulo}</p>
               <p className="mt-1 text-xs text-areia/50">{e.descricao}</p>
             </Link>
           ))}
