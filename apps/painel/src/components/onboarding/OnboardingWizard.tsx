@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { AreaIconBadge } from "@/components/ui/areaIcons";
 import {
   type BusinessProfileForm,
   type BrandKitForm,
@@ -203,8 +204,13 @@ export default function OnboardingWizard({ clienteId, perfilInicial, brandKitIni
 
   return (
     <div className="mx-auto max-w-3xl">
-      <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
-      <h1 className="mt-1 text-2xl font-bold text-areia">Conhecendo o seu negócio</h1>
+      <div className="flex items-center gap-3">
+        <AreaIconBadge href="/configuracoes/negocio" />
+        <div>
+          <p className="font-mono text-xs uppercase tracking-wide text-areia/40">Vetor</p>
+          <h1 className="text-2xl font-bold text-areia">Conhecendo o seu negócio</h1>
+        </div>
+      </div>
       <p className="mt-2 text-sm text-areia/60">
         Antes de executar sua primeira missão, preciso conhecer sua empresa. Vou fazer algumas perguntas rápidas
         e organizar tudo para que minhas decisões sejam mais precisas.
